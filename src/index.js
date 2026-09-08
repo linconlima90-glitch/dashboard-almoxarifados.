@@ -17,7 +17,7 @@ function safeEqual(a, b) {
 
 class DashboardInjector {
   element(element) {
-    element.append('<script src="/stock-update.js?v=20260908"></script><script src="/purchase-variation.js?v=20260908"></script>', { html: true });
+    element.append('<script src="/stock-update.js?v=20260908"></script><script src="/purchase-update.js?v=20260908-2"></script><script src="/purchase-variation.js?v=20260908-2"></script>', { html: true });
   }
 }
 
