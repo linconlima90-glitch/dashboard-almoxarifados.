@@ -15,9 +15,9 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
-class StockUpdateInjector {
+class DashboardInjector {
   element(element) {
-    element.append('<script src="/stock-update.js?v=20260908"></script>', { html: true });
+    element.append('<script src="/stock-update.js?v=20260908"></script><script src="/purchase-variation.js?v=20260908"></script>', { html: true });
   }
 }
 
@@ -51,7 +51,7 @@ export default {
     const url = new URL(request.url);
     const contentType = response.headers.get('content-type') || '';
     if ((url.pathname === '/' || url.pathname.endsWith('.html')) && contentType.includes('text/html')) {
-      response = new HTMLRewriter().on('body', new StockUpdateInjector()).transform(response);
+      response = new HTMLRewriter().on('body', new DashboardInjector()).transform(response);
     }
 
     const headers = new Headers(response.headers);
