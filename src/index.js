@@ -17,7 +17,7 @@ function safeEqual(a, b) {
 
 class DashboardInjector {
   element(element) {
-    element.append('<script src="/stock-update.js?v=20260908"></script><script src="/stock-latest-data.js?v=20260908-1530"></script><script src="/stock-latest.js?v=20260908-1530"></script><script src="/purchase-update.js?v=20260908-2"></script><script src="/purchase-variation.js?v=20260908-2"></script><script src="/quote-update-newfix-45978601.js?v=20260908"></script><script src="/quote-update-lima-ferramentas-03092026.js?v=20260908"></script><script src="/quote-update-casa-parafusos-24796.js?v=20260908"></script>', { html: true });
+    element.append('<script src="/stock-update.js?v=20260908"></script><script src="/stock-latest-data.js?v=20260908-1530"></script><script src="/stock-latest.js?v=20260908-1530"></script><script src="/purchase-update.js?v=20260908-2"></script><script src="/purchase-variation.js?v=20260908-2"></script><script src="/quote-update-newfix-45978601.js?v=20260908"></script><script src="/quote-update-lima-ferramentas-03092026.js?v=20260908"></script><script src="/quote-update-casa-parafusos-24796.js?v=20260908"></script><script src="/quote-update-amev-26093.js?v=20260908"></script>', { html: true });
   }
 }
 
