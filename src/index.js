@@ -15,36 +15,45 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
+class StockUpdateInjector {
+  element(element) {
+    element.append('<script src="/stock-update.js?v=20260908"></script>', { html: true });
+  }
+}
+
 export default {
   async fetch(request, env) {
-    // Enquanto a senha secreta ainda não estiver cadastrada na Cloudflare,
-    // o dashboard continua acessível para evitar indisponibilidade acidental.
-    if (!env.DASHBOARD_PASSWORD) {
-      return env.ASSETS.fetch(request);
+    if (env.DASHBOARD_PASSWORD) {
+      const auth = request.headers.get('Authorization') || '';
+      if (!auth.startsWith('Basic ')) return unauthorized();
+
+      let decoded = '';
+      try {
+        decoded = atob(auth.slice(6));
+      } catch {
+        return unauthorized();
+      }
+
+      const sep = decoded.indexOf(':');
+      if (sep < 0) return unauthorized();
+
+      const user = decoded.slice(0, sep);
+      const password = decoded.slice(sep + 1);
+      const expectedUser = env.DASHBOARD_USER || 'gestao';
+
+      if (!safeEqual(user, expectedUser) || !safeEqual(password, env.DASHBOARD_PASSWORD)) {
+        return unauthorized();
+      }
     }
 
-    const auth = request.headers.get('Authorization') || '';
-    if (!auth.startsWith('Basic ')) return unauthorized();
+    let response = await env.ASSETS.fetch(request);
 
-    let decoded = '';
-    try {
-      decoded = atob(auth.slice(6));
-    } catch {
-      return unauthorized();
+    const url = new URL(request.url);
+    const contentType = response.headers.get('content-type') || '';
+    if ((url.pathname === '/' || url.pathname.endsWith('.html')) && contentType.includes('text/html')) {
+      response = new HTMLRewriter().on('body', new StockUpdateInjector()).transform(response);
     }
 
-    const sep = decoded.indexOf(':');
-    if (sep < 0) return unauthorized();
-
-    const user = decoded.slice(0, sep);
-    const password = decoded.slice(sep + 1);
-    const expectedUser = env.DASHBOARD_USER || 'gestao';
-
-    if (!safeEqual(user, expectedUser) || !safeEqual(password, env.DASHBOARD_PASSWORD)) {
-      return unauthorized();
-    }
-
-    const response = await env.ASSETS.fetch(request);
     const headers = new Headers(response.headers);
     headers.set('Cache-Control', 'private, no-store');
     headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
