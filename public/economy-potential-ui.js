@@ -1,0 +1,31 @@
+// Aba Potencial de economia - base ampla incluindo compra direta
+(function(){
+  const D=window.ECONOMY_POTENTIAL_DATA;if(!D||!Array.isArray(D.groups)||!Array.isArray(D.rows))return;
+  const tabs=document.querySelector('.tabs'),wrap=document.querySelector('.wrap');if(!tabs||!wrap||document.querySelector('.tab[data-view="economia"]'))return;
+  const br=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v)||0);
+  const n1=v=>new Intl.NumberFormat('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:1}).format(Number(v)||0);
+  const pc=v=>new Intl.NumberFormat('pt-BR',{style:'percent',minimumFractionDigits:1,maximumFractionDigits:1}).format(Number(v)||0);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const btn=document.createElement('button');btn.className='tab';btn.dataset.view='economia';btn.textContent='Potencial de economia';tabs.appendChild(btn);
+  const s=D.summary||{},sec=document.createElement('section');sec.id='view-economia';sec.className='view';
+  sec.innerHTML=`
+    <div class="exec-hero"><div class="official-badge">ANÁLISE AMPLA • ESTOQUE + COMPRA DIRETA</div><h2>Potencial de economia</h2><p>Visão baseada nas quantidades negociadas/baixadas e na faixa histórica de custos por produto. Esta análise complementa — e não substitui — o histórico de compras com fornecedor.</p></div>
+    <div class="cards">
+      <div class="card"><div class="k">Potencial estimado</div><div class="v">${br(s.potential)}</div><div class="s">Diferença entre cenário de maior e menor custo</div></div>
+      <div class="card"><div class="k">Economia sobre maior custo</div><div class="v">${pc((s.potential||0)/(s.maxTotal||1))}</div><div class="s">Cenário máximo: ${br(s.maxTotal)}</div></div>
+      <div class="card"><div class="k">Produtos analisados</div><div class="v">${n1(s.products)}</div><div class="s">${n1(s.opportunities)} com potencial positivo</div></div>
+      <div class="card"><div class="k">Histórico de custos</div><div class="v">${n1(s.costObservations)}</div><div class="s">${n1(s.costProducts)} produtos • ${esc(s.costFrom)} a ${esc(s.costTo)}</div></div>
+    </div>
+    <div class="grid2">
+      <div class="tablepanel"><div class="tablehead"><div><h2>Potencial por grupo</h2><div class="hint">Ordenado do maior para o menor potencial</div></div></div><div class="tablewrap" style="max-height:520px"><table><thead><tr><th>Grupo</th><th class="num">Produtos</th><th class="num">Oportunidades</th><th class="num">Potencial</th><th class="num">Participação</th></tr></thead><tbody id="economyGroups"></tbody></table></div></div>
+      <div class="panel"><h2>Como interpretar</h2><p class="notice">O número de <b>${br(s.potential)}</b> é um potencial teórico: para cada item, aplica-se à quantidade analisada a diferença entre o maior e o menor custo histórico considerados no relatório. Ele inclui custos associados a compra direta, que não apareciam no histórico de entrada em estoque.</p><p class="notice">O KPI <b>Economia potencial em compras</b> do Resumo Executivo continua sendo calculado somente pelas compras com fornecedor/entrada registradas no painel. Assim evitamos somar metodologias diferentes como se fossem o mesmo valor.</p><p class="notice">Foram preservadas as exclusões do dashboard, inclusive cimento, lonas, inseticidas, medicamentos de uso animal, suínos e equipamentos diversos.</p></div>
+    </div>
+    <div class="tablepanel"><div class="tablehead"><div><h2>Principais oportunidades por item</h2><div class="hint">${D.rows.length} maiores oportunidades carregadas • maior potencial primeiro</div></div><div style="display:flex;gap:8px;align-items:center"><select id="economyGroupFilter" style="min-width:220px"><option value="">Todos os grupos</option></select><input id="economySearch" placeholder="Buscar código ou produto" style="min-width:240px"></div></div><div class="tablewrap" style="max-height:720px"><table><thead><tr><th>#</th><th>Código</th><th>Produto</th><th>Grupo</th><th>UN</th><th class="num">Qtd.</th><th class="num">Maior custo</th><th>Data maior</th><th class="num">Menor custo</th><th>Data menor</th><th class="num">Variação %</th><th class="num">Potencial</th></tr></thead><tbody id="economyRows"></tbody></table></div><div class="notice">Quando a data aparece em branco, o valor de maior/menor custo veio consolidado na análise do arquivo, mas não houve correspondência exata desse valor com uma data na tabela histórica de custos. O valor do relatório foi preservado, sem inferência.</div></div>`;
+  wrap.appendChild(sec);
+  const gbody=sec.querySelector('#economyGroups');gbody.innerHTML=D.groups.map(g=>`<tr><td>${esc(g[0])}</td><td class="num">${n1(g[1])}</td><td class="num">${n1(g[6])}</td><td class="num"><b>${br(g[3])}</b></td><td class="num">${pc((g[3]||0)/(s.potential||1))}</td></tr>`).join('');
+  const gf=sec.querySelector('#economyGroupFilter'),qs=sec.querySelector('#economySearch'),tbody=sec.querySelector('#economyRows');
+  [...new Set(D.rows.map(r=>r[2]))].sort((a,b)=>a.localeCompare(b,'pt-BR')).forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;gf.appendChild(o)});
+  function renderRows(){const q=(qs.value||'').trim().toUpperCase(),g=gf.value;const rows=D.rows.filter(r=>(!g||r[2]===g)&&(!q||String(r[0]).includes(q)||String(r[1]).toUpperCase().includes(q)));tbody.innerHTML=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r[0]}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td><td>${esc(r[3])}</td><td class="num">${n1(r[4])}</td><td class="num">${br(r[5])}</td><td>${esc(r[6]||'—')}</td><td class="num">${br(r[7])}</td><td>${esc(r[8]||'—')}</td><td class="num">${pc(r[10])}</td><td class="num"><b>${br(r[9])}</b></td></tr>`).join('')||'<tr><td colspan="12" style="text-align:center;padding:20px">Nenhum item para os filtros selecionados.</td></tr>'}
+  gf.addEventListener('change',renderRows);qs.addEventListener('input',renderRows);renderRows();
+  btn.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));btn.classList.add('active');sec.classList.add('active')});
+})();
