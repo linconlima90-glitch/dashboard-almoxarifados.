@@ -18,7 +18,7 @@
     window.CURRENT_STOCK_20260911=JSON.parse(json);
     window.CURRENT_STOCK_GZ='';
     const script=document.createElement('script');
-    script.src='/current-stock-apply-20260911.js?v=20260911-2';
+    script.src='/current-stock-apply-20260911.js?v=20260911-3';
     script.async=false;
     document.head.appendChild(script);
   }catch(err){console.error('Falha ao carregar estoque de 11/09/2026',err)}
