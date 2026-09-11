@@ -32,7 +32,7 @@
   for(const row of P.rows){
     const x={};cols.forEach((c,i)=>x[c]=row[i]);
     const hs=hstats(x.codigo,x.un),m=mm.get(key(x));
-    x.min_preco=hs?.mn?.preco||0;x.forn_min=hs?.mn?.fornecedor||'';x.data_min=hs?.mn?.data_min||'';
+    x.min_preco=hs?.mn?.preco||0;x.forn_min=hs?.mn?.fornecedor||'';x.data_min=hs?.mn?.data||'';
     x.max_preco=hs?.mx?.preco||0;x.forn_max=hs?.mx?.fornecedor||'';x.data_max=hs?.mx?.data||'';
     x.ultimo_preco=hs?.lt?.preco||0;x.ultimo_forn=hs?.lt?.fornecedor||'';x.data_ultimo=hs?.lt?.data||'';
     x.preco_medio=hs?.avg||0;x.fornecedores=hs?.fornecedores||0;x.registros=hs?.registros||0;x.variacao=hs?.variation??null;
