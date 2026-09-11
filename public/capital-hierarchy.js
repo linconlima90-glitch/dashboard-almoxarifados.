@@ -1,13 +1,14 @@
-// Grafico de colunas do capital em estoque: Local -> Grupo -> Produto
+// Capital em estoque: Local -> Grupo em colunas; Produto em lista vertical
 (function(){
-  if(document.documentElement.dataset.capitalHierarchy==='2')return;
-  document.documentElement.dataset.capitalHierarchy='2';
+  if(document.documentElement.dataset.capitalHierarchy==='3')return;
+  document.documentElement.dataset.capitalHierarchy='3';
 
   const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const br=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v)||0);
   const brCompact=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',notation:'compact',maximumFractionDigits:1}).format(Number(v)||0);
   const n1=v=>new Intl.NumberFormat('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:1}).format(Number(v)||0);
+  const pct=v=>new Intl.NumberFormat('pt-BR',{style:'percent',minimumFractionDigits:1,maximumFractionDigits:1}).format(Number(v)||0);
 
   const style=document.createElement('style');
   style.textContent=`
@@ -33,7 +34,6 @@
     #view-executivo .capital-hierarchy .capital-chart-scroll{overflow-x:auto;overflow-y:hidden;padding-bottom:5px;scrollbar-width:thin;scrollbar-color:#b8c9bd #f1f5f2}
     #view-executivo .capital-hierarchy .capital-bars{display:flex;gap:10px;align-items:stretch;width:max-content;min-width:100%;padding:0 8px 0 4px}
     #view-executivo .capital-hierarchy .capital-column{width:92px;min-width:92px;border:0;background:transparent;padding:0;display:grid;grid-template-rows:220px 58px;cursor:pointer;text-align:center;font-family:inherit;color:inherit}
-    #view-executivo .capital-hierarchy .capital-column.product{width:104px;min-width:104px}
     #view-executivo .capital-hierarchy .capital-plotcell{height:220px;position:relative;border-bottom:1px solid #cfded4;background:linear-gradient(to bottom,transparent 24.6%,#edf3ef 25%,transparent 25.4%,transparent 49.6%,#edf3ef 50%,transparent 50.4%,transparent 74.6%,#edf3ef 75%,transparent 75.4%)}
     #view-executivo .capital-hierarchy .capital-bar{position:absolute;left:18%;right:18%;bottom:0;height:var(--bar-h);min-height:3px;border-radius:7px 7px 2px 2px;background:linear-gradient(180deg,var(--db-green,#1e8747),var(--db-green-dark,#125c31));box-shadow:0 3px 10px rgba(30,135,71,.16);transition:filter .15s ease,transform .15s ease,height .25s ease}
     #view-executivo .capital-hierarchy .capital-bar:after{content:'';position:absolute;left:0;right:0;top:0;height:4px;border-radius:7px 7px 0 0;background:var(--db-yellow,#faca04)}
@@ -44,7 +44,28 @@
     #view-executivo .capital-hierarchy .capital-xsub{display:block;margin-top:3px;font-size:7px;font-weight:700;color:#879189}
     #view-executivo .capital-hierarchy .capital-empty{padding:35px 15px;text-align:center;font-size:10px;color:#748078}
     #view-executivo .capital-hierarchy .capital-open-hint{font-size:8px;color:var(--db-green-dark,#125c31);font-weight:800}
-    @media(max-width:760px){#view-executivo .capital-hierarchy .capital-chart{grid-template-columns:48px minmax(0,1fr)}#view-executivo .capital-hierarchy .capital-column{width:78px;min-width:78px}#view-executivo .capital-hierarchy .capital-column.product{width:88px;min-width:88px}#view-executivo .capital-hierarchy .capital-ylabel{font-size:6.5px}}
+
+    #view-executivo .capital-hierarchy .capital-product-list-wrap{border:1px solid #dce8e0;border-radius:11px;overflow:auto;max-height:620px;background:#fff}
+    #view-executivo .capital-hierarchy .capital-product-list{width:100%;border-collapse:collapse;font-size:9px}
+    #view-executivo .capital-hierarchy .capital-product-list th{position:sticky;top:0;z-index:2;background:var(--db-green-deep,#0d4726)!important;color:#fff!important;text-align:left;padding:8px 9px;border-bottom:1px solid var(--db-green-deep,#0d4726)!important;white-space:nowrap}
+    #view-executivo .capital-hierarchy .capital-product-list th.num,#view-executivo .capital-hierarchy .capital-product-list td.num{text-align:right}
+    #view-executivo .capital-hierarchy .capital-product-list td{padding:8px 9px;border-bottom:1px solid #e8f0eb;vertical-align:middle;color:#35423b}
+    #view-executivo .capital-hierarchy .capital-product-list tbody tr{cursor:pointer;background:#fff}
+    #view-executivo .capital-hierarchy .capital-product-list tbody tr:nth-child(even){background:#fbfdfb}
+    #view-executivo .capital-hierarchy .capital-product-list tbody tr:hover{background:#edf8f1!important}
+    #view-executivo .capital-hierarchy .capital-product-list tbody tr:hover td:first-child{box-shadow:inset 3px 0 0 var(--db-yellow,#faca04)}
+    #view-executivo .capital-hierarchy .capital-product-main{font-weight:850;color:#26382e}
+    #view-executivo .capital-hierarchy .capital-product-code{display:inline-block;min-width:58px;color:var(--db-green-deep,#0d4726);font-weight:900}
+    #view-executivo .capital-hierarchy .capital-product-sub{display:block;margin-top:2px;font-size:7.5px;color:#879189}
+    #view-executivo .capital-hierarchy .capital-open-product{border:1px solid #c9ddd0;background:#fff;color:var(--db-green-dark,#125c31);border-radius:7px;padding:5px 8px;font-size:8px;font-weight:900;cursor:pointer;white-space:nowrap}
+    #view-executivo .capital-hierarchy .capital-open-product:hover{background:var(--db-yellow-soft,#fff6c7);border-color:#efd76b}
+
+    @media(max-width:760px){
+      #view-executivo .capital-hierarchy .capital-chart{grid-template-columns:48px minmax(0,1fr)}
+      #view-executivo .capital-hierarchy .capital-column{width:78px;min-width:78px}
+      #view-executivo .capital-hierarchy .capital-ylabel{font-size:6.5px}
+      #view-executivo .capital-hierarchy .capital-product-list{min-width:820px}
+    }
   `;
   document.head.appendChild(style);
 
@@ -70,8 +91,8 @@
     if(!view||typeof STOCK==='undefined'||!Array.isArray(STOCK)||!STOCK.length)return false;
     const panel=[...view.querySelectorAll('.board-panel')].find(p=>norm(p.querySelector('.board-title h3')?.textContent)==='ONDE ESTA O CAPITAL EM ESTOQUE');
     if(!panel)return false;
-    if(panel.dataset.capitalHierarchy==='2')return true;
-    panel.dataset.capitalHierarchy='2';panel.classList.add('capital-hierarchy');
+    if(panel.dataset.capitalHierarchy==='3')return true;
+    panel.dataset.capitalHierarchy='3';panel.classList.add('capital-hierarchy');
 
     const oldHead=panel.querySelector('.board-title');
     const head=document.createElement('div');head.className='board-title';
@@ -82,7 +103,6 @@
     const shell=document.createElement('div');shell.className='capital-chart-shell';
     if(oldTable)oldTable.replaceWith(shell);else panel.appendChild(shell);
 
-    const total=STOCK.reduce((a,x)=>a+(Number(x.valor_estoque)||0),0);
     let level='local',selectedLocal='',selectedGroup='',currentRows=[];
 
     const byLocal=()=>{
@@ -119,7 +139,8 @@
       if(selectedLocal){parts.push('<span class="capital-sep">›</span>');parts.push(`<button type="button" class="capital-crumb ${level==='group'?'current':''}" data-level="group">${esc(selectedLocal)}</button>`)}
       if(selectedGroup){parts.push('<span class="capital-sep">›</span>');parts.push(`<button type="button" class="capital-crumb current" data-level="product">${esc(selectedGroup)}</button>`)}
       bc.innerHTML=parts.join('');
-      label.innerHTML=(level==='local'?'1. Local':level==='group'?'2. Grupo':'3. Produto')+'<br><span class="capital-open-hint">Clique nas colunas</span>';
+      const hint=level==='product'?'Itens um abaixo do outro':'Clique nas colunas';
+      label.innerHTML=(level==='local'?'1. Local':level==='group'?'2. Grupo':'3. Produto')+`<br><span class="capital-open-hint">${hint}</span>`;
     }
 
     function chartHtml(rows,opts={}){
@@ -130,9 +151,16 @@
       const bars=rows.map((x,i)=>{
         const value=values[i],h=value>0?Math.max(2,Math.min(100,value/max*100)):0;
         const label=opts.label(x),sub=opts.sub?opts.sub(x):'';
-        return `<button type="button" class="capital-column ${opts.product?'product':''}" data-index="${i}" title="${esc(label)} • ${esc(br(value))}"><span class="capital-plotcell" style="--bar-h:${h.toFixed(2)}%"><span class="capital-bar-value">${esc(brCompact(value))}</span><span class="capital-bar"></span></span><span class="capital-xlabel">${esc(label)}${sub?`<span class="capital-xsub">${esc(sub)}</span>`:''}</span></button>`;
+        return `<button type="button" class="capital-column" data-index="${i}" title="${esc(label)} • ${esc(br(value))}"><span class="capital-plotcell" style="--bar-h:${h.toFixed(2)}%"><span class="capital-bar-value">${esc(brCompact(value))}</span><span class="capital-bar"></span></span><span class="capital-xlabel">${esc(label)}${sub?`<span class="capital-xsub">${esc(sub)}</span>`:''}</span></button>`;
       }).join('');
       return `<div class="capital-chart-summary"><span>${esc(opts.summary||'')}</span><b>${br(subtotal)}</b></div><div class="capital-chart"><div class="capital-yaxis"><span class="capital-ylabel y0">${esc(brCompact(y[0]))}</span><span class="capital-ylabel y25">${esc(brCompact(y[1]))}</span><span class="capital-ylabel y50">${esc(brCompact(y[2]))}</span><span class="capital-ylabel y75">${esc(brCompact(y[3]))}</span><span class="capital-ylabel y100">R$ 0</span></div><div class="capital-chart-scroll"><div class="capital-bars">${bars}</div></div></div>`;
+    }
+
+    function productListHtml(rows,group){
+      if(!rows.length)return '<div class="capital-empty">Nenhum produto com estoque encontrado neste grupo.</div>';
+      const subtotal=rows.reduce((a,x)=>a+(Number(x.valor)||0),0);
+      const body=rows.map((x,i)=>`<tr data-index="${i}"><td><span class="capital-product-main"><span class="capital-product-code">${esc(x.codigo)}</span> ${esc(x.produto)}</span></td><td>${esc(x.un||'')}</td><td class="num">${n1(x.estoque)} ${esc(x.un||'')}</td><td class="num">${br(x.custo)}</td><td class="num"><b>${br(x.valor)}</b></td><td class="num">${pct(subtotal?x.valor/subtotal:0)}</td><td class="num"><button type="button" class="capital-open-product" data-open="${i}">Abrir item</button></td></tr>`).join('');
+      return `<div class="capital-chart-summary"><span>Produtos de ${esc(group)} • ${rows.length} itens</span><b>${br(subtotal)}</b></div><div class="capital-product-list-wrap"><table class="capital-product-list"><thead><tr><th>Código / Produto</th><th>UN</th><th class="num">Estoque</th><th class="num">Custo médio</th><th class="num">Capital</th><th class="num">% do grupo</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`;
     }
 
     function renderLocal(){
@@ -145,7 +173,7 @@
     }
     function renderProduct(local,group){
       level='product';selectedLocal=local;selectedGroup=group;currentRows=byProduct(local,group);breadcrumb();
-      shell.innerHTML=chartHtml(currentRows,{product:true,value:x=>x.valor,label:x=>`${x.codigo} - ${x.produto}`,sub:x=>`${n1(x.estoque)} ${x.un||''} • ${br(x.custo)}/un`,summary:`Capital por produto • ${group}`});
+      shell.innerHTML=productListHtml(currentRows,group);
     }
 
     head.addEventListener('click',e=>{
@@ -153,11 +181,17 @@
       if(b.dataset.level==='local')renderLocal();else if(b.dataset.level==='group'&&selectedLocal)renderGroup(selectedLocal);
     });
     shell.addEventListener('click',e=>{
+      const open=e.target.closest('.capital-open-product[data-open]');
+      if(open){const x=currentRows[Number(open.dataset.open)];if(x)openStock(selectedLocal,selectedGroup,String(x.codigo));return;}
+      if(level==='product'){
+        const row=e.target.closest('.capital-product-list tbody tr[data-index]');
+        if(row){const x=currentRows[Number(row.dataset.index)];if(x)openStock(selectedLocal,selectedGroup,String(x.codigo));}
+        return;
+      }
       const col=e.target.closest('.capital-column[data-index]');if(!col)return;
       const x=currentRows[Number(col.dataset.index)];if(!x)return;
       if(level==='local')renderGroup(x.local);
       else if(level==='group')renderProduct(selectedLocal,x.grupo);
-      else if(level==='product')openStock(selectedLocal,selectedGroup,String(x.codigo));
     });
 
     renderLocal();
