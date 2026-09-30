@@ -1,6 +1,6 @@
 // Aplica a posição integral de estoque recebida em 30/09/2026.
 (function(){
-  const P=window.CURRENT_STOCK_20260930;
+  const P=window.CURRENT_STOCK_20260911;
   if(!P||!Array.isArray(P.rows)||typeof STOCK==='undefined')return;
   const cols=['empresa','codigo_local','local','codigo','produto','grupo','un','estoque','custo_estoque','valor_estoque'];
   const key=x=>String(x.local)+'|'+String(x.codigo);
