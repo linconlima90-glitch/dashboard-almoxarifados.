@@ -113,7 +113,7 @@ class DashboardInjector {
       '<script src="/executive-interactive.js?v=20260909"></script>' +
       '<script src="/capital-hierarchy.js?v=20260911-3"></script>' +
       '<script src="/executive-only-capital.js?v=20260911-1"></script>' +
-      '<script src="/movement-update-20260930.js?v=20260930-1"></script>' +
+      '<script src="/movement-update-20260930.js?v=20260930-1"></script><script src="/movement-update-20261001.js?v=20261001-1"></script>' +
       '<script src="/stock-current-b64-init.js?v=20260911-1"></script>' +
       '<script src="/stock-current-20260930-01.js?v=20260930-1"></script>' +
       '<script src="/stock-current-20260930-02.js?v=20260930-1"></script>' +
