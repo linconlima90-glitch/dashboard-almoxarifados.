@@ -1,4 +1,4 @@
-// Carrega a posição atualizada de estoque de 11/09/2026 e aplica ao dashboard.
+// Carrega a posição atualizada de estoque de 08/10/2026 e aplica ao dashboard.
 (async function(){
   if(window.__CURRENT_STOCK_20260911_LOADING)return;
   window.__CURRENT_STOCK_20260911_LOADING=true;
@@ -18,8 +18,8 @@
     window.CURRENT_STOCK_20260911=JSON.parse(json);
     window.CURRENT_STOCK_GZ='';
     const script=document.createElement('script');
-    script.src='/current-stock-apply-20260911.js?v=20260911-3';
+    script.src='/current-stock-apply-20260911.js?v=20261008-1';
     script.async=false;
     document.head.appendChild(script);
-  }catch(err){console.error('Falha ao carregar estoque de 11/09/2026',err)}
+  }catch(err){console.error('Falha ao carregar estoque de 08/10/2026',err)}
 })();

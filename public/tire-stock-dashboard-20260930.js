@@ -1,4 +1,4 @@
-// Visao dedicada de pneus e camaras - 30/09/2026
+// Visao dedicada de pneus e camaras - 08/10/2026
 // Mantem pneus visiveis no estoque, sem inclui-los em reposicao/estoque-alvo.
 (function(){
   const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();

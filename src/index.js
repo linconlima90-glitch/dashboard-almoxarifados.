@@ -51,9 +51,9 @@ class DashboardHeadInjector {
           .db-boot-title{font-size:17px;margin-left:11px}.db-boot-content{padding:11px 10px}.db-boot-card{height:300px}
         }
       </style>
-      <link rel="preload" href="/layout-clean-v2.js?v=20261001-fast1" as="script">
-      <link rel="preload" href="/db-brand-theme.js?v=20261001-fast1" as="script">
-      <link rel="preload" href="/db-brand-fixes.js?v=20261001-fast1" as="script">
+      <link rel="preload" href="/layout-clean-v2.js?v=20261008-1" as="script">
+      <link rel="preload" href="/db-brand-theme.js?v=20261008-1" as="script">
+      <link rel="preload" href="/db-brand-fixes.js?v=20261008-1" as="script">
     `, { html: true });
   }
 }
@@ -82,10 +82,10 @@ class DashboardInjector {
     `, { html: true });
 
     element.append(
-      '<script src="/layout-clean-v2.js?v=20261001-fast1"></script>' +
-      '<script src="/db-brand-theme.js?v=20261001-fast1"></script>' +
-      '<script src="/db-brand-fixes.js?v=20261001-fast1"></script>' +
-      (this.pilot ? '<script src="/sao-joao-pilot.js?v=20261001-1"></script>' : '') +
+      '<script src="/layout-clean-v2.js?v=20261008-1"></script>' +
+      '<script src="/db-brand-theme.js?v=20261008-1"></script>' +
+      '<script src="/db-brand-fixes.js?v=20261008-1"></script>' +
+      (this.pilot ? '<script src="/sao-joao-pilot.js?v=20261008-1"></script>' : '') +
       '<script>(function(){var s=document.getElementById("db-boot-screen");if(s)s.remove();document.documentElement.classList.remove("db-booting");})();</script>' +
       '<script src="/stock-update.js?v=20260908"></script>' +
       '<script src="/stock-latest-data.js?v=20260908-1530"></script>' +
@@ -117,17 +117,18 @@ class DashboardInjector {
       '<script src="/capital-hierarchy.js?v=20260911-3"></script>' +
       '<script src="/executive-only-capital.js?v=20260911-1"></script>' +
       '<script src="/movement-update-20260930.js?v=20260930-1"></script><script src="/movement-update-20261001.js?v=20261001-1"></script>' +
-      '<script src="/stock-current-b64-init.js?v=20260911-1"></script>' +
-      '<script src="/stock-current-20260930-01.js?v=20260930-1"></script>' +
-      '<script src="/stock-current-20260930-02.js?v=20260930-1"></script>' +
-      '<script src="/stock-current-20260930-03.js?v=20260930-1"></script>' +
-      '<script src="/stock-current-20260930-04.js?v=20260930-1"></script>' +
-      '<script src="/stock-current-20260930-05.js?v=20260930-1"></script>' +
-      '<script src="/stock-current-20260930-06.js?v=20260930-1"></script>' +
-      '<script src="/stock-current-20260930-07.js?v=20260930-1"></script>' +
-      '<script src="/stock-current-20260930-08.js?v=20260930-1"></script>' +
-      '<script src="/current-stock-loader-20260911.js?v=20260930-1"></script>' +
-      '<script src="/tire-stock-dashboard-20260930.js?v=20260930-1"></script>',
+      '<script src="/stock-current-b64-init.js?v=20261008-1"></script>' +
+      '<script src="/stock-current-20261008-01.js?v=20261008-1"></script>' +
+      '<script src="/stock-current-20261008-02.js?v=20261008-1"></script>' +
+      '<script src="/stock-current-20261008-03.js?v=20261008-1"></script>' +
+      '<script src="/stock-current-20261008-04.js?v=20261008-1"></script>' +
+      '<script src="/stock-current-20261008-05.js?v=20261008-1"></script>' +
+      '<script src="/stock-current-20261008-06.js?v=20261008-1"></script>' +
+      '<script src="/stock-current-20261008-07.js?v=20261008-1"></script>' +
+      '<script src="/stock-current-20261008-08.js?v=20261008-1"></script>' +
+      '<script src="/stock-current-20261008-09.js?v=20261008-1"></script>' +
+      '<script src="/current-stock-loader-20260911.js?v=20261008-1"></script>' +
+      '<script src="/tire-stock-dashboard-20260930.js?v=20261008-1"></script>',
       { html: true }
     );
   }

@@ -1,4 +1,4 @@
-// Aplica a posição integral de estoque recebida em 30/09/2026.
+// Aplica a posição integral de estoque recebida em 08/10/2026.
 (function(){
   const P=window.CURRENT_STOCK_20260911;
   if(!P||!Array.isArray(P.rows)||typeof STOCK==='undefined')return;
@@ -79,8 +79,8 @@
     nl.sort((a,b)=>b.valor_estoque-a.valor_estoque);LOCATIONS.splice(0,LOCATIONS.length,...nl);
   }
 
-  document.querySelectorAll('header p').forEach(el=>{el.innerHTML=el.innerHTML.replace(/Última atualização do dashboard:\s*\d{2}\/\d{2}\/\d{4}/i,'Última atualização do dashboard: 30/09/2026').replace(/posição de estoque:\s*\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}:\d{2})?/i,'posição de estoque: 30/09/2026')});
-  try{render()}catch(e){console.error('Falha ao renderizar posição de estoque 30/09/2026',e)}
+  document.querySelectorAll('header p').forEach(el=>{el.innerHTML=el.innerHTML.replace(/Última atualização do dashboard:\s*\d{2}\/\d{2}\/\d{4}/i,'Última atualização do dashboard: 08/10/2026').replace(/posição de estoque:\s*\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}:\d{2})?/i,'posição de estoque: 08/10/2026')});
+  try{render()}catch(e){console.error('Falha ao renderizar posição de estoque 08/10/2026',e)}
 
   const br=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v)||0),n0=v=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(Number(v)||0);
   function setExec(label,val){for(const el of document.querySelectorAll('.exec-kpi'))if(el.querySelector('.k')?.textContent.trim()===label){const v=el.querySelector('.v');if(v)v.textContent=val;break}}

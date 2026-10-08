@@ -60,7 +60,7 @@
     <div class="sj-head"><div class="sj-head-in">
       <div class="sj-logo">DB</div>
       <div class="sj-title"><h1>Almoxarifado São João</h1><p>Painel operacional do responsável • visão exclusiva do local</p></div>
-      <div class="sj-status">Posição de estoque: <b>30/09/2026</b><br>Baixas atualizadas até: <b>01/10/2026</b></div>
+      <div class="sj-status">Posição de estoque: <b>08/10/2026</b><br>Baixas atualizadas até: <b>01/10/2026</b></div>
     </div></div>
     <main class="sj-wrap">
       <nav class="sj-nav">
@@ -154,7 +154,7 @@
     return `
       <section class="sj-section active">
         <div class="sj-tools"><input id="sj-stock-search" type="search" placeholder="Buscar código, produto ou grupo..." value="${esc(search)}"><span>${n0(rows.length)} posições encontradas</span></div>
-        <div class="sj-card"><div class="sj-card-head"><h3>Estoque de São João</h3><span>Posição de 30/09/2026</span></div><div class="sj-table-wrap"><table class="sj-table"><thead><tr><th>Código</th><th>Produto</th><th>Grupo</th><th>Un.</th><th class="num">Estoque</th><th class="num">Média/mês</th><th class="num">Cobertura</th><th class="num">Custo</th><th class="num">Valor</th></tr></thead><tbody>
+        <div class="sj-card"><div class="sj-card-head"><h3>Estoque de São João</h3><span>Posição de 08/10/2026</span></div><div class="sj-table-wrap"><table class="sj-table"><thead><tr><th>Código</th><th>Produto</th><th>Grupo</th><th>Un.</th><th class="num">Estoque</th><th class="num">Média/mês</th><th class="num">Cobertura</th><th class="num">Custo</th><th class="num">Valor</th></tr></thead><tbody>
           ${rows.slice(0,300).map(x=>`<tr><td><b>${esc(x.codigo)}</b></td><td>${esc(x.produto)}</td><td>${esc(x.grupo)}</td><td>${esc(x.un)}</td><td class="num">${n(x.estoque)}</td><td class="num">${n(x.media_mensal)}</td><td class="num">${coverage(x.cobertura)}</td><td class="num">${br(x.custo_estoque)}</td><td class="num">${br(x.valor_estoque)}</td></tr>`).join('')||'<tr><td colspan="9" class="sj-empty">Nenhum item encontrado.</td></tr>'}
         </tbody></table></div></div>
         ${rows.length>300?'<div class="sj-note">Exibindo as 300 primeiras posições. Use a busca para localizar itens específicos.</div>':''}
