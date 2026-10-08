@@ -76,7 +76,7 @@ for (const pilot of [false, true]) {
   const injected = injection(pilot);
   const codes = injected.urls.map(url => ({ url, code: localAsset(url) }));
   const stockContext = vm.createContext({ window: {} });
-  for (const { code } of codes.filter(x => /window\.CURRENT_STOCK_GZ\s*(?:\+)?=/.test(x.code)))
+  for (const { code } of codes.filter(x => x.url.startsWith('/stock-current-') && /window\.CURRENT_STOCK_GZ\s*(?:\+)?=/.test(x.code)))
     vm.runInContext(code, stockContext, { timeout: 2000 });
   assert(stockContext.window.CURRENT_STOCK_GZ, 'Current stock chunks missing');
   const stockText = gunzipSync(Buffer.from(stockContext.window.CURRENT_STOCK_GZ, 'base64')).toString('utf8');
@@ -86,7 +86,7 @@ for (const pilot of [false, true]) {
   assert(Array.isArray(payload.rows) && payload.rows.length === Number(payload.meta.registros), 'Invalid stock row count');
   let loaderCount = 0;
   const compiled = codes.map(({ url, code }) => {
-    if (/window\.CURRENT_STOCK_GZ\s*(?:\+)?=/.test(code)) return '';
+    if (url.startsWith('/stock-current-') && /window\.CURRENT_STOCK_GZ\s*(?:\+)?=/.test(code)) return '';
     if (url.includes('/current-stock-loader-')) {
       loaderCount++;
       const applyUrl = code.match(/script\.src\s*=\s*['"]([^'"]+)['"]/);
