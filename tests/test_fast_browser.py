@@ -63,6 +63,8 @@ with sync_playwright() as p:
                 page.wait_for_timeout(120)
                 assert page.locator('#view-' + view).evaluate("el=>el.classList.contains('active')"), view
             page.locator('.tab[data-view="estoque"]').evaluate('(el)=>el.click()')
+            if not page.locator('#fBusca').is_visible():
+                page.locator('.clean-filter-toggle').click()
             page.locator('#fBusca').fill('ROLAMENTO')
             page.wait_for_timeout(150)
             page.locator('#fBusca').fill('')
