@@ -117,12 +117,12 @@
     const consTop=d.movements.slice().sort((a,b)=>(Number(b.total)||0)-(Number(a.total)||0)).slice(0,10);
     return `
       <section class="sj-section active">
-        <div class="sj-hero"><h2>Visão operacional de São João</h2><p>Indicadores para acompanhamento diário do estoque, reposição e consumo. Pneus e câmaras permanecem visíveis no estoque, mas não entram no cálculo de reposição; lubrificantes, pneus e câmaras ficam fora da análise de sem giro.</p></div>
+        <div class="sj-hero"><h2>Visão operacional de São João</h2><p>Indicadores para acompanhamento diário do estoque, reposição para 2 meses e consumo. Pneus e câmaras permanecem visíveis no estoque, mas não entram no cálculo de reposição; lubrificantes, pneus e câmaras ficam fora da análise de sem giro.</p></div>
         <div class="sj-kpis">
           <div class="sj-kpi"><div class="k">Valor em estoque</div><div class="v">${br(d.totalValue)}</div><div class="s">${n0(d.products)} produtos cadastrados no local.</div></div>
           <div class="sj-kpi"><div class="k">Saldo total</div><div class="v">${n(d.totalQty)}</div><div class="s">Soma das unidades em estoque.</div></div>
           <div class="sj-kpi risk"><div class="k">Itens críticos</div><div class="v">${n0(d.critical.length)}</div><div class="s">${n0(d.noStock.length)} sem estoque + ${n0(d.critical.length-d.noStock.length)} abaixo do mínimo.</div></div>
-          <div class="sj-kpi risk"><div class="k">Reposição estimada</div><div class="v">${br(d.needValue)}</div><div class="s">Para cobertura mínima definida na gestão.</div></div>
+          <div class="sj-kpi risk"><div class="k">Reposição estimada</div><div class="v">${br(d.needValue)}</div><div class="s">Política de 2 meses de consumo médio mensal.</div></div>
           <div class="sj-kpi warn"><div class="k">Sem giro</div><div class="v">${n0(d.noTurn.length)}</div><div class="s">${br(d.noTurnValue)} em capital para revisão.</div></div>
           <div class="sj-kpi"><div class="k">Baixas de outubro</div><div class="v">${n(d.october)}</div><div class="s">${br(d.octoberValue)} no período de 01 a 08/10.</div></div>
         </div>
@@ -169,7 +169,7 @@
     });
     return `
       <section class="sj-section active">
-        <div class="sj-hero"><h2>Reposição de São João</h2><p>Prioriza ruptura e itens abaixo do mínimo. Pneus e câmaras de ar permanecem fora desta recomendação conforme a política atual.</p></div>
+        <div class="sj-hero"><h2>Reposição de São João</h2><p>Estoque mínimo de 2 meses: prioriza ruptura e itens abaixo da meta. Pneus e câmaras de ar permanecem fora desta recomendação.</p></div>
         <div class="sj-kpis">
           <div class="sj-kpi risk"><div class="k">Sem estoque</div><div class="v">${n0(d.noStock.length)}</div><div class="s">Itens com histórico de consumo e saldo zerado.</div></div>
           <div class="sj-kpi risk"><div class="k">Abaixo do mínimo</div><div class="v">${n0(d.critical.length-d.noStock.length)}</div><div class="s">Itens abaixo da cobertura mínima.</div></div>

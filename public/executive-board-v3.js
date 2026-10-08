@@ -70,7 +70,7 @@
     <div class="board-kpis">
       <div class="board-kpi"><div class="label">Valor total em estoque</div><div class="value">${br(stockTotal)}</div><div class="sub">Capital atualmente imobilizado nos almoxarifados.</div></div>
       <div class="board-kpi attn"><div class="label">Capital sem giro</div><div class="value">${br(deadValue)}</div><div class="sub">${n0(deadRows.length)} itens • ${pct(stockTotal?deadValue/stockTotal:0)} do estoque.</div></div>
-      <div class="board-kpi risk"><div class="label">Necessidade bruta de reposição</div><div class="value">${br(needGross)}</div><div class="sub">Baseada na política de cobertura de 4 meses.</div></div>
+      <div class="board-kpi risk"><div class="label">Necessidade bruta de reposição</div><div class="value">${br(needGross)}</div><div class="sub">Baseada na política de cobertura de 2 meses.</div></div>
       <div class="board-kpi opp"><div class="label">Transferir antes de comprar</div><div class="value">${br(transferValue)}</div><div class="sub">Potencial de redução de ${pct(reduction)} da necessidade bruta.</div></div>
       <div class="board-kpi risk"><div class="label">Compra estimada após transferências</div><div class="value">${br(buyAfter)}</div><div class="sub">Valor a avaliar para reposição após realocação interna.</div></div>
       <div class="board-kpi risk"><div class="label">Itens críticos de abastecimento</div><div class="value">${n0(criticalCount)}</div><div class="sub">${n0(noStock)} sem estoque + ${n0(below)} abaixo do mínimo • ${n0(attention)} em atenção.</div></div>
