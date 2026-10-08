@@ -60,7 +60,7 @@
     <div class="sj-head"><div class="sj-head-in">
       <div class="sj-logo">DB</div>
       <div class="sj-title"><h1>Almoxarifado São João</h1><p>Painel operacional do responsável • visão exclusiva do local</p></div>
-      <div class="sj-status">Posição de estoque: <b>08/10/2026</b><br>Baixas atualizadas até: <b>01/10/2026</b></div>
+      <div class="sj-status">Posição de estoque: <b>08/10/2026</b><br>Baixas atualizadas até: <b>08/10/2026</b></div>
     </div></div>
     <main class="sj-wrap">
       <nav class="sj-nav">
@@ -102,8 +102,8 @@
     const noTurn=stock.filter(x=>!isTire(x)&&!isLub(x)&&!((Number(mm.get(String(x.codigo))?.total)||0)>0));
     const noTurnValue=noTurn.reduce((a,x)=>a+(Number(x.valor_estoque)||0),0);
     const consumption=movements.reduce((a,x)=>a+(Number(x.total)||0),0);
-    const october=movements.reduce((a,x)=>a+(Number(x.qtd_set_20261001)||0),0);
-    const octoberValue=movements.reduce((a,x)=>a+(Number(x.valor_set_20261001)||0),0);
+    const october=movements.reduce((a,x)=>a+(Number(x.qtd_set_20261008)||0),0);
+    const octoberValue=movements.reduce((a,x)=>a+(Number(x.valor_set_20261008)||0),0);
     const groups=new Map();
     for(const x of stock){
       const k=String(x.grupo||'SEM GRUPO'),g=groups.get(k)||{grupo:k,value:0,qty:0,products:new Set()};
@@ -124,7 +124,7 @@
           <div class="sj-kpi risk"><div class="k">Itens críticos</div><div class="v">${n0(d.critical.length)}</div><div class="s">${n0(d.noStock.length)} sem estoque + ${n0(d.critical.length-d.noStock.length)} abaixo do mínimo.</div></div>
           <div class="sj-kpi risk"><div class="k">Reposição estimada</div><div class="v">${br(d.needValue)}</div><div class="s">Para cobertura mínima definida na gestão.</div></div>
           <div class="sj-kpi warn"><div class="k">Sem giro</div><div class="v">${n0(d.noTurn.length)}</div><div class="s">${br(d.noTurnValue)} em capital para revisão.</div></div>
-          <div class="sj-kpi"><div class="k">Baixas em 01/10</div><div class="v">${n(d.october)}</div><div class="s">${br(d.octoberValue)} no primeiro dia de outubro.</div></div>
+          <div class="sj-kpi"><div class="k">Baixas de outubro</div><div class="v">${n(d.october)}</div><div class="s">${br(d.octoberValue)} no período de 01 a 08/10.</div></div>
         </div>
         <div class="sj-card" style="margin-bottom:10px"><div class="sj-card-head"><h3>Ações do almoxarifado</h3><span>Prioridades para conferência</span></div><div class="sj-actions">
           <button class="sj-action" data-open-tab="replenishment"><b>${n0(d.noStock.length)}</b><span>Itens sem estoque</span></button>
@@ -190,11 +190,11 @@
         <div class="sj-hero"><h2>Consumo e baixas de São João</h2><p>O histórico acumulado orienta cobertura e estoque mínimo. As baixas de outubro já aparecem no consumo acumulado, mas outubro ainda parcial não altera a média mensal usada no mínimo.</p></div>
         <div class="sj-kpis">
           <div class="sj-kpi"><div class="k">Baixas acumuladas</div><div class="v">${n(d.consumption)}</div><div class="s">Unidades no histórico analisado.</div></div>
-          <div class="sj-kpi"><div class="k">Baixas em 01/10</div><div class="v">${n(d.october)}</div><div class="s">Atualização mais recente de São João.</div></div>
-          <div class="sj-kpi"><div class="k">Custo das baixas 01/10</div><div class="v">${br(d.octoberValue)}</div><div class="s">Valor registrado no primeiro dia de outubro.</div></div>
+          <div class="sj-kpi"><div class="k">Baixas de outubro</div><div class="v">${n(d.october)}</div><div class="s">Período de 01 a 08/10.</div></div>
+          <div class="sj-kpi"><div class="k">Custo das baixas de outubro</div><div class="v">${br(d.octoberValue)}</div><div class="s">Valor registrado no período de 01 a 08/10.</div></div>
         </div>
-        <div class="sj-card"><div class="sj-card-head"><h3>Consumo por produto</h3><span>Ordenado pelo maior volume acumulado</span></div><div class="sj-table-wrap"><table class="sj-table"><thead><tr><th>Código</th><th>Produto</th><th>Grupo</th><th class="num">Baixas acumuladas</th><th class="num">01/10</th><th class="num">Média/mês</th><th class="num">Estoque</th><th class="num">Cobertura</th><th>Status</th></tr></thead><tbody>
-          ${rows.map(x=>`<tr><td><b>${esc(x.codigo)}</b></td><td>${esc(x.produto)}</td><td>${esc(x.grupo)}</td><td class="num">${n(x.total)}</td><td class="num">${n(x.qtd_set_20261001)}</td><td class="num">${n(x.avg)}</td><td class="num">${n(x.stock)}</td><td class="num">${coverage(x.coverage)}</td><td>${statusChip(x.status)}</td></tr>`).join('')||'<tr><td colspan="9" class="sj-empty">Sem histórico de consumo.</td></tr>'}
+        <div class="sj-card"><div class="sj-card-head"><h3>Consumo por produto</h3><span>Ordenado pelo maior volume acumulado</span></div><div class="sj-table-wrap"><table class="sj-table"><thead><tr><th>Código</th><th>Produto</th><th>Grupo</th><th class="num">Baixas acumuladas</th><th class="num">01 a 08/10</th><th class="num">Média/mês</th><th class="num">Estoque</th><th class="num">Cobertura</th><th>Status</th></tr></thead><tbody>
+          ${rows.map(x=>`<tr><td><b>${esc(x.codigo)}</b></td><td>${esc(x.produto)}</td><td>${esc(x.grupo)}</td><td class="num">${n(x.total)}</td><td class="num">${n(x.qtd_set_20261008)}</td><td class="num">${n(x.avg)}</td><td class="num">${n(x.stock)}</td><td class="num">${coverage(x.coverage)}</td><td>${statusChip(x.status)}</td></tr>`).join('')||'<tr><td colspan="9" class="sj-empty">Sem histórico de consumo.</td></tr>'}
         </tbody></table></div></div>
       </section>
     `;

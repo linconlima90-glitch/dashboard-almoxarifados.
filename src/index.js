@@ -85,7 +85,7 @@ class DashboardInjector {
       '<script src="/layout-clean-v2.js?v=20261008-1"></script>' +
       '<script src="/db-brand-theme.js?v=20261008-1"></script>' +
       '<script src="/db-brand-fixes.js?v=20261008-1"></script>' +
-      (this.pilot ? '<script src="/sao-joao-pilot.js?v=20261008-1"></script>' : '') +
+      (this.pilot ? '<script src="/sao-joao-pilot.js?v=20261008-2"></script>' : '') +
       '<script>(function(){var s=document.getElementById("db-boot-screen");if(s)s.remove();document.documentElement.classList.remove("db-booting");})();</script>' +
       '<script src="/stock-update.js?v=20260908"></script>' +
       '<script src="/stock-latest-data.js?v=20260908-1530"></script>' +
@@ -116,7 +116,7 @@ class DashboardInjector {
       '<script src="/executive-interactive.js?v=20260909"></script>' +
       '<script src="/capital-hierarchy.js?v=20260911-3"></script>' +
       '<script src="/executive-only-capital.js?v=20260911-1"></script>' +
-      '<script src="/movement-update-20260930.js?v=20260930-1"></script><script src="/movement-update-20261001.js?v=20261001-1"></script>' +
+      '<script src="/movement-update-20260930.js?v=20260930-1"></script><script src="/movement-update-20261008.js?v=20261008-1"></script>' +
       '<script src="/stock-current-b64-init.js?v=20261008-1"></script>' +
       '<script src="/stock-current-20261008-01.js?v=20261008-1"></script>' +
       '<script src="/stock-current-20261008-02.js?v=20261008-1"></script>' +
