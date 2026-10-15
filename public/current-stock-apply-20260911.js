@@ -1,4 +1,4 @@
-// Aplica a posição integral de estoque recebida em 15/10/2026.
+// Aplica a posição integral de estoque recebida em 15/10/2026 13:40:03.
 (function(){
   const P=window.CURRENT_STOCK_20260911;
   if(!P||!Array.isArray(P.rows)||typeof STOCK==='undefined')return;

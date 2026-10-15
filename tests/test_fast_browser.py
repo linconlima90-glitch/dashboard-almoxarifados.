@@ -69,6 +69,18 @@ with sync_playwright() as p:
             'navigationMs': page.evaluate("performance.getEntriesByType('navigation')[0].loadEventEnd"),
             'rendering': page.evaluate("window.DB_FAST?.stats || null")
         }
+
+        if optimized:
+            stockmeta=page.evaluate("""() => ({
+                emitted:window.CURRENT_STOCK_META?.emissao,
+                total:STOCK.reduce((s,x)=>s+(Number(x.valor_estoque)||0),0),
+                warehouses:new Set(STOCK.map(x=>x.local)).size,
+                preserveHistory:window.MOVEMENTS_REVISED_META?.records===4227,
+                preserveMin:window.STOCK_MINIMUM_MONTHS===2
+            })""")
+            assert stockmeta['emitted']=='15/10/2026 13:40:03', stockmeta
+            assert abs(stockmeta['total']-2214346.67)<0.01 and stockmeta['warehouses']==8, stockmeta
+            assert stockmeta['preserveHistory'] and stockmeta['preserveMin'], stockmeta
         if optimized and 'Pilot' not in name:
             for view in ['geral', 'estoque', 'sem-baixas', 'baixas', 'minimo', 'produtos', 'fornecedores', 'historico', 'cdi', 'variacao', 'economia', 'orcamentos']:
                 selector = f'.tab[data-view="{view}"]'
@@ -103,7 +115,7 @@ with sync_playwright() as p:
             assert no_withdrawals['anyItems'] and no_withdrawals['noWithdrawals'] and no_withdrawals['noMixed'], no_withdrawals
             assert no_withdrawals['sortedByValue'] and no_withdrawals['firstPage'], no_withdrawals
             assert no_withdrawals['filtered']==no_withdrawals['rows'] and no_withdrawals['purchaseHistoryAvailable'], no_withdrawals
-            assert no_withdrawals['position'].startswith('15/10/2026'), no_withdrawals
+            assert no_withdrawals['position']=='15/10/2026 13:40:03', no_withdrawals
             assert no_withdrawals['header']=='Estoque sem baixas registradas' and no_withdrawals['groupLabel'], no_withdrawals
             page.locator('#ns-order').select_option('quantidade')
             sorted_qty=page.evaluate("() => [...document.querySelectorAll('#ns-rows tr[data-ns-quantity]')].map(x=>Number(x.dataset.nsQuantity)).every((x,i,a)=>!i||a[i-1]>=x)")
@@ -145,9 +157,9 @@ with sync_playwright() as p:
             assert page.locator('#sj-pilot-root h1').inner_text() == 'Almoxarifado S\u00e3o Jo\u00e3o'
         results[name]['errors'] = errors.copy()
         page.close()
-    assert results['fast']['stockRows'] == 4104, 'Unexpected stock positions'
+    assert results['fast']['stockRows'] == 4087, 'Unexpected stock positions'
     assert results['fastPilot']['stockRows'] == 4104, 'Unexpected Sao Joao stock positions'
-    assert abs(results['fast']['stockValue'] - 2280989.47) < 0.01, 'Unexpected stock value'
+    assert abs(results['fast']['stockValue'] - 2214346.67) < 0.01, 'Unexpected stock value'
     assert snapshots['legacy'] == snapshots['fast'], 'Management data changed'
     assert snapshots['legacyPilot'] == snapshots['fastPilot'], 'Pilot data changed'
     assert not results['fast']['errors'], results['fast']['errors']

@@ -216,7 +216,7 @@
     $('#ns-locals').textContent=integer(new Set(renderedRows.map(x=>x.local)).size);
     $('#ns-unpurchased').textContent=integer(renderedRows.filter(x=>!x.historyCount).length);
     const meta=window.STOCK_NO_WITHDRAWAL_META||{};
-    const position=String(meta.stockDate||'15/10/2026').slice(0,10);
+    const position=String(meta.stockDate||'15/10/2026');
     $('#ns-caption').textContent=`Posição de estoque: ${position} · ${renderedRows.length} posição(ões) · ordenação: ${getFilters().sort==='quantidade'?'quantidade':getFilters().sort==='compra'?'última compra':'maior valor'}`;
     $('#ns-note').innerHTML=`<b>Critério:</b> saldo positivo e nenhuma baixa no escopo selecionado, dentro do histórico disponível (a partir de jan/2025, mais revisão 01/07–15/10/2026). <b>Última compra:</b> data de NF, não data de entrada física. <b>Estoque:</b> posição de ${esc(position)}. <b>Conciliação:</b> ${integer(excludedPending)} posições com histórico pendente e ${integer(mixedUnitsExcluded)} com baixas em outra unidade foram retiradas desta lista para evitar falso “nunca baixado”. Pneus, câmaras, lubrificantes e cimento são exibidos se atenderem ao critério. Quantidades de unidades distintas não são somadas.`;
     $('#ns-rows').innerHTML=visible.length?visible.map(rowHTML).join(''):'<tr><td colspan="8" style="text-align:center;padding:20px">Nenhum item encontrado para os filtros.</td></tr>';
