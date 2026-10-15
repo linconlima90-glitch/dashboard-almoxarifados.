@@ -163,29 +163,52 @@ with sync_playwright() as p:
         if 'Pilot' in name:
             assert page.locator('#view-sem-baixas').count()==0, 'Do not alter Sao Joao operational pilot'
         if optimized and name == 'fastPilot':
-            for tab in ['stock', 'replenishment', 'consumption', 'no-withdrawals', 'overview']:
+            for tab in ['stock', 'minimum', 'consumption', 'no-withdrawals', 'overview']:
                 page.locator(f'[data-sj-tab="{tab}"]').click()
                 page.wait_for_timeout(100)
                 assert page.locator('#sj-content').inner_text().strip()
-            page.locator('[data-sj-tab="replenishment"]').click()
-            replenishment_order = page.evaluate("""() => {
-              const groups=[...document.querySelectorAll('#sj-replenishment-view details[data-sj-rep-group]')];
+            page.locator('[data-sj-tab="minimum"]').click()
+            page.wait_for_function("window.FARM_MINIMUM_META && document.querySelector('#farm-minimum-view')", timeout=20000)
+            minimum_view=page.evaluate("""() => {
+              const chua=document.querySelector('#sj-pilot-root h1').textContent.includes('Chuá');
+              const code=chua?'30115':'50115',local=chua?'ALMOXARIFADO GERAL F CHUA':'ALMOXARIFADO GERAL F SJ';
+              const rows=window.FARM_MINIMUM_FROM_MANAGER.getRows();
+              const base=minimumBaseRows().filter(x=>String(x.codigo_local)===code&&x.local===local);
+              const current=STOCK.filter(x=>String(x.codigo_local)===code&&x.local===local);
+              const groupNodes=[...document.querySelectorAll('#farm-minimum-view details[data-fm-group]')];
+              const names=groupNodes.map(x=>x.dataset.fmGroup);
               const collator=new Intl.Collator('pt-BR',{sensitivity:'base'});
-              const names=groups.map(g=>g.dataset.sjRepGroup);
-              const items=groups.map(g=>[...g.querySelectorAll('tr[data-sj-rep-item]')].map(x=>x.dataset.sjRepItem));
+              const hasCurrentStock=rows.some(x=>current.some(s=>String(s.codigo)===x.codigo&&s.un===x.un));
               return {
-                groupCount:groups.length,
-                itemCount:items.reduce((n,a)=>n+a.length,0),
-                groupSorted:names.every((x,i)=>!i||collator.compare(names[i-1],x)<=0),
-                itemsSorted:items.every(rows=>rows.every((x,i)=>!i||collator.compare(rows[i-1],x)<=0)),
-                detailsOpen:groups.every(g=>g.open),
-                minMonths:window.STOCK_MINIMUM_MONTHS,
-                metric:document.querySelector('#sj-replenishment-view .sj-kpi .v')?.textContent
+                code,rows:rows.length,base:base.length,stock:current.length,
+                localOnly:rows.every(x=>String(x.codigo_local)===code&&x.local===local),
+                hasCurrentStock, groups:groupNodes.length,
+                groupsSorted:names.every((x,i)=>!i||collator.compare(names[i-1],x)<=0),
+                itemsSorted:groupNodes.every(g=>{
+                  const items=[...g.querySelectorAll('tr[data-fm-code]')].map(x=>x.querySelectorAll('td')[1].textContent);
+                  return items.every((x,i)=>!i||collator.compare(items[i-1],x)<=0);
+                }),
+                neverInvent:rows.every(x=>x.status!=='SEM DADOS DE BAIXA'||x.need===0),
+                minCorrect:rows.every(x=>x.avg<=0||x.minimum>=x.avg*2-1e-6),
+                needCorrect:rows.every(x=>Math.abs(x.need-minimumRoundUp(Math.max(x.minimum-x.stock,0),x.un))<1e-6),
+                meta:window.FARM_MINIMUM_META,
+                totalHistory:window.MOVEMENTS_REVISED_META.records,
+                noOldNav:!document.querySelector('.sj-nav [data-sj-tab="replenishment"]')
               };
             }""")
-            assert replenishment_order['groupCount']>0 and replenishment_order['itemCount']>0, replenishment_order
-            assert replenishment_order['groupSorted'] and replenishment_order['itemsSorted'], replenishment_order
-            assert replenishment_order['detailsOpen'] and replenishment_order['minMonths']==2, replenishment_order
+            assert minimum_view['rows']>=minimum_view['base'] and minimum_view['base']>0, minimum_view
+            assert minimum_view['stock']>0 and minimum_view['hasCurrentStock'], minimum_view
+            assert minimum_view['localOnly'] and minimum_view['groups']>0 and minimum_view['groupsSorted'] and minimum_view['itemsSorted'], minimum_view
+            assert minimum_view['minCorrect'] and minimum_view['needCorrect'] and minimum_view['neverInvent'], minimum_view
+            assert minimum_view['meta']['months']==2 and minimum_view['totalHistory']==4227 and minimum_view['noOldNav'], minimum_view
+            page.locator('#fm-year').select_option('2026')
+            assert page.locator('#farm-minimum-view').count()==1
+            page.locator('#fm-year').select_option('')
+            page.locator('[data-fm-status="ABAIXO DO MÍNIMO"]').check()
+            status_filter=page.evaluate("() => window.FARM_MINIMUM_FROM_MANAGER.getVisibleRows().every(x=>x.status==='ABAIXO DO MÍNIMO')")
+            assert status_filter, 'Manager minimum status filter failed'
+            page.locator('#fm-clear').click()
+            assert page.locator('#farm-minimum-view').count()==1
             page.locator('[data-sj-tab="no-withdrawals"]').click()
             page.wait_for_function("window.SJ_NO_WITHDRAWAL_META && document.querySelector('#sj-nw-view')", timeout=20000)
             sj_no_withdrawals=page.evaluate("""() => {
@@ -232,7 +255,7 @@ with sync_playwright() as p:
                 .every(x=>x.local==='ALMOXARIFADO GERAL F CHUA')
             })""")
             assert chua_stock['rows']>0 and chua_stock['rows']==chua_stock['total'] and chua_stock['noOther'], chua_stock
-            for tab in ['stock', 'replenishment', 'consumption', 'no-withdrawals', 'overview']:
+            for tab in ['stock', 'minimum', 'consumption', 'no-withdrawals', 'overview']:
                 page.locator(f'[data-sj-tab="{tab}"]').click()
                 page.wait_for_timeout(100)
                 assert page.locator('#sj-content').inner_text().strip(), tab
@@ -245,19 +268,48 @@ with sync_playwright() as p:
               return {count:codes.length, onlyChua:codes.every(x=>local.has(x))};
             }""")
             assert visible_codes['count']>0 and visible_codes['onlyChua'], visible_codes
-            page.locator('[data-sj-tab="replenishment"]').click()
-            chua_rep = page.evaluate("""() => {
-              const groups=[...document.querySelectorAll('#sj-replenishment-view details[data-sj-rep-group]')];
+            page.locator('[data-sj-tab="minimum"]').click()
+            page.wait_for_function("window.FARM_MINIMUM_META && document.querySelector('#farm-minimum-view')", timeout=20000)
+            minimum_view=page.evaluate("""() => {
+              const chua=document.querySelector('#sj-pilot-root h1').textContent.includes('Chuá');
+              const code=chua?'30115':'50115',local=chua?'ALMOXARIFADO GERAL F CHUA':'ALMOXARIFADO GERAL F SJ';
+              const rows=window.FARM_MINIMUM_FROM_MANAGER.getRows();
+              const base=minimumBaseRows().filter(x=>String(x.codigo_local)===code&&x.local===local);
+              const current=STOCK.filter(x=>String(x.codigo_local)===code&&x.local===local);
+              const groupNodes=[...document.querySelectorAll('#farm-minimum-view details[data-fm-group]')];
+              const names=groupNodes.map(x=>x.dataset.fmGroup);
               const collator=new Intl.Collator('pt-BR',{sensitivity:'base'});
-              const names=groups.map(g=>g.dataset.sjRepGroup);
-              return {groups:groups.length,
-                sorted:names.every((x,i)=>!i||collator.compare(names[i-1],x)<=0),
-                itemsSorted:groups.every(g=>{
-                  const items=[...g.querySelectorAll('tr[data-sj-rep-item]')].map(x=>x.dataset.sjRepItem);
+              const hasCurrentStock=rows.some(x=>current.some(s=>String(s.codigo)===x.codigo&&s.un===x.un));
+              return {
+                code,rows:rows.length,base:base.length,stock:current.length,
+                localOnly:rows.every(x=>String(x.codigo_local)===code&&x.local===local),
+                hasCurrentStock, groups:groupNodes.length,
+                groupsSorted:names.every((x,i)=>!i||collator.compare(names[i-1],x)<=0),
+                itemsSorted:groupNodes.every(g=>{
+                  const items=[...g.querySelectorAll('tr[data-fm-code]')].map(x=>x.querySelectorAll('td')[1].textContent);
                   return items.every((x,i)=>!i||collator.compare(items[i-1],x)<=0);
-                }), minimumMonths:window.STOCK_MINIMUM_MONTHS};
+                }),
+                neverInvent:rows.every(x=>x.status!=='SEM DADOS DE BAIXA'||x.need===0),
+                minCorrect:rows.every(x=>x.avg<=0||x.minimum>=x.avg*2-1e-6),
+                needCorrect:rows.every(x=>Math.abs(x.need-minimumRoundUp(Math.max(x.minimum-x.stock,0),x.un))<1e-6),
+                meta:window.FARM_MINIMUM_META,
+                totalHistory:window.MOVEMENTS_REVISED_META.records,
+                noOldNav:!document.querySelector('.sj-nav [data-sj-tab="replenishment"]')
+              };
             }""")
-            assert chua_rep['groups']>0 and chua_rep['sorted'] and chua_rep['itemsSorted'] and chua_rep['minimumMonths']==2, chua_rep
+            assert minimum_view['rows']>=minimum_view['base'] and minimum_view['base']>0, minimum_view
+            assert minimum_view['stock']>0 and minimum_view['hasCurrentStock'], minimum_view
+            assert minimum_view['localOnly'] and minimum_view['groups']>0 and minimum_view['groupsSorted'] and minimum_view['itemsSorted'], minimum_view
+            assert minimum_view['minCorrect'] and minimum_view['needCorrect'] and minimum_view['neverInvent'], minimum_view
+            assert minimum_view['meta']['months']==2 and minimum_view['totalHistory']==4227 and minimum_view['noOldNav'], minimum_view
+            page.locator('#fm-year').select_option('2026')
+            assert page.locator('#farm-minimum-view').count()==1
+            page.locator('#fm-year').select_option('')
+            page.locator('[data-fm-status="ABAIXO DO MÍNIMO"]').check()
+            status_filter=page.evaluate("() => window.FARM_MINIMUM_FROM_MANAGER.getVisibleRows().every(x=>x.status==='ABAIXO DO MÍNIMO')")
+            assert status_filter, 'Manager minimum status filter failed'
+            page.locator('#fm-clear').click()
+            assert page.locator('#farm-minimum-view').count()==1
             page.locator('[data-sj-tab="no-withdrawals"]').click()
             page.wait_for_function("window.CHUA_NO_WITHDRAWAL_META && document.querySelector('#sj-nw-view')", timeout=20000)
             chua_no_withdrawals = page.evaluate("""() => {

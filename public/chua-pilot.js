@@ -76,7 +76,7 @@
         <button type="button" class="active" data-sj-tab="overview">Visão geral</button>
         <button type="button" data-sj-tab="stock">Estoque</button>
         <button type="button" data-sj-tab="no-withdrawals">Estoque sem baixas</button>
-        <button type="button" data-sj-tab="replenishment">Reposição</button>
+        <button type="button" data-sj-tab="minimum">Estoque mínimo</button>
         <button type="button" data-sj-tab="consumption">Consumo / Baixas</button>
         <span class="sj-badge">30115 • Chuá</span>
       </nav>
@@ -104,7 +104,9 @@
     const totalValue=stock.reduce((a,x)=>a+(Number(x.valor_estoque)||0),0);
     const totalQty=stock.reduce((a,x)=>a+(Number(x.estoque)||0),0);
     const products=new Set(stock.map(x=>String(x.codigo))).size;
-    const replenishment=movements.filter(x=>!isTire(x)&&['SEM ESTOQUE','ABAIXO DO MÍNIMO','ATENÇÃO'].includes(String(x.status||'')));
+    const minData=window.FARM_MINIMUM_FROM_MANAGER?.getRowsForLocal(LOCAL_CODE,LOCAL_NAME,'');
+    const allMinimum=minData?.rows||movements;
+    const replenishment=allMinimum.filter(x=>['SEM ESTOQUE','ABAIXO DO MÍNIMO','ATENÇÃO'].includes(String(x.status||'')));
     const critical=replenishment.filter(x=>x.status==='SEM ESTOQUE'||x.status==='ABAIXO DO MÍNIMO');
     const noStock=critical.filter(x=>x.status==='SEM ESTOQUE');
     const attention=replenishment.filter(x=>x.status==='ATENÇÃO');
@@ -127,7 +129,7 @@
     const consTop=d.movements.slice().sort((a,b)=>(Number(b.total)||0)-(Number(a.total)||0)).slice(0,10);
     return `
       <section class="sj-section active">
-        <div class="sj-hero"><h2>Visão operacional de Chuá</h2><p>Indicadores para acompanhamento diário do estoque, reposição para 2 meses e consumo. Pneus e câmaras permanecem visíveis no estoque, mas não entram no cálculo de reposição; lubrificantes, pneus e câmaras ficam fora da análise de sem giro.</p></div>
+        <div class="sj-hero"><h2>Visão operacional de Chuá</h2><p>Indicadores para acompanhamento diário do estoque, reposição para 2 meses e consumo. Estoque mínimo de 2 meses calculado com os mesmos dados do gestor principal, para todos os produtos com consumo conhecido, inclusive pneus e câmaras. Produtos sem histórico são identificados para conferência. Na análise de sem giro, permanecem as exclusões específicas.</p></div>
         <div class="sj-kpis">
           <div class="sj-kpi"><div class="k">Valor em estoque</div><div class="v">${br(d.totalValue)}</div><div class="s">${n0(d.products)} produtos cadastrados no local.</div></div>
           <div class="sj-kpi"><div class="k">Saldo total</div><div class="v">${n(d.totalQty)}</div><div class="s">Soma das unidades em estoque.</div></div>
@@ -137,9 +139,9 @@
           <div class="sj-kpi"><div class="k">Baixas de outubro</div><div class="v">${n(d.october)}</div><div class="s">${br(d.octoberValue)} no período de 01 a 15/10.</div></div>
         </div>
         <div class="sj-card" style="margin-bottom:10px"><div class="sj-card-head"><h3>Ações do almoxarifado</h3><span>Prioridades para conferência</span></div><div class="sj-actions">
-          <button class="sj-action" data-open-tab="replenishment"><b>${n0(d.noStock.length)}</b><span>Itens sem estoque</span></button>
-          <button class="sj-action" data-open-tab="replenishment"><b>${n0(d.critical.length-d.noStock.length)}</b><span>Abaixo do mínimo</span></button>
-          <button class="sj-action" data-open-tab="replenishment"><b>${n0(d.attention.length)}</b><span>Itens em atenção</span></button>
+          <button class="sj-action" data-open-tab="minimum"><b>${n0(d.noStock.length)}</b><span>Itens sem estoque</span></button>
+          <button class="sj-action" data-open-tab="minimum"><b>${n0(d.critical.length-d.noStock.length)}</b><span>Abaixo do mínimo</span></button>
+          <button class="sj-action" data-open-tab="minimum"><b>${n0(d.attention.length)}</b><span>Itens em atenção</span></button>
           <button class="sj-action" data-show-noturn="1"><b>${n0(d.noTurn.length)}</b><span>Itens sem giro para revisar</span></button>
         </div></div>
         <div class="sj-grid">
@@ -173,53 +175,12 @@
   }
 
 
-  function renderReplenishment(d){
-    // Agrupar por grupo em ordem alfabetica; dentro de cada grupo, por descricao do item.
-    const grouped=new Map();
-    for(const item of d.replenishment){
-      const group=String(item.grupo||'SEM GRUPO').trim()||'SEM GRUPO';
-      if(!grouped.has(group))grouped.set(group,[]);
-      grouped.get(group).push(item);
-    }
-    const groups=[...grouped.entries()].sort(([a],[b])=>a.localeCompare(b,'pt-BR',{sensitivity:'base'}));
-    const groupsHtml=groups.map(([group,items])=>{
-      items.sort((a,b)=>String(a.produto||'').localeCompare(String(b.produto||''),'pt-BR',{sensitivity:'base'})||
-        String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR',{numeric:true}));
-      const critical=items.filter(x=>x.status==='SEM ESTOQUE'||x.status==='ABAIXO DO MÍNIMO');
-      const value=critical.reduce((sum,x)=>sum+(Number(x.need_value)||0),0);
-      return `
-        <details class="sj-rep-group" data-sj-rep-group="${esc(group)}" open>
-          <summary class="sj-rep-summary">
-            <span class="sj-rep-name">${esc(group)}</span>
-            <span class="sj-rep-info">${n0(items.length)} item(ns) · ${n0(critical.length)} crítico(s) · Reposição: ${br(value)}</span>
-          </summary>
-          <div class="sj-table-wrap"><table class="sj-table">
-            <thead><tr><th>Status</th><th>Código</th><th>Produto</th><th>Un.</th><th class="num">Estoque</th><th class="num">Média/mês</th><th class="num">Mínimo</th><th class="num">Necessidade</th><th class="num">Valor</th></tr></thead>
-            <tbody>${items.map(x=>`<tr data-sj-rep-item="${esc(x.produto||'')}" data-sj-rep-code="${esc(x.codigo)}">
-              <td>${statusChip(x.status)}</td><td><b>${esc(x.codigo)}</b></td><td>${esc(x.produto)}</td><td>${esc(x.un)}</td>
-              <td class="num">${n(x.stock)}</td><td class="num">${n(x.avg)}</td><td class="num">${n(x.minimum)}</td>
-              <td class="num">${n(x.need)}</td><td class="num">${br(x.need_value)}</td>
-            </tr>`).join('')}</tbody>
-          </table></div>
-        </details>`;
-    }).join('');
-    return `
-      <section class="sj-section active" id="sj-replenishment-view">
-        <div class="sj-hero"><h2>Reposição de Chuá</h2><p>Estoque mínimo de 2 meses: produtos separados por grupo e, dentro de cada grupo, por item em ordem alfabética. As situações críticas permanecem destacadas. Pneus e câmaras de ar seguem fora desta recomendação.</p></div>
-        <div class="sj-kpis">
-          <div class="sj-kpi risk"><div class="k">Sem estoque</div><div class="v">${n0(d.noStock.length)}</div><div class="s">Itens com histórico de consumo e saldo zerado.</div></div>
-          <div class="sj-kpi risk"><div class="k">Abaixo do mínimo</div><div class="v">${n0(d.critical.length-d.noStock.length)}</div><div class="s">Itens abaixo da cobertura mínima.</div></div>
-          <div class="sj-kpi warn"><div class="k">Em atenção</div><div class="v">${n0(d.attention.length)}</div><div class="s">Estoque próximo do nível mínimo.</div></div>
-          <div class="sj-kpi"><div class="k">Valor de reposição</div><div class="v">${br(d.needValue)}</div><div class="s">Estimativa para itens críticos.</div></div>
-        </div>
-        <div class="sj-card"><div class="sj-card-head"><h3>Reposição por grupo e item</h3><span>${n0(groups.length)} grupos · ${n0(d.replenishment.length)} itens</span></div>
-          <div class="sj-rep-groups">
-            ${groupsHtml||'<div class="sj-empty">Nenhuma necessidade de reposição.</div>'}
-          </div>
-        </div>
-        <div class="sj-note">Clique no nome de um grupo para expandir ou recolher seus itens. Os grupos e os produtos estão em ordem alfabética; os indicadores de ruptura, estoque mínimo e valor continuam os mesmos.</div>
-      </section>
-    `;
+  function renderMinimumFromManager(d){
+    if (!window.FARM_MINIMUM_FROM_MANAGER)
+      return '<section class="sj-section active"><div class="sj-note">Carregando dados de estoque mínimo do gestor principal...</div></section>';
+    return window.FARM_MINIMUM_FROM_MANAGER.render({
+      code:LOCAL_CODE,local:LOCAL_NAME,farm:'Chuá'
+    });
   }
 
   function renderConsumption(d){
@@ -256,7 +217,7 @@
     if(!d){content.innerHTML='<div class="sj-loading"><div class="sj-loading-box"><div class="sj-spin"></div>Carregando dados de Chuá...</div></div>';return false}
     if(active==='stock')content.innerHTML=renderStock(d);
     else if(active==='no-withdrawals')content.innerHTML=window.CHUA_NO_WITHDRAWAL?window.CHUA_NO_WITHDRAWAL.render():'<div class="sj-note">Aguardando o histórico reconciliado de baixas.</div>';
-    else if(active==='replenishment')content.innerHTML=renderReplenishment(d);
+    else if(active==='minimum')content.innerHTML=renderMinimumFromManager(d);
     else if(active==='consumption')content.innerHTML=renderConsumption(d);
     else if(active==='noturn')content.innerHTML=renderNoTurn(d);
     else content.innerHTML=renderOverview(d);
