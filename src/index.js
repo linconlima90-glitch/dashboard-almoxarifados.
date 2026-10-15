@@ -51,7 +51,7 @@ class DashboardHeadInjector {
           .db-boot-title{font-size:17px;margin-left:11px}.db-boot-content{padding:11px 10px}.db-boot-card{height:300px}
         }
       </style>
-      <link rel="preload" href="/layout-clean-v2.js?v=20261008-1" as="script">
+      <link rel="preload" href="/layout-clean-v2.js?v=20261015-2" as="script">
       <link rel="preload" href="/db-brand-theme.js?v=20261008-1" as="script">
       <link rel="preload" href="/db-brand-fixes.js?v=20261008-1" as="script">
     `, { html: true });
@@ -82,7 +82,8 @@ class DashboardInjector {
     `, { html: true });
 
     element.append(
-      '<script src="/layout-clean-v2.js?v=20261008-1"></script>' +
+      '<script src="/stock-no-withdrawals-tab-20261015.js?v=20261015-1"></script>' +
+      '<script src="/layout-clean-v2.js?v=20261015-2"></script>' +
       '<script src="/db-brand-theme.js?v=20261008-1"></script>' +
       '<script src="/db-brand-fixes.js?v=20261008-1"></script>' +
       (this.pilot ? '<script src="/sao-joao-pilot.js?v=20261015-1"></script>' : '') +

@@ -70,14 +70,61 @@ with sync_playwright() as p:
             'rendering': page.evaluate("window.DB_FAST?.stats || null")
         }
         if optimized and 'Pilot' not in name:
-            for view in ['geral', 'estoque', 'baixas', 'minimo', 'produtos', 'fornecedores', 'historico', 'cdi', 'variacao', 'economia', 'orcamentos']:
+            for view in ['geral', 'estoque', 'sem-baixas', 'baixas', 'minimo', 'produtos', 'fornecedores', 'historico', 'cdi', 'variacao', 'economia', 'orcamentos']:
                 selector = f'.tab[data-view="{view}"]'
                 if not page.locator(selector).count():
                     continue
                 page.locator(selector).evaluate('(el)=>el.click()')
                 page.wait_for_timeout(120)
                 assert page.locator('#view-' + view).evaluate("el=>el.classList.contains('active')"), view
+
+            # A aba e criada dinamicamente antes do layout e usa o historico reconciliado.
+            assert page.locator('.clean-sub-btn[data-view="sem-baixas"]').count() >= 0
+            page.locator('.tab[data-view="sem-baixas"]').evaluate('(el)=>el.click()')
+            page.wait_for_function("window.STOCK_NO_WITHDRAWAL_META && window.STOCK_NO_WITHDRAWAL_META.filteredRows >= 0", timeout=20000)
+            no_withdrawals = page.evaluate("""() => {
+              const m=window.STOCK_NO_WITHDRAWAL_META;
+              const source=window.STOCK_NO_WITHDRAWAL.getRows();
+              const displayed=[...document.querySelectorAll('#ns-rows tr[data-ns-value]')].map(x=>Number(x.dataset.nsValue));
+              const mixed=new Set((window.MOVEMENTS_REVISED_META.mixedUnits||[]).map(x=>String(x.codigo_local)+'|'+String(x.codigo)));
+              const movementKeys=new Set(MOVEMENTS.filter(x=>Number(x.total)>0).map(x=>String(x.local)+'|'+String(x.codigo)));
+              return {
+                rows:source.length,filtered:m.filteredRows,position:m.stockDate,
+                anyItems:source.length>0,
+                noWithdrawals:source.every(x=>!movementKeys.has(x.local+'|'+x.codigo)),
+                noMixed:source.every(x=>!STOCK.some(s=>String(s.codigo)===x.codigo&&s.local===x.local&&mixed.has(String(s.codigo_local)+'|'+x.codigo))),
+                sortedByValue:displayed.every((x,i)=>!i||displayed[i-1]>=x),
+                firstPage:displayed.length<=100,
+                header:document.querySelector('#view-sem-baixas h2')?.textContent,
+                purchaseHistoryAvailable:source.some(x=>x.historyCount>0),
+                groupLabel:[...document.querySelectorAll('.clean-primary-btn')].some(x=>x.textContent==='Estoque')
+              };
+            }""")
+            assert no_withdrawals['anyItems'] and no_withdrawals['noWithdrawals'] and no_withdrawals['noMixed'], no_withdrawals
+            assert no_withdrawals['sortedByValue'] and no_withdrawals['firstPage'], no_withdrawals
+            assert no_withdrawals['filtered']==no_withdrawals['rows'] and no_withdrawals['purchaseHistoryAvailable'], no_withdrawals
+            assert no_withdrawals['position'].startswith('15/10/2026'), no_withdrawals
+            assert no_withdrawals['header']=='Estoque sem baixas registradas' and no_withdrawals['groupLabel'], no_withdrawals
+            page.locator('#ns-order').select_option('quantidade')
+            sorted_qty=page.evaluate("() => [...document.querySelectorAll('#ns-rows tr[data-ns-quantity]')].map(x=>Number(x.dataset.nsQuantity)).every((x,i,a)=>!i||a[i-1]>=x)")
+            assert sorted_qty, 'Quantity ordering failed'
+            page.locator('#ns-scope').select_option('rede')
+            strict=page.evaluate("""() => ({count:window.STOCK_NO_WITHDRAWAL_META.filteredRows,
+              rows:window.STOCK_NO_WITHDRAWAL.getRows().filter(x=>!MOVEMENTS.some(m=>String(m.codigo)===x.codigo&&Number(m.total)>0)).length})""")
+            assert strict['count']<=no_withdrawals['rows'], strict
+            page.locator('#ns-scope').select_option('local')
+            page.locator('#ns-order').select_option('valor')
+            local = page.locator('#ns-local option').nth(1).get_attribute('value')
+            page.locator('#ns-local').select_option(local)
+            filtered_local=page.evaluate("() => [...document.querySelectorAll('#ns-rows tr[data-ns-local]')].every(x=>x.dataset.nsLocal===document.querySelector('#ns-local').value)")
+            assert filtered_local, 'Local filter failed'
+            page.locator('#ns-local').select_option('')
+            hist=page.locator('#ns-rows .ns-history').first
+            if hist.count():
+                hist.locator('summary').click()
+                assert hist.locator('table tbody tr').count()>0, 'Purchase history did not expand'
             page.locator('.tab[data-view="estoque"]').evaluate('(el)=>el.click()')
+
             if not page.locator('#fBusca').is_visible():
                 page.locator('.clean-filter-toggle').click()
             page.locator('#fBusca').fill('ROLAMENTO')
@@ -88,6 +135,8 @@ with sync_playwright() as p:
             assert all(values.values()), values
             results[name]['minimumChecks'] = values
             assert not page.evaluate('DB_FAST.stats.errors'), page.evaluate('DB_FAST.stats.errors')
+        if 'Pilot' in name:
+            assert page.locator('#view-sem-baixas').count()==0, 'Do not alter Sao Joao operational pilot'
         if optimized and 'Pilot' in name:
             for tab in ['stock', 'replenishment', 'consumption', 'overview']:
                 page.locator(f'[data-sj-tab="{tab}"]').click()
