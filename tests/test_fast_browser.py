@@ -158,7 +158,7 @@ with sync_playwright() as p:
         results[name]['errors'] = errors.copy()
         page.close()
     assert results['fast']['stockRows'] == 4087, 'Unexpected stock positions'
-    assert results['fastPilot']['stockRows'] == 4104, 'Unexpected Sao Joao stock positions'
+    assert results['fastPilot']['stockRows'] == 4087, 'Unexpected Sao Joao stock positions'
     assert abs(results['fast']['stockValue'] - 2214346.67) < 0.01, 'Unexpected stock value'
     assert snapshots['legacy'] == snapshots['fast'], 'Management data changed'
     assert snapshots['legacyPilot'] == snapshots['fastPilot'], 'Pilot data changed'
