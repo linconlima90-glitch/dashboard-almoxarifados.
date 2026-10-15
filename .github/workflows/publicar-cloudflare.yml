@@ -1,0 +1,46 @@
+name: Publicar Dashboard no Cloudflare
+# Executa uma vez ao criar este arquivo no main; depois, apenas manualmente.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publicar-cloudflare.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: dashboard-almoxarifados-cloudflare-production
+  cancel-in-progress: false
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Obter codigo validado
+        uses: actions/checkout@v4
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirmar credenciais de implantacao
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CF_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Nao foi encontrado o segredo CLOUDFLARE_API_TOKEN (ou CF_API_TOKEN) neste repositorio. Configure em Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Nao foi encontrado CLOUDFLARE_ACCOUNT_ID (segredo ou variavel). Configure em Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+      - name: Instalar Wrangler
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Construir arquivos compactos e verificar integridade
+        run: node scripts/build-fast.mjs
+      - name: Publicar Worker e arquivos no Cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CF_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
