@@ -45,6 +45,21 @@ with sync_playwright() as p:
         if optimized:
             page.wait_for_function("document.documentElement.dataset.fastReady==='1'")
         page.wait_for_timeout(600)
+
+        purchase_checks = page.evaluate("""() => ({
+          sep: PURCHASES.filter(x=>x.data.slice(3)==='09/2026').length,
+          oct: PURCHASES.filter(x=>x.data.slice(3)==='10/2026').length,
+          sepValue: Math.round(PURCHASES.filter(x=>x.data.slice(3)==='09/2026').reduce((s,x)=>s+x.valor,0)*100)/100,
+          octValue: Math.round(PURCHASES.filter(x=>x.data.slice(3)==='10/2026').reduce((s,x)=>s+x.valor,0)*100)/100,
+          monthlyOct: MONTHLY.find(x=>x.mes==='10/2026')?.valor||0,
+          distinctNewSuppliers: [...document.querySelector('#fFornecedor').options].some(x=>x.value==='MARTINS COM.SERV.DISTRIBUICAO S/A'),
+          correctMeta: window.LATEST_PURCHASE_META?.rowsSinceAugust===484 && window.LATEST_PURCHASE_META?.duplicateRowsRemoved===4
+        })""")
+        assert purchase_checks['sep']==252 and purchase_checks['oct']==25, purchase_checks
+        assert abs(purchase_checks['sepValue']-147326.33)<0.02 and abs(purchase_checks['octValue']-10523.76)<0.02, purchase_checks
+        assert abs(purchase_checks['monthlyOct']-10523.76)<0.02, purchase_checks
+        assert purchase_checks['distinctNewSuppliers'] and purchase_checks['correctMeta'], purchase_checks
+
         snapshots[name] = page.evaluate(SNAPSHOT)
         results[name] = {
             'stockRows': len(snapshots[name]['stock']),
