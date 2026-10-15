@@ -34,7 +34,9 @@ with sync_playwright() as p:
         ('legacy', '/_benchmark/general.html', False),
         ('fast', '/', True),
         ('legacyPilot', '/_benchmark/pilot.html', False),
-        ('fastPilot', '/_fast-sao-joao/', True)
+        ('fastPilot', '/_fast-sao-joao/', True),
+        ('legacyChuaPilot', '/_benchmark/chua.html', False),
+        ('fastChuaPilot', '/_fast-chua/', True)
     ]:
         page = browser.new_page(viewport={'width': 1440, 'height': 1000})
         errors, requests = [], []
@@ -160,7 +162,7 @@ with sync_playwright() as p:
             assert not page.evaluate('DB_FAST.stats.errors'), page.evaluate('DB_FAST.stats.errors')
         if 'Pilot' in name:
             assert page.locator('#view-sem-baixas').count()==0, 'Do not alter Sao Joao operational pilot'
-        if optimized and 'Pilot' in name:
+        if optimized and name == 'fastPilot':
             for tab in ['stock', 'replenishment', 'consumption', 'no-withdrawals', 'overview']:
                 page.locator(f'[data-sj-tab="{tab}"]').click()
                 page.wait_for_timeout(100)
@@ -220,15 +222,72 @@ with sync_playwright() as p:
                 assert history.locator('table tbody tr').count()>0, 'Sao Joao purchase history failed'
             page.locator('[data-sj-tab="overview"]').click()
             assert page.locator('#sj-pilot-root h1').inner_text() == 'Almoxarifado S\u00e3o Jo\u00e3o'
+        if optimized and name == 'fastChuaPilot':
+            assert page.locator('#sj-pilot-root h1').inner_text() == 'Almoxarifado Chuá'
+            chua_stock = page.evaluate("""() => ({
+              rows: STOCK.filter(x=>String(x.codigo_local)==='30115' &&
+                x.local==='ALMOXARIFADO GERAL F CHUA').length,
+              total: STOCK.filter(x=>String(x.codigo_local)==='30115').length,
+              noOther: STOCK.filter(x=>String(x.codigo_local)==='30115')
+                .every(x=>x.local==='ALMOXARIFADO GERAL F CHUA')
+            })""")
+            assert chua_stock['rows']>0 and chua_stock['rows']==chua_stock['total'] and chua_stock['noOther'], chua_stock
+            for tab in ['stock', 'replenishment', 'consumption', 'no-withdrawals', 'overview']:
+                page.locator(f'[data-sj-tab="{tab}"]').click()
+                page.wait_for_timeout(100)
+                assert page.locator('#sj-content').inner_text().strip(), tab
+            page.locator('[data-sj-tab="stock"]').click()
+            visible_codes = page.evaluate("""() => {
+              const local = new Set(STOCK.filter(x=>String(x.codigo_local)==='30115')
+                .map(x=>String(x.codigo)));
+              const codes=[...document.querySelectorAll('#sj-content .sj-table tbody tr td:first-child b')]
+                .map(x=>x.textContent.trim());
+              return {count:codes.length, onlyChua:codes.every(x=>local.has(x))};
+            }""")
+            assert visible_codes['count']>0 and visible_codes['onlyChua'], visible_codes
+            page.locator('[data-sj-tab="replenishment"]').click()
+            chua_rep = page.evaluate("""() => {
+              const groups=[...document.querySelectorAll('#sj-replenishment-view details[data-sj-rep-group]')];
+              const collator=new Intl.Collator('pt-BR',{sensitivity:'base'});
+              const names=groups.map(g=>g.dataset.sjRepGroup);
+              return {groups:groups.length,
+                sorted:names.every((x,i)=>!i||collator.compare(names[i-1],x)<=0),
+                itemsSorted:groups.every(g=>{
+                  const items=[...g.querySelectorAll('tr[data-sj-rep-item]')].map(x=>x.dataset.sjRepItem);
+                  return items.every((x,i)=>!i||collator.compare(items[i-1],x)<=0);
+                }), minimumMonths:window.STOCK_MINIMUM_MONTHS};
+            }""")
+            assert chua_rep['groups']>0 and chua_rep['sorted'] and chua_rep['itemsSorted'] and chua_rep['minimumMonths']==2, chua_rep
+            page.locator('[data-sj-tab="no-withdrawals"]').click()
+            page.wait_for_function("window.CHUA_NO_WITHDRAWAL_META && document.querySelector('#sj-nw-view')", timeout=20000)
+            chua_no_withdrawals = page.evaluate("""() => {
+              const rows=window.CHUA_NO_WITHDRAWAL.getRows();
+              return {
+                rows:rows.length,
+                localOnly:rows.every(x=>x.local==='ALMOXARIFADO GERAL F CHUA'),
+                noWithdrawals:rows.every(x=>!MOVEMENTS.some(m=>String(m.codigo_local)==='30115'&&
+                  String(m.codigo)===x.codigo&&Number(m.total)>0)),
+                purchasesOnlyChua:rows.every(x=>!x.latest||
+                  String(x.latest.codigo_local)==='30115'||x.latest.local==='ALMOXARIFADO GERAL F CHUA'),
+                date:window.CHUA_NO_WITHDRAWAL_META.position,
+                stockDate:window.CURRENT_STOCK_META.emissao
+              };
+            }""")
+            assert chua_no_withdrawals['rows']>0 and chua_no_withdrawals['localOnly'] and chua_no_withdrawals['noWithdrawals'], chua_no_withdrawals
+            assert chua_no_withdrawals['purchasesOnlyChua'] and chua_no_withdrawals['date']==chua_no_withdrawals['stockDate'], chua_no_withdrawals
+            assert 'São João' not in page.locator('#sj-pilot-root').inner_text()
         results[name]['errors'] = errors.copy()
         page.close()
     assert results['fast']['stockRows'] == 4087, 'Unexpected stock positions'
     assert results['fastPilot']['stockRows'] == 4087, 'Unexpected Sao Joao stock positions'
+    assert results['fastChuaPilot']['stockRows'] == 4087, 'Unexpected Chua stock positions'
     assert abs(results['fast']['stockValue'] - 2214346.67) < 0.01, 'Unexpected stock value'
     assert snapshots['legacy'] == snapshots['fast'], 'Management data changed'
     assert snapshots['legacyPilot'] == snapshots['fastPilot'], 'Pilot data changed'
+    assert snapshots['legacyChuaPilot'] == snapshots['fastChuaPilot'], 'Chua pilot data changed'
     assert not results['fast']['errors'], results['fast']['errors']
     assert not results['fastPilot']['errors'], results['fastPilot']['errors']
+    assert not results['fastChuaPilot']['errors'], results['fastChuaPilot']['errors']
     browser.close()
 server.shutdown()
 results['rawDataIdentical'] = True

@@ -24,7 +24,8 @@ export default {
           !safeEqual(decoded.slice(colon + 1), env.DASHBOARD_PASSWORD)) return unauthorized();
     }
     const url = new URL(request.url);
-    const pilot = url.pathname === '/sao-joao' || url.pathname === '/sao-joao/';
+    const chua = ['/chua', '/chua/', '/fazenda-chua', '/fazenda-chua/'].includes(url.pathname);
+    const pilot = chua || url.pathname === '/sao-joao' || url.pathname === '/sao-joao/';
     // Recovery route retains the original page and injector, with the same auth.
     if (url.searchParams.get('legacy') === '1' && (url.pathname === '/' || pilot)) {
       const originalAssets = env.ASSETS;
@@ -35,7 +36,8 @@ export default {
       }}});
     }
     const assetUrl = new URL(request.url);
-    if (pilot) { assetUrl.pathname = '/_fast-sao-joao/'; assetUrl.search = ''; }
+    if (chua) { assetUrl.pathname = '/_fast-chua/'; assetUrl.search = ''; }
+    else if (pilot) { assetUrl.pathname = '/_fast-sao-joao/'; assetUrl.search = ''; }
     const response = await env.ASSETS.fetch(new Request(assetUrl, request));
     const headers = new Headers(response.headers);
     const hashedAsset = /^\/_fast\/[a-z0-9-]+-[0-9a-f]{16}\.js$/.test(url.pathname);

@@ -76,7 +76,7 @@ core = core.replace(/^const ([A-Z_]+)=(\[.*\]);$/gm, (declaration, name, text) =
 core = unpackSource + core;
 const coreUrl = asset('core', core);
 const runtimeUrl = asset('runtime', read('scripts/fast-runtime.js'));
-for (const pilot of [false, true]) {
+for (const pilot of [false, true, 'chua']) {
   const injected = injection(pilot);
   const codes = injected.urls.map(url => ({ url, code: localAsset(url) }));
   const stockContext = vm.createContext({ window: {} });
@@ -106,7 +106,7 @@ for (const pilot of [false, true]) {
   }).filter(Boolean).join('\n;\n');
   assert.equal(loaderCount, 1, 'Expected exactly one stock loader');
   const addons = compiled + '\n;window.DB_FAST.finish();\n';
-  const addonUrl = asset(pilot ? 'sao-joao' : 'gestao', addons);
+  const addonUrl = asset(pilot === 'chua' ? 'chua' : pilot ? 'sao-joao' : 'gestao', addons);
   const links = [runtimeUrl, coreUrl, addonUrl];
   let html = source.replace(scriptPattern, '');
   html = html.replace(/<html\b([^>]*)>/i, `<html$1 class="db-booting" data-db-pilot="${pilot ? '1' : '0'}">`);
@@ -114,15 +114,15 @@ for (const pilot of [false, true]) {
   const scripts = links.map(url => `<script defer src="${url}"></script>`).join('');
   html = html.replace(/<\/head>/i, bootHead + scripts + '</head>');
   html = html.replace(/<body\b([^>]*)>/i, '<body$1>' + injected.before);
-  const filename = pilot ? '_fast-sao-joao/index.html' : 'index.html';
+  const filename = pilot === 'chua' ? '_fast-chua/index.html' : pilot ? '_fast-sao-joao/index.html' : 'index.html';
   fs.mkdirSync(path.dirname(path.join(out, filename)), { recursive: true });
   fs.writeFileSync(path.join(out, filename), html);
   if (process.argv.includes('--test')) {
     const baseline = source.replace(/<\/head>/i, injected.head + '</head>').replace(/<body\b([^>]*)>/i, '<body$1>' + injected.before).replace(/<\/body>/i, injected.after + '</body>');
     fs.mkdirSync(path.join(out, '_benchmark'), { recursive: true });
-    fs.writeFileSync(path.join(out, '_benchmark', pilot ? 'pilot.html' : 'general.html'), baseline);
+    fs.writeFileSync(path.join(out, '_benchmark', pilot === 'chua' ? 'chua.html' : pilot ? 'pilot.html' : 'general.html'), baseline);
   }
-  report.routes[pilot ? 'saoJoao' : 'management'] = { htmlBytes: Buffer.byteLength(html), scriptRequests: links.length, previousScriptRequests: injected.urls.length + 1, scriptBytes: links.reduce((n, url) => n + fs.statSync(path.join(out, url)).size, 0), gzipScriptBytes: links.reduce((n, url) => n + gzipSync(fs.readFileSync(path.join(out, url))).length, 0), stockRows: payload.rows.length, stockDate: payload.meta.emissao };
+  report.routes[pilot === 'chua' ? 'chua' : pilot ? 'saoJoao' : 'management'] = { htmlBytes: Buffer.byteLength(html), scriptRequests: links.length, previousScriptRequests: injected.urls.length + 1, scriptBytes: links.reduce((n, url) => n + fs.statSync(path.join(out, url)).size, 0), gzipScriptBytes: links.reduce((n, url) => n + gzipSync(fs.readFileSync(path.join(out, url))).length, 0), stockRows: payload.rows.length, stockDate: payload.meta.emissao };
 }
 fs.writeFileSync(path.join(root, 'build-report.json'), JSON.stringify(report, null, 2));
 console.log(JSON.stringify(report, null, 2));

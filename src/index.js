@@ -16,7 +16,7 @@ function safeEqual(a, b) {
 }
 
 class DashboardHeadInjector {
-  constructor(pilot = false) { this.pilot = pilot; }
+  constructor(pilot = false) { this.pilot = pilot; this.chua = pilot === 'chua'; }
   element(element) {
     element.append(`
       <script>document.documentElement.classList.add('db-booting');</script>
@@ -59,14 +59,14 @@ class DashboardHeadInjector {
 }
 
 class DashboardInjector {
-  constructor(pilot = false) { this.pilot = pilot; }
+  constructor(pilot = false) { this.pilot = pilot; this.chua = pilot === 'chua'; }
   element(element) {
     element.prepend(`
       <div id="db-boot-screen" aria-live="polite">
         <div class="db-boot-shell">
           <div class="db-boot-head">
             <div class="db-boot-mark">DB</div>
-            <div class="db-boot-title">${this.pilot ? "Almoxarifado São João" : "Gestão de Almoxarifados"}<span class="db-boot-sub">${this.pilot ? "Carregando a visão operacional do local..." : "Carregando a visão atualizada do dashboard..."}</span></div>
+            <div class="db-boot-title">${this.chua ? "Almoxarifado Chuá" : this.pilot ? "Almoxarifado São João" : "Gestão de Almoxarifados"}<span class="db-boot-sub">${this.pilot ? "Carregando a visão operacional do local..." : "Carregando a visão atualizada do dashboard..."}</span></div>
           </div>
           <div class="db-boot-content">
             <div class="db-boot-nav"></div>
@@ -86,8 +86,8 @@ class DashboardInjector {
       '<script src="/layout-clean-v2.js?v=20261015-2"></script>' +
       '<script src="/db-brand-theme.js?v=20261008-1"></script>' +
       '<script src="/db-brand-fixes.js?v=20261008-1"></script>' +
-      (this.pilot ? '<script src="/sao-joao-no-withdrawals.js?v=20261015-2"></script>' : '') +
-      (this.pilot ? '<script src="/sao-joao-pilot.js?v=20261015-1"></script>' : '') +
+      (this.pilot ? `<script src="/${this.chua ? 'chua-no-withdrawals' : 'sao-joao-no-withdrawals'}.js?v=20261015-2"></script>` : '') +
+      (this.pilot ? `<script src="/${this.chua ? 'chua-pilot' : 'sao-joao-pilot'}.js?v=20261015-1"></script>` : '') +
       '<script>(function(){var s=document.getElementById("db-boot-screen");if(s)s.remove();document.documentElement.classList.remove("db-booting");})();</script>' +
       '<script src="/stock-update.js?v=20260908"></script>' +
       '<script src="/stock-latest-data.js?v=20260908-1530"></script>' +
@@ -167,7 +167,10 @@ export default {
     }
 
     const url = new URL(request.url);
-    const isPilot = url.pathname === '/sao-joao' || url.pathname === '/sao-joao/';
+    const isSaoJoao = url.pathname === '/sao-joao' || url.pathname === '/sao-joao/';
+    const isChua = ['/chua', '/chua/', '/fazenda-chua', '/fazenda-chua/'].includes(url.pathname);
+    const isPilot = isSaoJoao || isChua;
+    const pilotType = isChua ? 'chua' : isSaoJoao;
     let response;
     if (isPilot) {
       const assetUrl = new URL(request.url);
@@ -183,13 +186,13 @@ export default {
 
     if (isHtml) {
       response = new HTMLRewriter()
-        .on('head', new DashboardHeadInjector(isPilot))
-        .on('body', new DashboardInjector(isPilot))
+        .on('head', new DashboardHeadInjector(pilotType))
+        .on('body', new DashboardInjector(pilotType))
         .transform(response);
     }
 
     const headers = new Headers(response.headers);
-    const fastUiAsset = /^\/(?:layout-clean-v2|db-brand-theme|db-brand-fixes|sao-joao-pilot)\.js$/.test(url.pathname) || url.pathname === '/db-logo.svg';
+    const fastUiAsset = /^\/(?:layout-clean-v2|db-brand-theme|db-brand-fixes|sao-joao-pilot|chua-pilot)\.js$/.test(url.pathname) || url.pathname === '/db-logo.svg';
     if (isHtml) {
       headers.set('Cache-Control', 'private, no-store');
     } else if (fastUiAsset) {
