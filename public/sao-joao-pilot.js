@@ -46,6 +46,15 @@
     .sj-table-wrap{overflow:auto}.sj-table{width:100%;border-collapse:collapse;font-size:9px}.sj-table th{background:#0d4726;color:#fff;text-align:left;padding:8px 9px;font-size:8px;text-transform:uppercase;white-space:nowrap}.sj-table td{padding:8px 9px;border-bottom:1px solid #e8f0eb;vertical-align:top}.sj-table tbody tr:nth-child(even){background:#fbfdfb}.sj-table tbody tr:hover{background:#edf8f1}.sj-table .num{text-align:right;white-space:nowrap}
     .sj-chip{display:inline-block;border-radius:999px;padding:3px 6px;font-size:7.5px;font-weight:900}.sj-chip.red{background:#fbeaea;color:#9c3737}.sj-chip.orange{background:#fff0da;color:#955c0f}.sj-chip.green{background:#e8f5ed;color:#176b39}.sj-chip.gray{background:#eef2ef;color:#67736b}
     .sj-tools{display:flex;gap:8px;align-items:center;padding:11px 12px;background:#fff;border:1px solid #d5e3d9;border-radius:13px;margin:12px 0 9px}.sj-tools input{flex:1;min-width:180px;border:1px solid #cfded4;border-radius:9px;padding:9px 10px;font-size:10px;outline:none}.sj-tools input:focus{border-color:#1e8747;box-shadow:0 0 0 3px rgba(30,135,71,.1)}.sj-tools span{font-size:9px;color:#6d786f}
+    .sj-rep-groups{padding:11px;display:grid;gap:9px}
+    .sj-rep-group{border:1px solid #d6e5dc;background:#fff;border-radius:11px;overflow:hidden}
+    .sj-rep-summary{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:13px 15px;background:#eef6f0;cursor:pointer;color:#134d2b}
+    .sj-rep-summary:hover{background:#e2f0e6}
+    .sj-rep-name{font-size:12px;font-weight:900}
+    .sj-rep-info{font-size:10px;font-weight:700;color:#516e5d;text-align:right}
+    .sj-rep-group[open] .sj-rep-summary{border-bottom:1px solid #d6e5dc}
+    .sj-rep-group .sj-table-wrap{max-height:650px}
+    @media(max-width:760px){.sj-rep-summary{flex-direction:column;align-items:flex-start;gap:6px}.sj-rep-info{text-align:left}}
     .sj-note{padding:10px 12px;border:1px solid #d9e6dd;border-left:4px solid #1e8747;background:#f7fbf8;border-radius:10px;font-size:9px;line-height:1.5;color:#5f6c64;margin-top:10px}
     .sj-empty{padding:26px;text-align:center;color:#7a867e;font-size:10px}
     .sj-loading{min-height:360px;display:grid;place-items:center}.sj-loading-box{text-align:center;color:#66736b;font-size:11px}.sj-spin{width:28px;height:28px;border:3px solid #dce9e0;border-top-color:#1e8747;border-radius:50%;margin:0 auto 11px;animation:sjspin .8s linear infinite}@keyframes sjspin{to{transform:rotate(360deg)}}
@@ -163,23 +172,52 @@
     `;
   }
 
+
   function renderReplenishment(d){
-    const rows=d.replenishment.slice().sort((a,b)=>{
-      const rank=s=>s==='SEM ESTOQUE'?0:s==='ABAIXO DO MÍNIMO'?1:2;
-      return rank(a.status)-rank(b.status)||(Number(b.need_value)||0)-(Number(a.need_value)||0);
-    });
+    // Agrupar por grupo em ordem alfabetica; dentro de cada grupo, por descricao do item.
+    const grouped=new Map();
+    for(const item of d.replenishment){
+      const group=String(item.grupo||'SEM GRUPO').trim()||'SEM GRUPO';
+      if(!grouped.has(group))grouped.set(group,[]);
+      grouped.get(group).push(item);
+    }
+    const groups=[...grouped.entries()].sort(([a],[b])=>a.localeCompare(b,'pt-BR',{sensitivity:'base'}));
+    const groupsHtml=groups.map(([group,items])=>{
+      items.sort((a,b)=>String(a.produto||'').localeCompare(String(b.produto||''),'pt-BR',{sensitivity:'base'})||
+        String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR',{numeric:true}));
+      const critical=items.filter(x=>x.status==='SEM ESTOQUE'||x.status==='ABAIXO DO MÍNIMO');
+      const value=critical.reduce((sum,x)=>sum+(Number(x.need_value)||0),0);
+      return `
+        <details class="sj-rep-group" data-sj-rep-group="${esc(group)}" open>
+          <summary class="sj-rep-summary">
+            <span class="sj-rep-name">${esc(group)}</span>
+            <span class="sj-rep-info">${n0(items.length)} item(ns) · ${n0(critical.length)} crítico(s) · Reposição: ${br(value)}</span>
+          </summary>
+          <div class="sj-table-wrap"><table class="sj-table">
+            <thead><tr><th>Status</th><th>Código</th><th>Produto</th><th>Un.</th><th class="num">Estoque</th><th class="num">Média/mês</th><th class="num">Mínimo</th><th class="num">Necessidade</th><th class="num">Valor</th></tr></thead>
+            <tbody>${items.map(x=>`<tr data-sj-rep-item="${esc(x.produto||'')}" data-sj-rep-code="${esc(x.codigo)}">
+              <td>${statusChip(x.status)}</td><td><b>${esc(x.codigo)}</b></td><td>${esc(x.produto)}</td><td>${esc(x.un)}</td>
+              <td class="num">${n(x.stock)}</td><td class="num">${n(x.avg)}</td><td class="num">${n(x.minimum)}</td>
+              <td class="num">${n(x.need)}</td><td class="num">${br(x.need_value)}</td>
+            </tr>`).join('')}</tbody>
+          </table></div>
+        </details>`;
+    }).join('');
     return `
-      <section class="sj-section active">
-        <div class="sj-hero"><h2>Reposição de São João</h2><p>Estoque mínimo de 2 meses: prioriza ruptura e itens abaixo da meta. Pneus e câmaras de ar permanecem fora desta recomendação.</p></div>
+      <section class="sj-section active" id="sj-replenishment-view">
+        <div class="sj-hero"><h2>Reposição de São João</h2><p>Estoque mínimo de 2 meses: produtos separados por grupo e, dentro de cada grupo, por item em ordem alfabética. As situações críticas permanecem destacadas. Pneus e câmaras de ar seguem fora desta recomendação.</p></div>
         <div class="sj-kpis">
           <div class="sj-kpi risk"><div class="k">Sem estoque</div><div class="v">${n0(d.noStock.length)}</div><div class="s">Itens com histórico de consumo e saldo zerado.</div></div>
           <div class="sj-kpi risk"><div class="k">Abaixo do mínimo</div><div class="v">${n0(d.critical.length-d.noStock.length)}</div><div class="s">Itens abaixo da cobertura mínima.</div></div>
           <div class="sj-kpi warn"><div class="k">Em atenção</div><div class="v">${n0(d.attention.length)}</div><div class="s">Estoque próximo do nível mínimo.</div></div>
           <div class="sj-kpi"><div class="k">Valor de reposição</div><div class="v">${br(d.needValue)}</div><div class="s">Estimativa para itens críticos.</div></div>
         </div>
-        <div class="sj-card"><div class="sj-card-head"><h3>Lista de reposição e atenção</h3><span>${n0(rows.length)} itens</span></div><div class="sj-table-wrap"><table class="sj-table"><thead><tr><th>Status</th><th>Código</th><th>Produto</th><th>Un.</th><th class="num">Estoque</th><th class="num">Média/mês</th><th class="num">Mínimo</th><th class="num">Necessidade</th><th class="num">Valor</th></tr></thead><tbody>
-          ${rows.map(x=>`<tr><td>${statusChip(x.status)}</td><td><b>${esc(x.codigo)}</b></td><td>${esc(x.produto)}</td><td>${esc(x.un)}</td><td class="num">${n(x.stock)}</td><td class="num">${n(x.avg)}</td><td class="num">${n(x.minimum)}</td><td class="num">${n(x.need)}</td><td class="num">${br(x.need_value)}</td></tr>`).join('')||'<tr><td colspan="9" class="sj-empty">Nenhuma necessidade de reposição.</td></tr>'}
-        </tbody></table></div></div>
+        <div class="sj-card"><div class="sj-card-head"><h3>Reposição por grupo e item</h3><span>${n0(groups.length)} grupos · ${n0(d.replenishment.length)} itens</span></div>
+          <div class="sj-rep-groups">
+            ${groupsHtml||'<div class="sj-empty">Nenhuma necessidade de reposição.</div>'}
+          </div>
+        </div>
+        <div class="sj-note">Clique no nome de um grupo para expandir ou recolher seus itens. Os grupos e os produtos estão em ordem alfabética; os indicadores de ruptura, estoque mínimo e valor continuam os mesmos.</div>
       </section>
     `;
   }
