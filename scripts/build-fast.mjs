@@ -50,8 +50,12 @@ core = core.replace(renderAll, 'function render(){window.DB_FAST.requestAll()}')
 const renderers = { renderOverview: 'geral', renderStock: 'estoque', renderBaixas: 'baixas', renderMinimum: 'minimo', renderProducts: 'produtos', renderSuppliers: 'fornecedores', renderHistory: 'historico', renderCDI: 'cdi', renderQuotes: 'orcamentos' };
 const registration = Object.entries(renderers).map(([name, view]) => `${name}=window.DB_FAST.wrap('${name}','${view}',${name});`).join('\n');
 core = registration + '\n' + core;
-// Honor the approved two-month policy also in annual and CDI selectors.
+// Honor two months of minimum stock and the completed months through Sep/2026 (Oct partial).
 core = core.replaceAll('minimumRoundUp(avg*4,', 'minimumRoundUp(avg*(window.STOCK_MINIMUM_MONTHS||2),');
+core = core.replace("completeMonths=y==='2026'?8:12", "completeMonths=y==='2026'?9:12");
+core = core.replace('avg=complete/19,minimum', 'avg=complete/21,minimum');
+core = core.replace('complete_months:19,avg', 'complete_months:21,avg');
+core = core.replaceAll('Set*', 'Set');
 function unpack(keys, rows) {
   return rows.map(values => Object.fromEntries(keys.map((key, index) => [key, values[index]])));
 }
