@@ -204,7 +204,7 @@ with sync_playwright() as p:
             page.locator('#fm-year').select_option('2026')
             assert page.locator('#farm-minimum-view').count()==1
             page.locator('#fm-year').select_option('')
-            page.locator('[data-fm-status="ABAIXO DO MÍNIMO"]').check()
+            page.locator('input[data-fm-status="ABAIXO DO MÍNIMO"]').check()
             status_filter=page.evaluate("() => window.FARM_MINIMUM_FROM_MANAGER.getVisibleRows().every(x=>x.status==='ABAIXO DO MÍNIMO')")
             assert status_filter, 'Manager minimum status filter failed'
             page.locator('#fm-clear').click()
@@ -305,7 +305,7 @@ with sync_playwright() as p:
             page.locator('#fm-year').select_option('2026')
             assert page.locator('#farm-minimum-view').count()==1
             page.locator('#fm-year').select_option('')
-            page.locator('[data-fm-status="ABAIXO DO MÍNIMO"]').check()
+            page.locator('input[data-fm-status="ABAIXO DO MÍNIMO"]').check()
             status_filter=page.evaluate("() => window.FARM_MINIMUM_FROM_MANAGER.getVisibleRows().every(x=>x.status==='ABAIXO DO MÍNIMO')")
             assert status_filter, 'Manager minimum status filter failed'
             page.locator('#fm-clear').click()
