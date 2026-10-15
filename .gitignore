@@ -3,4 +3,6 @@ dist/
 .wrangler/
 build-report.json
 browser-test-report.json
-__pycache__/
+.refresh-source-*/
+refresh-report.json
+refresh-browser-report.json
