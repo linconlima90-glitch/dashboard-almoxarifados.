@@ -165,6 +165,25 @@ with sync_playwright() as p:
                 page.locator(f'[data-sj-tab="{tab}"]').click()
                 page.wait_for_timeout(100)
                 assert page.locator('#sj-content').inner_text().strip()
+            page.locator('[data-sj-tab="replenishment"]').click()
+            replenishment_order = page.evaluate("""() => {
+              const groups=[...document.querySelectorAll('#sj-replenishment-view details[data-sj-rep-group]')];
+              const collator=new Intl.Collator('pt-BR',{sensitivity:'base'});
+              const names=groups.map(g=>g.dataset.sjRepGroup);
+              const items=groups.map(g=>[...g.querySelectorAll('tr[data-sj-rep-item]')].map(x=>x.dataset.sjRepItem));
+              return {
+                groupCount:groups.length,
+                itemCount:items.reduce((n,a)=>n+a.length,0),
+                groupSorted:names.every((x,i)=>!i||collator.compare(names[i-1],x)<=0),
+                itemsSorted:items.every(rows=>rows.every((x,i)=>!i||collator.compare(rows[i-1],x)<=0)),
+                detailsOpen:groups.every(g=>g.open),
+                minMonths:window.STOCK_MINIMUM_MONTHS,
+                metric:document.querySelector('#sj-replenishment-view .sj-kpi .v')?.textContent
+              };
+            }""")
+            assert replenishment_order['groupCount']>0 and replenishment_order['itemCount']>0, replenishment_order
+            assert replenishment_order['groupSorted'] and replenishment_order['itemsSorted'], replenishment_order
+            assert replenishment_order['detailsOpen'] and replenishment_order['minMonths']==2, replenishment_order
             page.locator('[data-sj-tab="no-withdrawals"]').click()
             page.wait_for_function("window.SJ_NO_WITHDRAWAL_META && document.querySelector('#sj-nw-view')", timeout=20000)
             sj_no_withdrawals=page.evaluate("""() => {
