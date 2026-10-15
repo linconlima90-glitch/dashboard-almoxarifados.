@@ -11,13 +11,23 @@
   const rowKey=x=>String(x.codigo_local)+'|'+String(x.codigo);
   const monthKey=x=>String(x.mes)+'|'+rowKey(x);
   const rev=packed.map(r=>Object.fromEntries(cols.map((c,i)=>[c,r[i]])));
+  const preferredUnit=new Map();
+  if(typeof STOCK!=='undefined')for(const x of STOCK)preferredUnit.set(rowKey(x),String(x.un||''));
+  for(const x of MOVEMENTS)if(!preferredUnit.has(rowKey(x)))preferredUnit.set(rowKey(x),String(x.un||''));
   const mapRev=new Map();
   const mixedUnits=[]; // Mesmo codigo com unidades KG/SC: nao somar quantidades incompatíveis.
   const recKeys=new Set();
   const recByMonth={'2026-07':{records:0,valor:0},'2026-08':{records:0,valor:0},'2026-09':{records:0,valor:0},'2026-10':{records:0,valor:0}};
   for(const r of rev){
     if(!recByMonth[r.mes])throw Error('Mês inesperado na fotografia '+r.mes);
-    const k=monthKey(r);
+    const k=monthKey(r), unit=String(r.un||'');
+    const expectedUnit=preferredUnit.get(rowKey(r));
+    if(expectedUnit&&unit!==expectedUnit){
+      mixedUnits.push({mes:r.mes,codigo_local:r.codigo_local,codigo:r.codigo,un:r.un,qtd:r.qtd,valor:r.valor,records:r.records,unidadeEstoque:expectedUnit});
+      recKeys.add(rowKey(r));
+      recByMonth[r.mes].records+=n(r.records);recByMonth[r.mes].valor+=n(r.valor);
+      continue;
+    }
     if(mapRev.has(k)){
       const prior=mapRev.get(k);
       if(String(prior.un)!==String(r.un)){
@@ -94,7 +104,10 @@
   // Demanda do CDI CHUA abrange todos os locais da rede: reconstituir apos a substituicao.
   if(typeof CDI_NETWORK_YEARLY!=='undefined'&&typeof CDI_NETWORK_YEAR_MAP!=='undefined'&&typeof CDI_NETWORK_ALL_MAP!=='undefined'){
     const byCode=new Map();
-    for(const r of rev){const code=String(r.codigo),i=Number(r.mes.slice(-2))-1;
+    for(const r of rev){
+      const expected=preferredUnit.get(rowKey(r));
+      if(expected&&String(r.un||'')!==expected)continue;
+      const code=String(r.codigo),i=Number(r.mes.slice(-2))-1;
       let a=byCode.get(code);if(!a){a={months:[0,0,0,0],info:r};byCode.set(code,a)}a.months[i-6]+=n(r.qtd);
     }
     const netYears=new Map(CDI_NETWORK_YEARLY.filter(x=>x.year==='2026').map(x=>[String(x.k),x]));
@@ -134,7 +147,7 @@
     const box=document.createElement('div');box.id='baixas-snapshot-20261015';
     box.style.cssText='background:#f5f9f6;border:1px solid #cfe3d3;border-left:4px solid #1e8747;padding:11px 15px;border-radius:10px;color:#214e32;font-size:12px;margin:10px 0 14px;line-height:1.65';
     box.innerHTML='<b>Baixas conferidas do ERP (sem transferencias): 01/07 a 15/10/2026</b> · 4.227 lancamentos · <b>R$ 416.477,59</b>.'+
-      '<div style="color:#657366;font-size:11px">Os valores por produto fora deste periodo sao estimados pelo custo de estoque. 287 chaves antigas seguem em conciliacao. Cimento CP-32: registros com KG e SC sao mantidos separadamente, sem somar quantidades de unidades distintas.</div>';
+      '<div style="color:#657366;font-size:11px">Os valores por produto fora deste periodo sao estimados pelo custo de estoque. 287 chaves antigas seguem em conciliacao. Divergencias de unidade (KG/SC e KG/FD) sao mantidas separadamente, sem somar quantidades de unidades distintas.</div>';
     summary.prepend(box);
   }
   // Nao manter em memoria uma segunda copia da fotografia de julho-outubro.
