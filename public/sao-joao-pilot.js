@@ -66,6 +66,7 @@
       <nav class="sj-nav">
         <button type="button" class="active" data-sj-tab="overview">Visão geral</button>
         <button type="button" data-sj-tab="stock">Estoque</button>
+        <button type="button" data-sj-tab="no-withdrawals">Estoque sem baixas</button>
         <button type="button" data-sj-tab="replenishment">Reposição</button>
         <button type="button" data-sj-tab="consumption">Consumo / Baixas</button>
         <span class="sj-badge">50115 • São João</span>
@@ -216,6 +217,7 @@
     const d=data();
     if(!d){content.innerHTML='<div class="sj-loading"><div class="sj-loading-box"><div class="sj-spin"></div>Carregando dados de São João...</div></div>';return false}
     if(active==='stock')content.innerHTML=renderStock(d);
+    else if(active==='no-withdrawals')content.innerHTML=window.SJ_NO_WITHDRAWAL?window.SJ_NO_WITHDRAWAL.render():'<div class="sj-note">Aguardando o histórico reconciliado de baixas.</div>';
     else if(active==='replenishment')content.innerHTML=renderReplenishment(d);
     else if(active==='consumption')content.innerHTML=renderConsumption(d);
     else if(active==='noturn')content.innerHTML=renderNoTurn(d);
