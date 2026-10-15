@@ -33,7 +33,7 @@
       <label>Pesquisar código ou produto<input id="ns-search" type="search" placeholder="Código, descrição, fornecedor ou nota fiscal" autocomplete="off"></label>
       <label>Almoxarifado<select id="ns-local"><option value="">Todos os locais</option></select></label>
       <label>Grupo de produto<select id="ns-group"><option value="">Todos os grupos</option></select></label>
-      <label>Ordenar<select id="ns-order"><option value="valor">Maior valor em estoque</option><option value="quantidade">Maior quantidade em estoque</option><option value="compra">Última compra mais recente</option></select></label>
+      <label>Ordenar<select id="ns-order"><option value="valor">Maior valor em estoque</option><option value="unitario">Maior valor unitário</option><option value="quantidade">Maior quantidade em estoque</option><option value="compra">Última compra mais recente</option></select></label>
       <label>Verificar baixas<select id="ns-scope"><option value="local">Sem baixa neste almoxarifado</option><option value="rede">Sem baixa em toda a rede</option></select></label>
       <button type="button" class="ns-export" id="ns-export">Exportar CSV</button>
     </div>
@@ -41,8 +41,8 @@
     <div class="ns-table-panel">
       <div class="ns-table-title"><strong>Produtos por almoxarifado</strong><span id="ns-caption">Preparando dados...</span></div>
       <div class="ns-table-wrap"><table class="ns-table">
-        <thead><tr><th>#</th><th>Código e produto</th><th>Grupo</th><th>Local do estoque</th><th class="ns-num">Quantidade</th><th class="ns-num">Valor em estoque</th><th>Última compra identificada</th><th>Histórico de compras</th></tr></thead>
-        <tbody id="ns-rows"><tr><td colspan="8">O levantamento será calculado quando esta aba for aberta.</td></tr></tbody>
+        <thead><tr><th>#</th><th>Código e produto</th><th>Grupo</th><th>Local do estoque</th><th class="ns-num">Quantidade</th><th class="ns-num">Valor unitário</th><th class="ns-num">Valor em estoque</th><th>Última compra identificada</th><th>Histórico de compras</th></tr></thead>
+        <tbody id="ns-rows"><tr><td colspan="9">O levantamento será calculado quando esta aba for aberta.</td></tr></tbody>
       </table></div>
       <div class="ns-footer"><span id="ns-progress"></span><button type="button" class="ns-more" id="ns-more" hidden>Exibir mais 100 posições</button></div>
     </div>
@@ -70,7 +70,7 @@
     #view-sem-baixas .ns-table-title strong{font-size:13px;color:#234530}
     #view-sem-baixas .ns-table-title span{font-size:11px;color:#748078}
     #view-sem-baixas .ns-table-wrap{overflow-x:auto;max-height:750px}
-    #view-sem-baixas .ns-table{width:100%;border-collapse:collapse;font-size:11px;min-width:1080px}
+    #view-sem-baixas .ns-table{width:100%;border-collapse:collapse;font-size:11px;min-width:1180px}
     #view-sem-baixas .ns-table th{text-align:left;position:sticky;top:0;z-index:1;background:#f1f7f3;color:#3d6650;border-bottom:1px solid #d7e5dc;padding:11px 10px;white-space:nowrap}
     #view-sem-baixas .ns-table td{padding:10px;border-bottom:1px solid #edf1ee;vertical-align:top;line-height:1.45}
     #view-sem-baixas .ns-table tr:hover td{background:#f8fbf8}
@@ -176,7 +176,8 @@
       }
       return true;
     });
-    if(f.sort==='quantidade')result.sort((a,b)=>b.quantidade-a.quantidade||b.valor-a.valor);
+    if(f.sort==='unitario')result.sort((a,b)=>b.custo-a.custo||b.valor-a.valor||b.quantidade-a.quantidade);
+    else if(f.sort==='quantidade')result.sort((a,b)=>b.quantidade-a.quantidade||b.valor-a.valor);
     else if(f.sort==='compra')result.sort((a,b)=>asDate(b.newest?.data)-asDate(a.newest?.data)||b.valor-a.valor);
     else result.sort((a,b)=>b.valor-a.valor||b.quantidade-a.quantidade);
     return result;
@@ -190,12 +191,13 @@
   }
   function rowHTML(x,i){
     const f=x.newest;
-    return `<tr data-ns-code="${esc(x.codigo)}" data-ns-value="${x.valor}" data-ns-quantity="${x.quantidade}" data-ns-local="${esc(x.local)}">
+    return `<tr data-ns-code="${esc(x.codigo)}" data-ns-value="${x.valor}" data-ns-unit-value="${x.custo}" data-ns-quantity="${x.quantidade}" data-ns-local="${esc(x.local)}">
       <td>${integer(i+1)}</td>
       <td><span class="ns-main">${esc(x.codigo)} — ${esc(x.produto)}</span><span class="ns-sub">Unidade: ${esc(x.un)} · Estoque: ${money(x.custo)}/un</span></td>
       <td>${esc(x.grupo)}</td>
       <td><span class="ns-main">${esc(x.local)}</span><span class="ns-sub">${esc(x.empresa)}</span></td>
       <td class="ns-num"><strong>${qty(x.quantidade)}</strong> ${esc(x.un)}</td>
+      <td class="ns-num"><strong>${money(x.custo)}</strong>/${esc(x.un)}</td>
       <td class="ns-num"><strong>${money(x.valor)}</strong></td>
       <td>${purchaseHTML(f,x.local)}</td>
       <td>${x.historyCount?`<details class="ns-history" data-history-key="${esc(productKey(x))}"><summary>Ver ${integer(x.historyCount)} compra(s)</summary><div class="ns-history-box">Carregando histórico...</div></details>`:'<span class="ns-sub">Sem compras registradas</span>'}</td>
@@ -205,7 +207,7 @@
     if(resetLimit)limit=100;
     if(dirty&&!refreshSource()){
       $('#ns-caption').textContent='Dados ainda não disponíveis';
-      $('#ns-rows').innerHTML='<tr><td colspan="8">Aguardando a posição de estoque e o histórico de baixas conferido.</td></tr>';
+      $('#ns-rows').innerHTML='<tr><td colspan="9">Aguardando a posição de estoque e o histórico de baixas conferido.</td></tr>';
       return;
     }
     renderedRows=filteredRows();
@@ -217,9 +219,9 @@
     $('#ns-unpurchased').textContent=integer(renderedRows.filter(x=>!x.historyCount).length);
     const meta=window.STOCK_NO_WITHDRAWAL_META||{};
     const position=String(meta.stockDate||'15/10/2026');
-    $('#ns-caption').textContent=`Posição de estoque: ${position} · ${renderedRows.length} posição(ões) · ordenação: ${getFilters().sort==='quantidade'?'quantidade':getFilters().sort==='compra'?'última compra':'maior valor'}`;
-    $('#ns-note').innerHTML=`<b>Critério:</b> saldo positivo e nenhuma baixa no escopo selecionado, dentro do histórico disponível (a partir de jan/2025, mais revisão 01/07–15/10/2026). <b>Última compra:</b> data de NF, não data de entrada física. <b>Estoque:</b> posição de ${esc(position)}. <b>Conciliação:</b> ${integer(excludedPending)} posições com histórico pendente e ${integer(mixedUnitsExcluded)} com baixas em outra unidade foram retiradas desta lista para evitar falso “nunca baixado”. Pneus, câmaras, lubrificantes e cimento são exibidos se atenderem ao critério. Quantidades de unidades distintas não são somadas.`;
-    $('#ns-rows').innerHTML=visible.length?visible.map(rowHTML).join(''):'<tr><td colspan="8" style="text-align:center;padding:20px">Nenhum item encontrado para os filtros.</td></tr>';
+    $('#ns-caption').textContent=`Posição de estoque: ${position} · ${renderedRows.length} posição(ões) · ordenação: ${getFilters().sort==='unitario'?'maior valor unitário':getFilters().sort==='quantidade'?'quantidade':getFilters().sort==='compra'?'última compra':'maior valor total'}`;
+    $('#ns-note').innerHTML=`<b>Critério:</b> saldo positivo e nenhuma baixa no escopo selecionado, dentro do histórico disponível (a partir de jan/2025, mais revisão 01/07–15/10/2026). <b>Última compra:</b> data de NF, não data de entrada física. <b>Valor unitário:</b> custo unitário da posição de estoque, diferente do preço pago na última compra. <b>Estoque:</b> posição de ${esc(position)}. <b>Conciliação:</b> ${integer(excludedPending)} posições com histórico pendente e ${integer(mixedUnitsExcluded)} com baixas em outra unidade foram retiradas desta lista para evitar falso “nunca baixado”. Pneus, câmaras, lubrificantes e cimento são exibidos se atenderem ao critério. Quantidades de unidades distintas não são somadas.`;
+    $('#ns-rows').innerHTML=visible.length?visible.map(rowHTML).join(''):'<tr><td colspan="9" style="text-align:center;padding:20px">Nenhum item encontrado para os filtros.</td></tr>';
     $('#ns-progress').textContent=`Mostrando ${integer(visible.length)} de ${integer(renderedRows.length)} posições`;
     $('#ns-more').hidden=limit>=renderedRows.length;
     window.STOCK_NO_WITHDRAWAL_META.filteredRows=renderedRows.length;
@@ -249,8 +251,8 @@
     const rows=filteredRows();
     const sep=';';
     const csvField=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
-    const values=[['Código','Produto','Grupo','Empresa fiscal','Local do estoque','Quantidade','Unidade','Valor em estoque (R$)','Data última compra identificada','Fornecedor','NF','Local da última compra','Preço unitário (R$)','Quantidade comprada','Qtd. de compras no histórico','Posição do estoque']];
-    for(const x of rows){const p=x.newest;values.push([x.codigo,x.produto,x.grupo,x.empresa,x.local,x.quantidade,x.un,x.valor,p?.data||'',p?.fornecedor||'',p?.nota||'',p?.local||'',p?.preco??'',p?.qtd??'',x.historyCount,String(window.CURRENT_STOCK_META?.emissao||'15/10/2026')]);}
+    const values=[['Código','Produto','Grupo','Empresa fiscal','Local do estoque','Quantidade','Unidade','Valor unitário do estoque (R$)','Valor em estoque (R$)','Data última compra identificada','Fornecedor','NF','Local da última compra','Preço unitário (R$)','Quantidade comprada','Qtd. de compras no histórico','Posição do estoque']];
+    for(const x of rows){const p=x.newest;values.push([x.codigo,x.produto,x.grupo,x.empresa,x.local,x.quantidade,x.un,x.custo,x.valor,p?.data||'',p?.fornecedor||'',p?.nota||'',p?.local||'',p?.preco??'',p?.qtd??'',x.historyCount,String(window.CURRENT_STOCK_META?.emissao||'15/10/2026')]);}
     const content='\ufeff'+values.map(row=>row.map(csvField).join(sep)).join('\r\n');
     const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));
     const a=document.createElement('a');a.href=url;a.download='estoque_sem_baixas_15-10-2026.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),500);
