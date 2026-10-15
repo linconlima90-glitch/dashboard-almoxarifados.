@@ -1,7 +1,7 @@
 name: Dashboard performance regression
 on:
   push:
-    branches: [perf/initial-load-20261008, perf/initial-load-20261015, perf/purchases-20261015, feature/estoque-sem-baixas-20261015, data/estoque-20261015-1340]
+    branches: [main, perf/initial-load-20261008, perf/initial-load-20261015, perf/purchases-20261015, feature/estoque-sem-baixas-20261015, data/estoque-20261015-1340]
 permissions:
   contents: read
 jobs:
