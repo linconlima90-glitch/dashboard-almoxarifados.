@@ -16,7 +16,7 @@ threading.Thread(target=server.serve_forever, daemon=True).start()
 base = f'http://127.0.0.1:{server.server_port}'
 SNAPSHOT = """() => ({
  stock: STOCK.map(x=>[x.empresa,x.codigo_local,x.local,x.codigo,x.produto,x.grupo,x.un,x.estoque,x.custo_estoque,x.valor_estoque]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))),
- movements: MOVEMENTS.map(x=>[x.local,x.codigo,x.total,x.avg,x.qtd_set_20261008,x.valor_set_20261008]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))),
+ movements: MOVEMENTS.map(x=>[x.local,x.codigo,x.total,x.avg,x.qtd_set_20261015,x.valor_set_20261015]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))),
  purchases: PURCHASES,
  quotes: QUOTES,
  meta: window.CURRENT_STOCK_META,
@@ -41,7 +41,7 @@ with sync_playwright() as p:
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.on('request', lambda request: requests.append(request.url))
         page.goto(base + route, wait_until='load', timeout=120000)
-        page.wait_for_function("window.CURRENT_STOCK_META && window.STOCK_MINIMUM_MONTHS===2", timeout=90000)
+        page.wait_for_function("window.CURRENT_STOCK_META && window.STOCK_MINIMUM_MONTHS===2 && window.MOVEMENTS_REVISED_META?.records===4227", timeout=90000)
         if optimized:
             page.wait_for_function("document.documentElement.dataset.fastReady==='1'")
         page.wait_for_timeout(600)
@@ -81,6 +81,9 @@ with sync_playwright() as p:
             assert page.locator('#sj-pilot-root h1').inner_text() == 'Almoxarifado S\u00e3o Jo\u00e3o'
         results[name]['errors'] = errors.copy()
         page.close()
+    assert results['fast']['stockRows'] == 4104, 'Unexpected stock positions'
+    assert results['fastPilot']['stockRows'] == 4104, 'Unexpected Sao Joao stock positions'
+    assert abs(results['fast']['stockValue'] - 2280989.47) < 0.01, 'Unexpected stock value'
     assert snapshots['legacy'] == snapshots['fast'], 'Management data changed'
     assert snapshots['legacyPilot'] == snapshots['fastPilot'], 'Pilot data changed'
     assert not results['fast']['errors'], results['fast']['errors']

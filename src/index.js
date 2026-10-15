@@ -85,7 +85,7 @@ class DashboardInjector {
       '<script src="/layout-clean-v2.js?v=20261008-1"></script>' +
       '<script src="/db-brand-theme.js?v=20261008-1"></script>' +
       '<script src="/db-brand-fixes.js?v=20261008-1"></script>' +
-      (this.pilot ? '<script src="/sao-joao-pilot.js?v=20261008-3"></script>' : '') +
+      (this.pilot ? '<script src="/sao-joao-pilot.js?v=20261015-1"></script>' : '') +
       '<script>(function(){var s=document.getElementById("db-boot-screen");if(s)s.remove();document.documentElement.classList.remove("db-booting");})();</script>' +
       '<script src="/stock-update.js?v=20260908"></script>' +
       '<script src="/stock-latest-data.js?v=20260908-1530"></script>' +
@@ -116,20 +116,27 @@ class DashboardInjector {
       '<script src="/executive-interactive.js?v=20260909"></script>' +
       '<script src="/capital-hierarchy.js?v=20260911-3"></script>' +
       '<script src="/executive-only-capital.js?v=20260911-1"></script>' +
-      '<script src="/movement-update-20260930.js?v=20260930-1"></script><script src="/movement-update-20261008.js?v=20261008-1"></script>' +
       '<script src="/minimum-policy-2months-20261008.js?v=20261008-1"></script>' +
       '<script src="/stock-current-b64-init.js?v=20261008-1"></script>' +
-      '<script src="/stock-current-20261008-01.js?v=20261008-1"></script>' +
-      '<script src="/stock-current-20261008-02.js?v=20261008-1"></script>' +
-      '<script src="/stock-current-20261008-03.js?v=20261008-1"></script>' +
-      '<script src="/stock-current-20261008-04.js?v=20261008-1"></script>' +
-      '<script src="/stock-current-20261008-05.js?v=20261008-1"></script>' +
-      '<script src="/stock-current-20261008-06.js?v=20261008-1"></script>' +
-      '<script src="/stock-current-20261008-07.js?v=20261008-1"></script>' +
-      '<script src="/stock-current-20261008-08.js?v=20261008-1"></script>' +
-      '<script src="/stock-current-20261008-09.js?v=20261008-1"></script>' +
-      '<script src="/current-stock-loader-20260911.js?v=20261008-1"></script>' +
-      '<script src="/tire-stock-dashboard-20260930.js?v=20261008-1"></script>',
+      '<script src="/stock-current-20261015-01.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-02.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-03.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-04.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-05.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-06.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-07.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-08.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-09.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-10.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-11.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-12.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-13.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-14.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-15.js?v=20261015-1"></script>' +
+      '<script src="/stock-current-20261015-16.js?v=20261015-1"></script>' +
+      '<script src="/current-stock-loader-20260911.js?v=20261015-1"></script>' +
+      '<script src="/movement-reconcile-20261015.js?v=20261015-1"></script>' +
+      '<script src="/tire-stock-dashboard-20260930.js?v=20261015-1"></script>',
       { html: true }
     );
   }
