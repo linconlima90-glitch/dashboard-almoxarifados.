@@ -197,6 +197,7 @@ with sync_playwright() as p:
             history=page.locator('#sj-nw-view .sj-nw-history').first
             if history.count():
                 history.locator('summary').click()
+                history.locator('table tbody tr').first.wait_for(timeout=5000)
                 assert history.locator('table tbody tr').count()>0, 'Sao Joao purchase history failed'
             page.locator('[data-sj-tab="overview"]').click()
             assert page.locator('#sj-pilot-root h1').inner_text() == 'Almoxarifado S\u00e3o Jo\u00e3o'
