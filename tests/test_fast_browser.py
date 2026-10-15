@@ -120,6 +120,17 @@ with sync_playwright() as p:
             page.locator('#ns-order').select_option('quantidade')
             sorted_qty=page.evaluate("() => [...document.querySelectorAll('#ns-rows tr[data-ns-quantity]')].map(x=>Number(x.dataset.nsQuantity)).every((x,i,a)=>!i||a[i-1]>=x)")
             assert sorted_qty, 'Quantity ordering failed'
+            page.locator('#ns-order').select_option('unitario')
+            sorted_unit = page.evaluate("""() => {
+              const values=[...document.querySelectorAll('#ns-rows tr[data-ns-unit-value]')].map(x=>Number(x.dataset.nsUnitValue));
+              return {
+                count:values.length,
+                ordered:values.every((x,i)=>!i||values[i-1]>=x),
+                heading:[...document.querySelectorAll('#view-sem-baixas thead th')].some(x=>x.textContent.trim()==='Valor unitário'),
+                caption:document.querySelector('#ns-caption').textContent.includes('maior valor unitário')
+              };
+            }""")
+            assert sorted_unit['count']>1 and sorted_unit['ordered'] and sorted_unit['heading'] and sorted_unit['caption'], sorted_unit
             page.locator('#ns-scope').select_option('rede')
             strict=page.evaluate("""() => ({count:window.STOCK_NO_WITHDRAWAL_META.filteredRows,
               rows:window.STOCK_NO_WITHDRAWAL.getRows().filter(x=>!MOVEMENTS.some(m=>String(m.codigo)===x.codigo&&Number(m.total)>0)).length})""")
