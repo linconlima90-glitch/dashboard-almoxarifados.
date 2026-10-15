@@ -161,10 +161,44 @@ with sync_playwright() as p:
         if 'Pilot' in name:
             assert page.locator('#view-sem-baixas').count()==0, 'Do not alter Sao Joao operational pilot'
         if optimized and 'Pilot' in name:
-            for tab in ['stock', 'replenishment', 'consumption', 'overview']:
+            for tab in ['stock', 'replenishment', 'consumption', 'no-withdrawals', 'overview']:
                 page.locator(f'[data-sj-tab="{tab}"]').click()
-                page.wait_for_timeout(80)
+                page.wait_for_timeout(100)
                 assert page.locator('#sj-content').inner_text().strip()
+            page.locator('[data-sj-tab="no-withdrawals"]').click()
+            page.wait_for_function("window.SJ_NO_WITHDRAWAL_META && document.querySelector('#sj-nw-view')", timeout=20000)
+            sj_no_withdrawals=page.evaluate("""() => {
+              const rows=window.SJ_NO_WITHDRAWAL.getRows();
+              const displayed=[...document.querySelectorAll('#sj-nw-view tr[data-sj-nw-value]')];
+              const stock=STOCK.filter(x=>String(x.codigo_local)==='50115');
+              return {
+                rows:rows.length, display:displayed.length, localRows:rows.every(x=>String(x.local)==='ALMOXARIFADO GERAL F SJ'),
+                valid:rows.every(x=>x.quantidade>0 && !MOVEMENTS.some(m=>
+                  String(m.codigo_local)==='50115'&&String(m.codigo)===String(x.codigo)&&Number(m.total)>0)),
+                totalPosition:stock.reduce((v,x)=>v+(Number(x.valor_estoque)||0),0),
+                date:window.CURRENT_STOCK_META.emissao,
+                ordered:displayed.every((el,i)=>!i||Number(displayed[i-1].dataset.sjNwValue)>=Number(el.dataset.sjNwValue)),
+                meta:window.MOVEMENTS_REVISED_META.records,
+                purchaseLocal:rows.every(x=>!x.latest||String(x.latest.codigo_local)==='50115'||x.latest.local===x.local)
+              };
+            }""")
+            assert sj_no_withdrawals['rows']>0 and sj_no_withdrawals['display']>0, sj_no_withdrawals
+            assert sj_no_withdrawals['localRows'] and sj_no_withdrawals['valid'] and sj_no_withdrawals['ordered'], sj_no_withdrawals
+            assert sj_no_withdrawals['purchaseLocal'] and sj_no_withdrawals['meta']==4227, sj_no_withdrawals
+            assert sj_no_withdrawals['date']=='15/10/2026 13:40:03', sj_no_withdrawals
+            page.locator('#sj-nw-sort').select_option('unitario')
+            sorted_unit=page.evaluate("""() => [...document.querySelectorAll('#sj-nw-view tr[data-sj-nw-unit]')]
+              .map(el=>Number(el.dataset.sjNwUnit)).every((x,i,a)=>!i||a[i-1]>=x)""")
+            assert sorted_unit, 'Sao Joao unit cost ordering failed'
+            page.locator('#sj-nw-scope').select_option('rede')
+            strict_count=page.evaluate("() => window.SJ_NO_WITHDRAWAL.getFiltered().length")
+            assert strict_count<=sj_no_withdrawals['rows'], strict_count
+            page.locator('#sj-nw-scope').select_option('local')
+            history=page.locator('#sj-nw-view .sj-nw-history').first
+            if history.count():
+                history.locator('summary').click()
+                assert history.locator('table tbody tr').count()>0, 'Sao Joao purchase history failed'
+            page.locator('[data-sj-tab="overview"]').click()
             assert page.locator('#sj-pilot-root h1').inner_text() == 'Almoxarifado S\u00e3o Jo\u00e3o'
         results[name]['errors'] = errors.copy()
         page.close()
