@@ -16,6 +16,14 @@
     let json=text.slice(pos+marker.length).trim();
     if(json.endsWith(';'))json=json.slice(0,-1);
     window.CURRENT_STOCK_20260911=JSON.parse(json);
+    // Reanexar a fotografia certificada de baixas de jul-out/2026 ao estoque
+    // atualizado, preservando a mesma sequencia de inicializacao da base anterior.
+    const hist=window.STOCK_REVISED_MONTHLY_20261015;
+    if(!hist||!Array.isArray(hist.rows)||!Array.isArray(hist.cols))
+      throw new Error('Historico conciliado de baixas nao carregado');
+    window.CURRENT_STOCK_20260911.revised_monthly_cols=hist.cols;
+    window.CURRENT_STOCK_20260911.revised_monthly_rows=hist.rows;
+    delete window.STOCK_REVISED_MONTHLY_20261015;
     window.CURRENT_STOCK_GZ='';
     const script=document.createElement('script');
     script.src='/current-stock-apply-20260911.js?v=20261019-0940';

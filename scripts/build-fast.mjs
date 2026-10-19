@@ -50,9 +50,10 @@ function buildCertifiedMovements() {
     cols:old.revised_monthly_cols,rows:old.revised_monthly_rows
   })+';\n';
   fs.writeFileSync(path.join(out,'_data/revised-monthly-20261019.js'),data);
-  return {rows:old.revised_monthly_rows.length,bytes:Buffer.byteLength(data)};
+  return {cols:old.revised_monthly_cols,rows:old.revised_monthly_rows,bytes:Buffer.byteLength(data)};
 }
-report.certifiedMovements=buildCertifiedMovements();
+const certifiedMovements=buildCertifiedMovements();
+report.certifiedMovements={rows:certifiedMovements.rows.length,bytes:certifiedMovements.bytes};
 
 // The legacy injectors remain authoritative for stock/movement file versions.
 const context = vm.createContext({});
@@ -114,8 +115,11 @@ for (const pilot of [false, true, 'chua']) {
   assert(stockText.includes(prefix), 'Unknown stock payload');
   const payload = JSON.parse(stockText.slice(stockText.indexOf(prefix) + prefix.length).trim().replace(/;$/, ''));
   assert(Array.isArray(payload.rows) && payload.rows.length === Number(payload.meta.registros ?? payload.meta.posicoes), 'Invalid stock row count');
+  payload.revised_monthly_cols=certifiedMovements.cols;
+  payload.revised_monthly_rows=certifiedMovements.rows;
   let loaderCount = 0;
   const compiled = codes.map(({ url, code }) => {
+    if(url.startsWith('/_data/revised-monthly-'))return '';
     if (url.startsWith('/stock-current-') && /window\.CURRENT_STOCK_GZ\s*(?:\+)?=/.test(code)) return '';
     if (url.includes('/current-stock-loader-')) {
       loaderCount++;
