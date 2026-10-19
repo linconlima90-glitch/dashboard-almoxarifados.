@@ -80,8 +80,8 @@ with sync_playwright() as p:
                 preserveHistory:window.MOVEMENTS_REVISED_META?.records===4227,
                 preserveMin:window.STOCK_MINIMUM_MONTHS===2
             })""")
-            assert stockmeta['emitted']=='15/10/2026 13:40:03', stockmeta
-            assert abs(stockmeta['total']-2214346.67)<0.01 and stockmeta['warehouses']==8, stockmeta
+            assert stockmeta['emitted']=='19/10/2026 09:40:04', stockmeta
+            assert abs(stockmeta['total']-2205033.21)<0.01 and stockmeta['warehouses']==9, stockmeta
             assert stockmeta['preserveHistory'] and stockmeta['preserveMin'], stockmeta
         if optimized and 'Pilot' not in name:
             for view in ['geral', 'estoque', 'sem-baixas', 'baixas', 'minimo', 'produtos', 'fornecedores', 'historico', 'cdi', 'variacao', 'economia', 'orcamentos']:
@@ -117,7 +117,7 @@ with sync_playwright() as p:
             assert no_withdrawals['anyItems'] and no_withdrawals['noWithdrawals'] and no_withdrawals['noMixed'], no_withdrawals
             assert no_withdrawals['sortedByValue'] and no_withdrawals['firstPage'], no_withdrawals
             assert no_withdrawals['filtered']==no_withdrawals['rows'] and no_withdrawals['purchaseHistoryAvailable'], no_withdrawals
-            assert no_withdrawals['position']=='15/10/2026 13:40:03', no_withdrawals
+            assert no_withdrawals['position']=='19/10/2026 09:40:04', no_withdrawals
             assert no_withdrawals['header']=='Estoque sem baixas registradas' and no_withdrawals['groupLabel'], no_withdrawals
             page.locator('#ns-order').select_option('quantidade')
             sorted_qty=page.evaluate("() => [...document.querySelectorAll('#ns-rows tr[data-ns-quantity]')].map(x=>Number(x.dataset.nsQuantity)).every((x,i,a)=>!i||a[i-1]>=x)")
@@ -229,7 +229,7 @@ with sync_playwright() as p:
             assert sj_no_withdrawals['rows']>0 and sj_no_withdrawals['display']>0, sj_no_withdrawals
             assert sj_no_withdrawals['localRows'] and sj_no_withdrawals['valid'] and sj_no_withdrawals['ordered'], sj_no_withdrawals
             assert sj_no_withdrawals['purchaseLocal'] and sj_no_withdrawals['meta']==4227, sj_no_withdrawals
-            assert sj_no_withdrawals['date']=='15/10/2026 13:40:03', sj_no_withdrawals
+            assert sj_no_withdrawals['date']=='19/10/2026 09:40:04', sj_no_withdrawals
             page.locator('#sj-nw-sort').select_option('unitario')
             sorted_unit=page.evaluate("""() => [...document.querySelectorAll('#sj-nw-view tr[data-sj-nw-unit]')]
               .map(el=>Number(el.dataset.sjNwUnit)).every((x,i,a)=>!i||a[i-1]>=x)""")
@@ -330,10 +330,10 @@ with sync_playwright() as p:
             assert 'São João' not in page.locator('#sj-pilot-root').inner_text()
         results[name]['errors'] = errors.copy()
         page.close()
-    assert results['fast']['stockRows'] == 4087, 'Unexpected stock positions'
-    assert results['fastPilot']['stockRows'] == 4087, 'Unexpected Sao Joao stock positions'
-    assert results['fastChuaPilot']['stockRows'] == 4087, 'Unexpected Chua stock positions'
-    assert abs(results['fast']['stockValue'] - 2214346.67) < 0.01, 'Unexpected stock value'
+    assert results['fast']['stockRows'] == 4130, 'Unexpected stock positions'
+    assert results['fastPilot']['stockRows'] == 4130, 'Unexpected Sao Joao stock positions'
+    assert results['fastChuaPilot']['stockRows'] == 4130, 'Unexpected Chua stock positions'
+    assert abs(results['fast']['stockValue'] - 2205033.21) < 0.01, 'Unexpected stock value'
     assert snapshots['legacy'] == snapshots['fast'], 'Management data changed'
     assert snapshots['legacyPilot'] == snapshots['fastPilot'], 'Pilot data changed'
     assert snapshots['legacyChuaPilot'] == snapshots['fastChuaPilot'], 'Chua pilot data changed'

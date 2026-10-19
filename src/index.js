@@ -82,7 +82,7 @@ class DashboardInjector {
     `, { html: true });
 
     element.append(
-      (this.pilot ? '' : '<script src="/stock-no-withdrawals-tab-20261015.js?v=20261015-1340"></script>') +
+      (this.pilot ? '' : '<script src="/stock-no-withdrawals-tab-20261015.js?v=20261019-0940"></script>') +
       '<script src="/layout-clean-v2.js?v=20261015-2"></script>' +
       '<script src="/db-brand-theme.js?v=20261008-1"></script>' +
       '<script src="/db-brand-fixes.js?v=20261008-1"></script>' +
@@ -118,23 +118,23 @@ class DashboardInjector {
       '<script src="/executive-only-capital.js?v=20260911-1"></script>' +
       '<script src="/minimum-policy-2months-20261008.js?v=20261008-1"></script>' +
       '<script src="/stock-current-b64-init.js?v=20261008-1"></script>' +
-      '<script src="/stock-current-20261015-1340-01.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-02.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-03.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-04.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-05.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-06.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-07.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-08.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-09.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-10.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-11.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-12.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-13.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-14.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-15.js?v=20261015-1340"></script>' +
-      '<script src="/stock-current-20261015-1340-16.js?v=20261015-1340"></script>' +
-      '<script src="/current-stock-loader-20260911.js?v=20261015-1340"></script>' +
+      '<script src="/stock-current-20261019-01.js?v=20261019-0940"></script>' +
+      '<script src="/stock-current-20261019-02.js?v=20261019-0940"></script>' +
+      '<script src="/stock-current-20261019-03.js?v=20261019-0940"></script>' +
+      '<script src="/stock-current-20261019-04.js?v=20261019-0940"></script>' +
+      '<script src="/stock-current-20261019-05.js?v=20261019-0940"></script>' +
+      '<script src="/stock-current-20261019-06.js?v=20261019-0940"></script>' +
+      '<script src="/stock-current-20261019-07.js?v=20261019-0940"></script>' +
+      '<script src="/stock-current-20261019-08.js?v=20261019-0940"></script>' +
+      '<script src="/stock-current-20261019-09.js?v=20261019-0940"></script>' +
+      '<script src="/stock-current-20261019-10.js?v=20261019-0940"></script>' +
+      '<script src="/stock-current-20261019-11.js?v=20261019-0940"></script>' +
+
+
+
+
+
+      '<script src="/current-stock-loader-20260911.js?v=20261019-0940"></script>' +
       '<script src="/movement-reconcile-20261015.js?v=20261015-1"></script>' +
       '<script src="/tire-stock-dashboard-20260930.js?v=20261015-1"></script>',
       { html: true }
