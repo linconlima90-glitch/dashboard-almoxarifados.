@@ -43,7 +43,19 @@ with sync_playwright() as p:
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.on('request', lambda request: requests.append(request.url))
         page.goto(base + route, wait_until='load', timeout=120000)
-        page.wait_for_function("window.CURRENT_STOCK_META && window.STOCK_MINIMUM_MONTHS===2 && window.MOVEMENTS_REVISED_META?.records===4227", timeout=90000)
+        try:
+            page.wait_for_function("window.CURRENT_STOCK_META && window.STOCK_MINIMUM_MONTHS===2 && window.MOVEMENTS_REVISED_META?.records===4227", timeout=12000)
+        except Exception:
+            print("BOOT DEBUG", name, json.dumps(page.evaluate("""() => ({
+              stock: typeof STOCK === 'undefined' ? 'undefined' : STOCK.length,
+              current: window.CURRENT_STOCK_META,
+              movements: window.MOVEMENTS_REVISED_META,
+              min: window.STOCK_MINIMUM_MONTHS,
+              payload: window.CURRENT_STOCK_20260911 && {rows:window.CURRENT_STOCK_20260911.rows?.length,meta:window.CURRENT_STOCK_20260911.meta},
+              gzlen: window.CURRENT_STOCK_GZ?.length,
+              loaded: window.__CURRENT_STOCK_20260911_LOADING
+            })"""),ensure_ascii=False), "ERRORS",errors, flush=True)
+            raise
         if optimized:
             page.wait_for_function("document.documentElement.dataset.fastReady==='1'")
         page.wait_for_timeout(600)
