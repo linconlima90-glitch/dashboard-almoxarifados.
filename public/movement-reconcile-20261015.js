@@ -5,7 +5,8 @@
   function install(){
   if(window.__MOVEMENT_REVISED_20261015_APPLIED)return true;
   const P=window.CURRENT_STOCK_20260911;
-  const cols=P?.revised_monthly_cols, packed=P?.revised_monthly_rows;
+  const cols=P?.revised_monthly_cols||window.STOCK_REVISED_MONTHLY_20261015?.cols,
+    packed=P?.revised_monthly_rows||window.STOCK_REVISED_MONTHLY_20261015?.rows;
   if(!Array.isArray(cols)||!Array.isArray(packed)||typeof MOVEMENTS==='undefined'||!Array.isArray(MOVEMENTS))return;
   const n=x=>Number(x)||0;
   const rowKey=x=>String(x.codigo_local)+'|'+String(x.codigo);

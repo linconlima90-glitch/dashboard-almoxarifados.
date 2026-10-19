@@ -25,8 +25,34 @@ function asset(label, code) {
 function localAsset(url) {
   const pathname = new URL(url, 'https://dashboard.invalid').pathname;
   assert(!pathname.includes('..'), 'Invalid asset path');
-  return fs.readFileSync(path.join(input, pathname), 'utf8');
+  const originalPath=path.join(input,pathname);
+  return fs.readFileSync(fs.existsSync(originalPath)?originalPath:path.join(out,pathname),'utf8');
 }
+
+// Preserve the certified July–October withdrawals contained in the previous ERP position.
+// New stock spreadsheets only contain balances; the movement snapshot must not be discarded.
+function buildCertifiedMovements() {
+  let b64='';
+  for(let i=1;i<=16;i++){
+    const file='public/stock-current-20261015-1340-'+String(i).padStart(2,'0')+'.js';
+    const code=read(file),match=code.match(/window\.CURRENT_STOCK_GZ\+='([^']+)';/);
+    assert(match,'Missing historical stock data chunk '+file);
+    b64+=match[1];
+  }
+  const oldText=gunzipSync(Buffer.from(b64,'base64')).toString('utf8');
+  const marker='window.CURRENT_STOCK_20260911=';
+  assert(oldText.startsWith(marker),'Old certified position has unknown format');
+  const old=JSON.parse(oldText.slice(marker.length).trim().replace(/;$/,''));
+  assert(old.revised_monthly_rows?.length===1954 && Array.isArray(old.revised_monthly_cols),
+    'Expected certified 1,954 monthly movement positions');
+  fs.mkdirSync(path.join(out,'_data'),{recursive:true});
+  const data='window.STOCK_REVISED_MONTHLY_20261015='+JSON.stringify({
+    cols:old.revised_monthly_cols,rows:old.revised_monthly_rows
+  })+';\n';
+  fs.writeFileSync(path.join(out,'_data/revised-monthly-20261019.js'),data);
+  return {rows:old.revised_monthly_rows.length,bytes:Buffer.byteLength(data)};
+}
+report.certifiedMovements=buildCertifiedMovements();
 
 // The legacy injectors remain authoritative for stock/movement file versions.
 const context = vm.createContext({});
