@@ -9,7 +9,7 @@ const root = process.cwd(), input = path.join(root, 'public'), out = path.join(r
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
 // Apply the current policy before generating both the fast routes and recovery HTML.
 // Normalize the templates themselves so group/year/filter renders keep the right labels.
-const source = read('public/index.html')
+let source = read('public/index.html')
   .replaceAll('minimumRoundUp(avg*4,', 'minimumRoundUp(avg*(window.STOCK_MINIMUM_MONTHS||2),')
   .replace("completeMonths=y==='2026'?8:12", "completeMonths=y==='2026'?9:12")
   .replace('avg=complete/19,minimum', 'avg=complete/21,minimum')
@@ -28,6 +28,13 @@ const source = read('public/index.html')
     'Outubro parcial aparece somente na quantidade total baixada. O saldo de comparação é sempre o estoque atual. '+
     'No filtro anual, combinações local + ano sem cruzamento exato ficam fora do cálculo para evitar rateios estimados. '+
     'O filtro de Status permite selecionar vários status simultaneamente.</div>');
+// Keep the CDI item drilldown aligned with the minimum-stock layout on every route.
+const cdiPanelPattern = /^<div class="tablepanel">[^\n]*id="cdiItemsBody"[^\n]*$/m;
+const cdiRowsPattern = /^  const rows=mov\.slice\(\)[^\n]*\n  if\(\$\('cdiItemCount'\)\)[^\n]*\n  if\(\$\('cdiItemsBody'\)\)[^\n]*\n/m;
+assert(cdiPanelPattern.test(source) && cdiRowsPattern.test(source), 'Review changed CDI source before building');
+source = source.replace(cdiPanelPattern, read('scripts/cdi-minimum-panel.html').trimEnd())
+  .replace(cdiRowsPattern, "  if(typeof window.renderCdiMinimum==='function')window.renderCdiMinimum(mov);\n")
+  .replace('Necessidade de reposição por grupo · consumo interno', 'Necessidade de reposição por grupo · demanda total da rede');
 const legacy = read('src/index.js');
 const report = { originalHtmlBytes: Buffer.byteLength(source), datasets: [], routes: {} };
 fs.rmSync(out, { recursive: true, force: true });

@@ -1,0 +1,35 @@
+<div class="tablepanel movement-drilldown open" id="cdiMinimumPanel">
+  <div class="tablehead">
+    <div class="warehouse-drilldown-title-wrap">
+      <h2 id="cdiMinimumTitle">CDI Chua · estoque mínimo da rede</h2>
+      <div class="hint" id="cdiMinimumCount"></div>
+    </div>
+    <div class="drilldown-actions">
+      <button type="button" class="small-btn" id="cdiMinimumCollapse" style="display:none">Recolher itens</button>
+      <button type="button" class="small-btn primary" id="cdiMinimumOpenStock">Abrir local na Gestão de Estoques</button>
+    </div>
+  </div>
+  <div class="movement-year-toolbar" id="cdiMinimumFilterToolbar" style="margin:12px 14px">
+    <label>Filtrar por ano
+      <select id="cdiMinimumYear">
+        <option value="">Todos os anos</option>
+        <option value="2025">2025</option>
+        <option value="2026">2026</option>
+      </select>
+    </label>
+    <div class="minimum-status-filter-wrap">
+      <span class="minimum-status-label">Filtrar por status <small>(selecione um ou mais)</small></span>
+      <div class="minimum-status-multi" id="cdiMinimumStatuses">
+        <label><input type="checkbox" value="SEM ESTOQUE"> Sem estoque</label>
+        <label><input type="checkbox" value="ABAIXO DO MÍNIMO"> Abaixo do mínimo</label>
+        <label><input type="checkbox" value="ATENÇÃO"> Atenção</label>
+        <label><input type="checkbox" value="OK"> OK</label>
+        <label><input type="checkbox" value="HISTÓRICO PARCIAL"> Histórico parcial</label>
+        <label><input type="checkbox" value="SEM DADOS DE BAIXA"> Sem dados de baixa</label>
+        <button type="button" class="small-btn" id="cdiMinimumAllStatuses">Todos</button>
+      </div>
+    </div>
+    <div class="movement-year-info" id="cdiMinimumFilterInfo"></div>
+  </div>
+  <div id="cdiMinimumContent"></div>
+</div>
