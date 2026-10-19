@@ -208,7 +208,7 @@
       '<div class="sj-note"><b>Período:</b> '+esc(period)+
       '. <b>Estoque:</b> '+esc(current.stockDate)+
       '. <b>Necessidades sem custo:</b> '+integer(withoutCost.length)+
-      '. O valor do mínimo vem da média de baixas da base do gestor principal; necessidade = máximo entre mínimo e saldo disponível, arredondada conforme a unidade.</div>'+
+      '. Estoque mínimo = média mensal de baixas × 2 meses. Necessidade = diferença positiva entre o mínimo e o estoque atual, arredondada conforme a unidade.</div>'+
       extra+warning+
       '<div class="sj-card fm-groups-card"><div class="sj-card-head"><h3>1. Grupos de produtos → 2. Itens</h3><span>'+
       integer(byGroup.length)+' grupos · '+integer(rows.length)+' itens · '+integer(below.length)+' críticos</span></div>'+

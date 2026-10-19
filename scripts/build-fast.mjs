@@ -7,7 +7,27 @@ import assert from 'node:assert/strict';
 
 const root = process.cwd(), input = path.join(root, 'public'), out = path.join(root, 'dist');
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
-const source = read('public/index.html');
+// Apply the current policy before generating both the fast routes and recovery HTML.
+// Normalize the templates themselves so group/year/filter renders keep the right labels.
+const source = read('public/index.html')
+  .replaceAll('minimumRoundUp(avg*4,', 'minimumRoundUp(avg*(window.STOCK_MINIMUM_MONTHS||2),')
+  .replace("completeMonths=y==='2026'?8:12", "completeMonths=y==='2026'?9:12")
+  .replace('avg=complete/19,minimum', 'avg=complete/21,minimum')
+  .replace('complete_months:19,avg', 'complete_months:21,avg')
+  .replaceAll('Mínimo 4M', 'Mínimo 2 meses')
+  .replaceAll('Mínimo Local 4M', 'Mínimo Local 2 meses')
+  .replaceAll('mínimo de 4 meses', 'mínimo de 2 meses')
+  .replace('Todos os anos · média com 19 observações completas', 'Todos os anos · média dos meses completos do histórico')
+  .replace('2026 · média com jan–ago (8 meses completos); setembro parcial só entra na quantidade total',
+    '2026 · média com jan–set (9 meses completos); outubro parcial só entra na quantidade total')
+  .replace(/<div class="notice"><b>Regra do estoque mínimo:<\/b>.*?<\/div>/,
+    '<div class="notice"><b>Regra do estoque mínimo:</b> média mensal de consumo × <b>2 meses</b>. '+
+    'A necessidade de compra é a diferença positiva entre o mínimo e o estoque atual, arredondada conforme a unidade. '+
+    'Em <b>Todos os anos</b>, a média usa os meses completos do histórico disponível. '+
+    'Ao selecionar <b>2025</b>, usa os 12 meses completos; em <b>2026</b>, usa janeiro a setembro (9 meses completos). '+
+    'Outubro parcial aparece somente na quantidade total baixada. O saldo de comparação é sempre o estoque atual. '+
+    'No filtro anual, combinações local + ano sem cruzamento exato ficam fora do cálculo para evitar rateios estimados. '+
+    'O filtro de Status permite selecionar vários status simultaneamente.</div>');
 const legacy = read('src/index.js');
 const report = { originalHtmlBytes: Buffer.byteLength(source), datasets: [], routes: {} };
 fs.rmSync(out, { recursive: true, force: true });
@@ -77,11 +97,6 @@ core = core.replace(renderAll, 'function render(){window.DB_FAST.requestAll()}')
 const renderers = { renderOverview: 'geral', renderStock: 'estoque', renderBaixas: 'baixas', renderMinimum: 'minimo', renderProducts: 'produtos', renderSuppliers: 'fornecedores', renderHistory: 'historico', renderCDI: 'cdi', renderQuotes: 'orcamentos' };
 const registration = Object.entries(renderers).map(([name, view]) => `${name}=window.DB_FAST.wrap('${name}','${view}',${name});`).join('\n');
 core = registration + '\n' + core;
-// Honor two months of minimum stock and the completed months through Sep/2026 (Oct partial).
-core = core.replaceAll('minimumRoundUp(avg*4,', 'minimumRoundUp(avg*(window.STOCK_MINIMUM_MONTHS||2),');
-core = core.replace("completeMonths=y==='2026'?8:12", "completeMonths=y==='2026'?9:12");
-core = core.replace('avg=complete/19,minimum', 'avg=complete/21,minimum');
-core = core.replace('complete_months:19,avg', 'complete_months:21,avg');
 core = core.replaceAll('Set*', 'Set');
 function unpack(keys, rows) {
   return rows.map(values => Object.fromEntries(keys.map((key, index) => [key, values[index]])));

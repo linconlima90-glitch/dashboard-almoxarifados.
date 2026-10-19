@@ -87,7 +87,7 @@ class DashboardInjector {
       '<script src="/db-brand-theme.js?v=20261008-1"></script>' +
       '<script src="/db-brand-fixes.js?v=20261008-1"></script>' +
       (this.pilot ? `<script src="/${this.chua ? 'chua-no-withdrawals' : 'sao-joao-no-withdrawals'}.js?v=20261015-2"></script>` : '') +
-      (this.pilot ? '<script src="/farm-minimum-from-manager.js?v=20261015-1"></script>' : '') +
+      (this.pilot ? '<script src="/farm-minimum-from-manager.js?v=20261019-2meses"></script>' : '') +
       (this.pilot ? `<script src="/${this.chua ? 'chua-pilot' : 'sao-joao-pilot'}.js?v=20261015-1"></script>` : '') +
       '<script>(function(){var s=document.getElementById("db-boot-screen");if(s)s.remove();document.documentElement.classList.remove("db-booting");})();</script>' +
       '<script src="/stock-update.js?v=20260908"></script>' +
