@@ -1,4 +1,5 @@
 """Compare the actual legacy and optimized application in Chromium."""
+import csv
 import functools
 import http.server
 import json
@@ -111,7 +112,9 @@ with sync_playwright() as p:
             no_withdrawals = page.evaluate("""() => {
               const m=window.STOCK_NO_WITHDRAWAL_META;
               const source=window.STOCK_NO_WITHDRAWAL.getRows();
-              const displayed=[...document.querySelectorAll('#ns-rows tr[data-ns-value]')].map(x=>Number(x.dataset.nsValue));
+              const locations=[...document.querySelectorAll('#ns-rows > details.ns-location')];
+              const groups=[...document.querySelectorAll('#ns-rows details.ns-group')];
+              const alphabetical=nodes=>nodes.every((x,i)=>!i||nodes[i-1].localeCompare(x,'pt-BR')<=0);
               const mixed=new Set((window.MOVEMENTS_REVISED_META.mixedUnits||[]).map(x=>String(x.codigo_local)+'|'+String(x.codigo)));
               const movementKeys=new Set(MOVEMENTS.filter(x=>Number(x.total)>0).map(x=>String(x.local)+'|'+String(x.codigo)));
               return {
@@ -119,46 +122,135 @@ with sync_playwright() as p:
                 anyItems:source.length>0,
                 noWithdrawals:source.every(x=>!movementKeys.has(x.local+'|'+x.codigo)),
                 noMixed:source.every(x=>!STOCK.some(s=>String(s.codigo)===x.codigo&&s.local===x.local&&mixed.has(String(s.codigo_local)+'|'+x.codigo))),
-                sortedByValue:displayed.every((x,i)=>!i||displayed[i-1]>=x),
-                firstPage:displayed.length<=100,
+                initiallyClosed:locations.length>0&&groups.length>0&&locations.every(x=>!x.open)&&groups.every(x=>!x.open),
+                lazyItems:document.querySelectorAll('#ns-rows tbody.ns-items').length===0,
+                locationsSorted:alphabetical(locations.map(x=>x.dataset.nsLocation)),
+                groupsSorted:locations.every(x=>alphabetical([...x.querySelectorAll('details.ns-group')].map(g=>g.dataset.nsGroup))),
+                locationCounts:locations.reduce((sum,x)=>sum+Number(x.dataset.nsCount),0)===m.filteredRows,
+                groupCounts:locations.every(x=>[...x.querySelectorAll('details.ns-group')].reduce((sum,g)=>sum+Number(g.dataset.nsCount),0)===Number(x.dataset.nsCount)),
+                locationValues:Math.abs(locations.reduce((sum,x)=>sum+Number(x.dataset.nsValue),0)-m.filteredValue)<0.02,
+                groupValues:locations.every(x=>Math.abs([...x.querySelectorAll('details.ns-group')].reduce((sum,g)=>sum+Number(g.dataset.nsValue),0)-Number(x.dataset.nsValue))<0.02),
                 header:document.querySelector('#view-sem-baixas h2')?.textContent,
                 purchaseHistoryAvailable:source.some(x=>x.historyCount>0),
                 groupLabel:[...document.querySelectorAll('.clean-primary-btn')].some(x=>x.textContent==='Estoque')
               };
             }""")
             assert no_withdrawals['anyItems'] and no_withdrawals['noWithdrawals'] and no_withdrawals['noMixed'], no_withdrawals
-            assert no_withdrawals['sortedByValue'] and no_withdrawals['firstPage'], no_withdrawals
+            assert no_withdrawals['initiallyClosed'] and no_withdrawals['lazyItems'], no_withdrawals
+            assert no_withdrawals['locationsSorted'] and no_withdrawals['groupsSorted'], no_withdrawals
+            assert all(no_withdrawals[x] for x in ['locationCounts','groupCounts','locationValues','groupValues']), no_withdrawals
             assert no_withdrawals['filtered']==no_withdrawals['rows'] and no_withdrawals['purchaseHistoryAvailable'], no_withdrawals
             assert no_withdrawals['position']=='19/10/2026 09:40:04', no_withdrawals
             assert no_withdrawals['header']=='Estoque sem baixas registradas' and no_withdrawals['groupLabel'], no_withdrawals
-            page.locator('#ns-order').select_option('quantidade')
-            sorted_qty=page.evaluate("() => [...document.querySelectorAll('#ns-rows tr[data-ns-quantity]')].map(x=>Number(x.dataset.nsQuantity)).every((x,i,a)=>!i||a[i-1]>=x)")
-            assert sorted_qty, 'Quantity ordering failed'
-            page.locator('#ns-order').select_option('unitario')
-            sorted_unit = page.evaluate("""() => {
-              const values=[...document.querySelectorAll('#ns-rows tr[data-ns-unit-value]')].map(x=>Number(x.dataset.nsUnitValue));
+
+            def open_no_withdrawal_group(key):
+                indexes=page.evaluate("""key => {
+                  const groups=[...document.querySelectorAll('#ns-rows details.ns-group')];
+                  const group=groups.find(x=>x.dataset.nsKey===key);
+                  return group?{
+                    group:groups.indexOf(group),
+                    local:[...document.querySelectorAll('#ns-rows > details.ns-location')].indexOf(group.closest('.ns-location'))
+                  }:null;
+                }""", key)
+                assert indexes is not None, 'Expected group is missing from hierarchy'
+                location=page.locator('#ns-rows > details.ns-location').nth(indexes['local'])
+                if not location.evaluate('el=>el.open'):
+                    location.locator('summary').first.click()
+                group=page.locator('#ns-rows details.ns-group').nth(indexes['group'])
+                if not group.evaluate('el=>el.open'):
+                    group.locator('summary').first.click()
+                page.wait_for_function("""key => {
+                  const group=[...document.querySelectorAll('#ns-rows details.ns-group')].find(x=>x.dataset.nsKey===key);
+                  return group?.open&&group.querySelectorAll('tbody.ns-items > tr[data-ns-code]').length>0;
+                }""", arg=key, timeout=5000)
+                return group
+
+            group_key=page.evaluate("""() => [...document.querySelectorAll('#ns-rows details.ns-group')]
+              .filter(x=>Number(x.dataset.nsCount)>1)
+              .sort((a,b)=>Number(b.dataset.nsCount)-Number(a.dataset.nsCount))[0]?.dataset.nsKey""")
+            assert group_key, 'Expected a group with multiple stock positions'
+            group=open_no_withdrawal_group(group_key)
+            first_page=group.evaluate("""group => ({
+              count:Number(group.dataset.nsCount),
+              shown:group.querySelectorAll('tbody.ns-items > tr[data-ns-code]').length,
+              ordered:[...group.querySelectorAll('tbody.ns-items > tr[data-ns-value]')]
+                .map(x=>Number(x.dataset.nsValue)).every((x,i,a)=>!i||a[i-1]>=x)
+            })""")
+            assert first_page['shown']==min(100,first_page['count']) and first_page['ordered'], first_page
+            if first_page['count']>100:
+                group.locator('.ns-more').click()
+                assert group.locator('tbody.ns-items > tr[data-ns-code]').count()==min(200,first_page['count'])
+
+            for order,field in [('quantidade','nsQuantity'),('unitario','nsUnitValue')]:
+                page.locator('#ns-order').select_option(order)
+                sorted_group=page.evaluate("""({key,field}) => {
+                  const group=[...document.querySelectorAll('#ns-rows details.ns-group')].find(x=>x.dataset.nsKey===key);
+                  const values=[...group.querySelectorAll('tbody.ns-items > tr[data-ns-code]')].map(x=>Number(x.dataset[field]));
+                  return {
+                    open:group.open&&group.closest('.ns-location').open,
+                    count:values.length,
+                    ordered:values.every((x,i)=>!i||values[i-1]>=x),
+                    heading:[...group.querySelectorAll('thead th')].some(x=>x.textContent.trim()==='Valor unitário'),
+                    caption:document.querySelector('#ns-caption').textContent.includes('maior valor unitário')
+                  };
+                }""", {'key':group_key,'field':field})
+                assert sorted_group['open'] and sorted_group['count']>1 and sorted_group['ordered'], sorted_group
+                if order=='unitario':
+                    assert sorted_group['heading'] and sorted_group['caption'], sorted_group
+
+            page.locator('#ns-scope').select_option('rede')
+            strict=page.evaluate("""() => {
+              const moved=new Set([...MOVEMENTS,...MOVEMENTS_YEARLY].filter(x=>
+                Number(x.total)>0||Number(x.complete_total)>0||(x.months||[]).some(q=>Number(q)>0))
+                .map(x=>String(x.codigo)));
               return {
-                count:values.length,
-                ordered:values.every((x,i)=>!i||values[i-1]>=x),
-                heading:[...document.querySelectorAll('#view-sem-baixas thead th')].some(x=>x.textContent.trim()==='Valor unitário'),
-                caption:document.querySelector('#ns-caption').textContent.includes('maior valor unitário')
+                count:window.STOCK_NO_WITHDRAWAL_META.filteredRows,
+                expected:window.STOCK_NO_WITHDRAWAL.getRows().filter(x=>!moved.has(x.codigo)).length,
+                hierarchy:[...document.querySelectorAll('#ns-rows > details.ns-location')].reduce((sum,x)=>sum+Number(x.dataset.nsCount),0)
               };
             }""")
-            assert sorted_unit['count']>1 and sorted_unit['ordered'] and sorted_unit['heading'] and sorted_unit['caption'], sorted_unit
-            page.locator('#ns-scope').select_option('rede')
-            strict=page.evaluate("""() => ({count:window.STOCK_NO_WITHDRAWAL_META.filteredRows,
-              rows:window.STOCK_NO_WITHDRAWAL.getRows().filter(x=>!MOVEMENTS.some(m=>String(m.codigo)===x.codigo&&Number(m.total)>0)).length})""")
+            assert strict['count']==strict['expected']==strict['hierarchy'], strict
             assert strict['count']<=no_withdrawals['rows'], strict
             page.locator('#ns-scope').select_option('local')
             page.locator('#ns-order').select_option('valor')
             local = page.locator('#ns-local option').nth(1).get_attribute('value')
             page.locator('#ns-local').select_option(local)
-            filtered_local=page.evaluate("() => [...document.querySelectorAll('#ns-rows tr[data-ns-local]')].every(x=>x.dataset.nsLocal===document.querySelector('#ns-local').value)")
-            assert filtered_local, 'Local filter failed'
+            filtered_local=page.evaluate("""() => {
+              const local=document.querySelector('#ns-local').value;
+              const locations=[...document.querySelectorAll('#ns-rows > details.ns-location')];
+              return {
+                onlyLocal:locations.length===1&&locations[0].dataset.nsLocation===local,
+                count:window.STOCK_NO_WITHDRAWAL_META.filteredRows,
+                expected:window.STOCK_NO_WITHDRAWAL.getRows().filter(x=>x.local===local).length,
+                hierarchy:locations.reduce((sum,x)=>sum+Number(x.dataset.nsCount),0)
+              };
+            }""")
+            assert filtered_local['onlyLocal'] and filtered_local['count']>0, filtered_local
+            assert filtered_local['count']==filtered_local['expected']==filtered_local['hierarchy'], filtered_local
+            with page.expect_download() as csv_download:
+                page.locator('#ns-export').click()
+            with Path(csv_download.value.path()).open(encoding='utf-8-sig',newline='') as handle:
+                exported=list(csv.reader(handle,delimiter=';'))
+            assert len(exported)-1==filtered_local['count'], 'CSV must include all filtered positions, including closed groups'
+            assert all(row[4]==local for row in exported[1:]), 'CSV local filter failed'
+            assert 'Valor unitário do estoque (R$)' in exported[0], exported[0]
             page.locator('#ns-local').select_option('')
-            hist=page.locator('#ns-rows .ns-history').first
-            if hist.count():
-                hist.locator('summary').click()
+            history_group_key=page.evaluate("""() => {
+              const source=window.STOCK_NO_WITHDRAWAL.getRows();
+              for(const group of document.querySelectorAll('#ns-rows details.ns-group')){
+                const local=group.closest('.ns-location').dataset.nsLocation;
+                const first=source.filter(x=>x.local===local&&x.grupo===group.dataset.nsGroup)
+                  .sort((a,b)=>b.valor-a.valor||b.quantidade-a.quantidade).slice(0,100);
+                if(first.some(x=>x.historyCount>0))return group.dataset.nsKey;
+              }
+              return null;
+            }""")
+            if history_group_key:
+                group=open_no_withdrawal_group(history_group_key)
+                hist=group.locator('tbody.ns-items .ns-history').first
+                if not hist.evaluate('el=>el.open'):
+                    hist.locator('summary').click()
+                hist.locator('table tbody tr').first.wait_for(timeout=5000)
                 assert hist.locator('table tbody tr').count()>0, 'Purchase history did not expand'
             page.locator('.tab[data-view="estoque"]').evaluate('(el)=>el.click()')
 

@@ -33,18 +33,16 @@
       <label>Pesquisar código ou produto<input id="ns-search" type="search" placeholder="Código, descrição, fornecedor ou nota fiscal" autocomplete="off"></label>
       <label>Almoxarifado<select id="ns-local"><option value="">Todos os locais</option></select></label>
       <label>Grupo de produto<select id="ns-group"><option value="">Todos os grupos</option></select></label>
-      <label>Ordenar<select id="ns-order"><option value="valor">Maior valor em estoque</option><option value="unitario">Maior valor unitário</option><option value="quantidade">Maior quantidade em estoque</option><option value="compra">Última compra mais recente</option></select></label>
+      <label>Ordenar itens do grupo<select id="ns-order"><option value="valor">Maior valor em estoque</option><option value="unitario">Maior valor unitário</option><option value="quantidade">Maior quantidade em estoque</option><option value="compra">Última compra mais recente</option></select></label>
       <label>Verificar baixas<select id="ns-scope"><option value="local">Sem baixa neste almoxarifado</option><option value="rede">Sem baixa em toda a rede</option></select></label>
       <button type="button" class="ns-export" id="ns-export">Exportar CSV</button>
     </div>
     <div class="ns-note" id="ns-note">A data da <b>última compra</b> representa a data informada na NF e não comprova recebimento físico. A posição de estoque é apresentada separadamente. Histórico anterior sem ano definido permanece sujeito à conciliação.</div>
     <div class="ns-table-panel">
-      <div class="ns-table-title"><strong>Produtos por almoxarifado</strong><span id="ns-caption">Preparando dados...</span></div>
-      <div class="ns-table-wrap"><table class="ns-table">
-        <thead><tr><th>#</th><th>Código e produto</th><th>Grupo</th><th>Local do estoque</th><th class="ns-num">Quantidade</th><th class="ns-num">Valor unitário</th><th class="ns-num">Valor em estoque</th><th>Última compra identificada</th><th>Histórico de compras</th></tr></thead>
-        <tbody id="ns-rows"><tr><td colspan="9">O levantamento será calculado quando esta aba for aberta.</td></tr></tbody>
-      </table></div>
-      <div class="ns-footer"><span id="ns-progress"></span><button type="button" class="ns-more" id="ns-more" hidden>Exibir mais 100 posições</button></div>
+      <div class="ns-table-title"><strong>Estoque por local e grupo</strong><span id="ns-caption">Preparando dados...</span></div>
+      <p class="ns-hierarchy-hint">Clique em um <b>local</b> para abrir os grupos e em um <b>grupo</b> para ver os itens. Locais e grupos em ordem alfabética.</p>
+      <div id="ns-rows" class="ns-hierarchy"><div class="ns-empty">O levantamento será calculado quando esta aba for aberta.</div></div>
+      <div class="ns-footer"><span id="ns-progress" role="status" aria-live="polite"></span></div>
     </div>
   `;
   wrap.appendChild(section);
@@ -69,6 +67,28 @@
     #view-sem-baixas .ns-table-title{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:13px 14px;border-bottom:1px solid var(--ns-line)}
     #view-sem-baixas .ns-table-title strong{font-size:13px;color:#234530}
     #view-sem-baixas .ns-table-title span{font-size:11px;color:#748078}
+    #view-sem-baixas .ns-hierarchy-hint{margin:0;padding:11px 14px;background:#f8fbf9;color:#687a6e;font-size:11px;line-height:1.6}
+    #view-sem-baixas .ns-hierarchy{padding:12px;display:grid;gap:9px}
+    #view-sem-baixas .ns-location{min-width:0;border:1px solid #d6e5da;border-radius:10px;overflow:hidden}
+    #view-sem-baixas .ns-location-summary,#view-sem-baixas .ns-group-summary{display:flex;align-items:center;gap:12px;list-style:none;cursor:pointer;padding:13px 14px;min-height:44px;box-sizing:border-box}
+    #view-sem-baixas .ns-location-summary{background:#edf6f0;color:#1a5935}
+    #view-sem-baixas .ns-group-summary{background:#fafcfb;color:#35533f}
+    #view-sem-baixas .ns-location-summary::-webkit-details-marker,#view-sem-baixas .ns-group-summary::-webkit-details-marker{display:none}
+    #view-sem-baixas .ns-location-summary::before,#view-sem-baixas .ns-group-summary::before{content:'›';font-size:23px;line-height:1;width:12px;flex:0 0 12px;text-align:center;transition:transform .15s}
+    #view-sem-baixas .ns-location[open]>.ns-location-summary::before,#view-sem-baixas .ns-group[open]>.ns-group-summary::before{transform:rotate(90deg)}
+    #view-sem-baixas .ns-location-summary:hover{background:#e3f1e8}
+    #view-sem-baixas .ns-group-summary:hover{background:#f0f7f2}
+    #view-sem-baixas .ns-location-summary:focus-visible,#view-sem-baixas .ns-group-summary:focus-visible{outline:3px solid #36895b;outline-offset:-3px}
+    #view-sem-baixas .ns-summary-label{flex:1;min-width:0}
+    #view-sem-baixas .ns-summary-label strong{display:block;font-size:12px;overflow-wrap:anywhere}
+    #view-sem-baixas .ns-summary-meta{display:block;font-size:10px;font-weight:500;color:#6b7d70;margin-top:4px}
+    #view-sem-baixas .ns-summary-value{font-size:14px;font-weight:850;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
+    #view-sem-baixas .ns-summary-value small{display:block;font-size:9px;font-weight:500;color:#6b7d70;margin-bottom:3px}
+    #view-sem-baixas .ns-groups{display:grid;gap:8px;padding:10px;background:#fff}
+    #view-sem-baixas .ns-group{min-width:0;border:1px solid var(--ns-line);border-radius:8px;overflow:hidden}
+    #view-sem-baixas .ns-group[open]>.ns-group-summary{border-bottom:1px solid var(--ns-line)}
+    #view-sem-baixas .ns-group-content{min-width:0}
+    #view-sem-baixas .ns-empty{text-align:center;padding:24px 14px;color:#738177;font-size:12px}
     #view-sem-baixas .ns-table-wrap{overflow-x:auto;max-height:750px}
     #view-sem-baixas .ns-table{width:100%;border-collapse:collapse;font-size:11px;min-width:1180px}
     #view-sem-baixas .ns-table th{text-align:left;position:sticky;top:0;z-index:1;background:#f1f7f3;color:#3d6650;border-bottom:1px solid #d7e5dc;padding:11px 10px;white-space:nowrap}
@@ -86,7 +106,7 @@
     #view-sem-baixas .ns-history-box td,#view-sem-baixas .ns-history-box th{padding:6px;position:static;white-space:nowrap;border-bottom:1px solid #eef3ee}
     #view-sem-baixas .ns-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 14px;font-size:11px;color:#738177}
     @media(max-width:1200px){#view-sem-baixas .ns-filter-panel{grid-template-columns:repeat(3,minmax(0,1fr))}}
-    @media(max-width:720px){#view-sem-baixas .ns-cards{grid-template-columns:repeat(2,minmax(0,1fr))}#view-sem-baixas .ns-filter-panel{grid-template-columns:1fr 1fr}#view-sem-baixas .ns-filter-panel label:first-child{grid-column:1/-1}#view-sem-baixas .ns-filter-panel .ns-export{grid-column:1/-1}}
+    @media(max-width:720px){#view-sem-baixas .ns-cards{grid-template-columns:repeat(2,minmax(0,1fr))}#view-sem-baixas .ns-filter-panel{grid-template-columns:1fr 1fr}#view-sem-baixas .ns-filter-panel label:first-child{grid-column:1/-1}#view-sem-baixas .ns-filter-panel .ns-export{grid-column:1/-1}#view-sem-baixas .ns-table-title{align-items:flex-start;flex-direction:column}#view-sem-baixas .ns-hierarchy{padding:8px}#view-sem-baixas .ns-groups{padding:6px}#view-sem-baixas .ns-location-summary,#view-sem-baixas .ns-group-summary{gap:8px;padding:12px 9px}#view-sem-baixas .ns-summary-value{font-size:12px}#view-sem-baixas .ns-footer{flex-wrap:wrap}}
   `;
   document.head.appendChild(style);
 
@@ -104,7 +124,9 @@
   const localProductKey = x => String(x.local)+'|'+productKey(x);
   const stockDataReady = () => typeof STOCK !== 'undefined' && Array.isArray(STOCK) && typeof MOVEMENTS !== 'undefined' && Array.isArray(MOVEMENTS) && typeof PURCHASES !== 'undefined' && Array.isArray(PURCHASES) && window.CURRENT_STOCK_META && window.MOVEMENTS_REVISED_META?.records === 4316;
   const latestFirst = (a, b) => asDate(b.data)-asDate(a.data) || num(b.nrounico)-num(a.nrounico);
-  let sourceRows=[], hasMovementsInNetwork=new Set(), historyByProduct=new Map(), renderedRows=[], limit=100, dirty=true;
+  let sourceRows=[], hasMovementsInNetwork=new Set(), historyByProduct=new Map(), renderedRows=[], dirty=true;
+  const openLocations=new Set(), openGroups=new Set(), groupLimits=new Map();
+  let groupsByKey=new Map();
   let excludedPending=0, mixedUnitsExcluded=0;
   const getFilters=()=>({local:$('#ns-local').value,group:$('#ns-group').value,query:norm($('#ns-search').value.trim()),sort:$('#ns-order').value,scope:$('#ns-scope').value});
 
@@ -203,15 +225,57 @@
       <td>${x.historyCount?`<details class="ns-history" data-history-key="${esc(productKey(x))}"><summary>Ver ${integer(x.historyCount)} compra(s)</summary><div class="ns-history-box">Carregando histórico...</div></details>`:'<span class="ns-sub">Sem compras registradas</span>'}</td>
     </tr>`;
   }
-  function renderList(resetLimit=true){
-    if(resetLimit)limit=100;
+  function groupHierarchy(rows){
+    const locations=new Map();
+    for(const row of rows){
+      if(!locations.has(row.local))locations.set(row.local,{name:row.local,count:0,value:0,groups:new Map()});
+      const local=locations.get(row.local);
+      if(!local.groups.has(row.grupo))local.groups.set(row.grupo,{key:JSON.stringify([row.local,row.grupo]),name:row.grupo,local:row.local,value:0,rows:[]});
+      const group=local.groups.get(row.grupo);
+      local.count++;local.value+=row.valor;
+      group.value+=row.valor;group.rows.push(row);
+    }
+    // Agrupar a lista completa antes de paginar preserva todos os locais e grupos.
+    return [...locations.values()].sort((a,b)=>(a.name||'Local não informado').localeCompare(b.name||'Local não informado','pt-BR')).map(local=>({
+      ...local,groups:[...local.groups.values()].sort((a,b)=>(a.name||'Grupo não informado').localeCompare(b.name||'Grupo não informado','pt-BR'))
+    }));
+  }
+  function groupItemsHTML(group){
+    const visible=group.rows.slice(0,groupLimits.get(group.key)||100);
+    const remaining=group.rows.length-visible.length;
+    return `<div class="ns-table-wrap" tabindex="0" role="region" aria-label="Itens de ${esc(group.name||'Grupo não informado')} em ${esc(group.local||'Local não informado')}"><table class="ns-table">
+      <thead><tr><th>#</th><th>Código e produto</th><th>Grupo</th><th>Local do estoque</th><th class="ns-num">Quantidade</th><th class="ns-num">Valor unitário</th><th class="ns-num">Valor em estoque</th><th>Última compra identificada</th><th>Histórico de compras</th></tr></thead>
+      <tbody class="ns-items">${visible.map(rowHTML).join('')}</tbody>
+    </table></div><div class="ns-footer"><span class="ns-group-progress">Mostrando ${integer(visible.length)} de ${integer(group.rows.length)} posições neste grupo</span><button type="button" class="ns-more" data-ns-more="${esc(group.key)}" ${remaining?'':'hidden'}>Exibir mais ${integer(Math.min(100,remaining))} posições</button></div>`;
+  }
+  function renderHierarchy(rows){
+    const locations=groupHierarchy(rows);
+    const localNames=new Set(locations.map(local=>local.name));
+    groupsByKey=new Map(locations.flatMap(local=>local.groups.map(group=>[group.key,group])));
+    for(const key of openLocations)if(!localNames.has(key))openLocations.delete(key);
+    for(const key of openGroups)if(!groupsByKey.has(key))openGroups.delete(key);
+    $('#ns-rows').innerHTML=locations.length?locations.map(local=>`<details class="ns-location" data-ns-location="${esc(local.name)}" data-ns-count="${local.count}" data-ns-value="${local.value}" ${openLocations.has(local.name)?'open':''}>
+      <summary class="ns-location-summary"><span class="ns-summary-label"><strong class="ns-location-name">${esc(local.name||'Local não informado')}</strong><span class="ns-summary-meta">${integer(local.groups.length)} grupo(s) · ${integer(local.count)} posições</span></span><span class="ns-summary-value"><small>Valor em estoque</small>${money(local.value)}</span></summary>
+      <div class="ns-groups">${local.groups.map(group=>`<details class="ns-group" data-ns-key="${esc(group.key)}" data-ns-group="${esc(group.name)}" data-ns-count="${group.rows.length}" data-ns-value="${group.value}" ${openGroups.has(group.key)?'open':''}>
+        <summary class="ns-group-summary"><span class="ns-summary-label"><strong class="ns-group-name">${esc(group.name||'Grupo não informado')}</strong><span class="ns-summary-meta">${integer(group.rows.length)} posições</span></span><span class="ns-summary-value"><small>Valor do grupo</small>${money(group.value)}</span></summary>
+        <div class="ns-group-content" data-loaded="${openGroups.has(group.key)?'1':'0'}">${openGroups.has(group.key)?groupItemsHTML(group):''}</div>
+      </details>`).join('')}</div>
+    </details>`).join(''):'<div class="ns-empty">Nenhum item encontrado para os filtros.</div>';
+    updateProgress();
+  }
+  function updateProgress(){
+    const visible=section.querySelectorAll('.ns-location[open] .ns-group[open] .ns-items > tr').length;
+    $('#ns-progress').textContent=visible?`Mostrando ${integer(visible)} de ${integer(renderedRows.length)} posições nos grupos abertos`:
+      renderedRows.length?`Abra um local e um grupo para consultar as ${integer(renderedRows.length)} posições encontradas`:'Nenhuma posição encontrada';
+  }
+  function renderList(){
+    groupLimits.clear();
     if(dirty&&!refreshSource()){
       $('#ns-caption').textContent='Dados ainda não disponíveis';
-      $('#ns-rows').innerHTML='<tr><td colspan="9">Aguardando a posição de estoque e o histórico de baixas conferido.</td></tr>';
+      $('#ns-rows').innerHTML='<div class="ns-empty">Aguardando a posição de estoque e o histórico de baixas conferido.</div>';
       return;
     }
     renderedRows=filteredRows();
-    const visible=renderedRows.slice(0,limit);
     const sum=renderedRows.reduce((total,x)=>total+x.valor,0);
     $('#ns-count').textContent=integer(renderedRows.length);
     $('#ns-total').textContent=money(sum);
@@ -219,11 +283,9 @@
     $('#ns-unpurchased').textContent=integer(renderedRows.filter(x=>!x.historyCount).length);
     const meta=window.STOCK_NO_WITHDRAWAL_META||{};
     const position=String(meta.stockDate||'19/10/2026');
-    $('#ns-caption').textContent=`Posição de estoque: ${position} · ${renderedRows.length} posição(ões) · ordenação: ${getFilters().sort==='unitario'?'maior valor unitário':getFilters().sort==='quantidade'?'quantidade':getFilters().sort==='compra'?'última compra':'maior valor total'}`;
+    $('#ns-caption').textContent=`Posição de estoque: ${position} · ${renderedRows.length} posição(ões) · itens por ${getFilters().sort==='unitario'?'maior valor unitário':getFilters().sort==='quantidade'?'maior quantidade':getFilters().sort==='compra'?'última compra mais recente':'maior valor total'}`;
     $('#ns-note').innerHTML=`<b>Critério:</b> saldo positivo e nenhuma baixa no escopo selecionado, dentro do histórico disponível (a partir de jan/2025, mais revisão 01/07–19/10/2026). <b>Última compra:</b> data de NF, não data de entrada física. <b>Valor unitário:</b> custo unitário da posição de estoque, diferente do preço pago na última compra. <b>Estoque:</b> posição de ${esc(position)}. <b>Conciliação:</b> ${integer(excludedPending)} posições com histórico pendente e ${integer(mixedUnitsExcluded)} com baixas em outra unidade foram retiradas desta lista para evitar falso “nunca baixado”. Pneus, câmaras, lubrificantes e cimento são exibidos se atenderem ao critério. Quantidades de unidades distintas não são somadas.`;
-    $('#ns-rows').innerHTML=visible.length?visible.map(rowHTML).join(''):'<tr><td colspan="9" style="text-align:center;padding:20px">Nenhum item encontrado para os filtros.</td></tr>';
-    $('#ns-progress').textContent=`Mostrando ${integer(visible.length)} de ${integer(renderedRows.length)} posições`;
-    $('#ns-more').hidden=limit>=renderedRows.length;
+    renderHierarchy(renderedRows);
     window.STOCK_NO_WITHDRAWAL_META.filteredRows=renderedRows.length;
     window.STOCK_NO_WITHDRAWAL_META.filteredValue=Math.round(sum*100)/100;
   }
@@ -236,9 +298,36 @@
   for(const sel of ['#ns-local','#ns-group','#ns-order','#ns-scope'])$(sel).addEventListener('change',()=>renderList());
   let queryTimer=0;
   $('#ns-search').addEventListener('input',()=>{clearTimeout(queryTimer);queryTimer=setTimeout(()=>renderList(),140)});
-  $('#ns-more').addEventListener('click',()=>{limit+=100;renderList(false)});
+  section.addEventListener('click',e=>{
+    const button=e.target.closest?.('button[data-ns-more]');
+    if(!button)return;
+    const details=button.closest('.ns-group'),group=groupsByKey.get(button.dataset.nsMore);
+    if(!details||!group)return;
+    const previous=groupLimits.get(group.key)||100;
+    const next=Math.min(previous+100,group.rows.length);
+    groupLimits.set(group.key,next);
+    details.querySelector('.ns-items').insertAdjacentHTML('beforeend',group.rows.slice(previous,next).map((row,i)=>rowHTML(row,previous+i)).join(''));
+    details.querySelector('.ns-group-progress').textContent=`Mostrando ${integer(next)} de ${integer(group.rows.length)} posições neste grupo`;
+    button.hidden=next>=group.rows.length;
+    button.textContent=`Exibir mais ${integer(Math.min(100,group.rows.length-next))} posições`;
+    updateProgress();
+  });
   section.addEventListener('toggle',e=>{
     const details=e.target;
+    if(!details?.matches||!section.contains(details))return;
+    if(details.matches('.ns-location')){
+      if(details.open)openLocations.add(details.dataset.nsLocation);else openLocations.delete(details.dataset.nsLocation);
+      updateProgress();return;
+    }
+    if(details.matches('.ns-group')){
+      const key=details.dataset.nsKey,group=groupsByKey.get(key);
+      if(details.open){
+        openGroups.add(key);
+        const content=details.querySelector('.ns-group-content');
+        if(group&&content.dataset.loaded!=='1'){content.innerHTML=groupItemsHTML(group);content.dataset.loaded='1';}
+      }else openGroups.delete(key);
+      updateProgress();return;
+    }
     if(!details?.matches?.('.ns-history')||!details.open||details.dataset.loaded==='1')return;
     details.dataset.loaded='1';
     const records=historyByProduct.get(details.dataset.historyKey)||[];
@@ -248,7 +337,7 @@
   },true);
   $('#ns-export').addEventListener('click',()=>{
     if(dirty&&!refreshSource())return;
-    const rows=filteredRows();
+    const rows=groupHierarchy(filteredRows()).flatMap(local=>local.groups.flatMap(group=>group.rows));
     const sep=';';
     const csvField=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
     const values=[['Código','Produto','Grupo','Empresa fiscal','Local do estoque','Quantidade','Unidade','Valor unitário do estoque (R$)','Valor em estoque (R$)','Data última compra identificada','Fornecedor','NF','Local da última compra','Preço unitário (R$)','Quantidade comprada','Qtd. de compras no histórico','Posição do estoque']];
