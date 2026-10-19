@@ -346,6 +346,23 @@ with sync_playwright() as p:
     assert results['fastPilot']['stockRows'] == 4130, 'Unexpected Sao Joao stock positions'
     assert results['fastChuaPilot']['stockRows'] == 4130, 'Unexpected Chua stock positions'
     assert abs(results['fast']['stockValue'] - 2205033.21) < 0.01, 'Unexpected stock value'
+    if snapshots['legacy'] != snapshots['fast']:
+        for field in snapshots['legacy']:
+            left, right = snapshots['legacy'][field], snapshots['fast'][field]
+            if left == right:
+                continue
+            info = {'field':field,'legacyType':str(type(left)),'fastType':str(type(right))}
+            if isinstance(left,list) and isinstance(right,list):
+                info['sizes']=[len(left),len(right)]
+                at=next((i for i,(a,b) in enumerate(zip(left,right)) if a!=b),None)
+                info['firstDifferenceIndex']=at
+                if at is not None:
+                    info['legacySample']=repr(left[at])[:600]
+                    info['fastSample']=repr(right[at])[:600]
+            else:
+                info['legacySample']=repr(left)[:600]
+                info['fastSample']=repr(right)[:600]
+            print('SNAPSHOT DIFFERENCE', json.dumps(info,ensure_ascii=False),flush=True)
     assert snapshots['legacy'] == snapshots['fast'], 'Management data changed'
     assert snapshots['legacyPilot'] == snapshots['fastPilot'], 'Pilot data changed'
     assert snapshots['legacyChuaPilot'] == snapshots['fastChuaPilot'], 'Chua pilot data changed'
