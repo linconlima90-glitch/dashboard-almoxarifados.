@@ -44,7 +44,7 @@ with sync_playwright() as p:
         page.on('request', lambda request: requests.append(request.url))
         page.goto(base + route, wait_until='load', timeout=120000)
         try:
-            page.wait_for_function("window.CURRENT_STOCK_META && window.STOCK_MINIMUM_MONTHS===2 && window.MOVEMENTS_REVISED_META?.records===4227", timeout=90000)
+            page.wait_for_function("window.CURRENT_STOCK_META && window.STOCK_MINIMUM_MONTHS===2 && window.MOVEMENTS_REVISED_META?.records===4316", timeout=90000)
         except Exception:
             print("BOOT DEBUG", name, json.dumps(page.evaluate("""() => ({
               stock: typeof STOCK === 'undefined' ? 'undefined' : STOCK.length,
@@ -89,7 +89,7 @@ with sync_playwright() as p:
                 emitted:window.CURRENT_STOCK_META?.emissao,
                 total:STOCK.reduce((s,x)=>s+(Number(x.valor_estoque)||0),0),
                 warehouses:new Set(STOCK.map(x=>x.local)).size,
-                preserveHistory:window.MOVEMENTS_REVISED_META?.records===4227,
+                preserveHistory:window.MOVEMENTS_REVISED_META?.records===4316,
                 preserveMin:window.STOCK_MINIMUM_MONTHS===2
             })""")
             assert stockmeta['emitted']=='19/10/2026 09:40:04', stockmeta
@@ -212,7 +212,7 @@ with sync_playwright() as p:
             assert minimum_view['stock']>0 and minimum_view['hasCurrentStock'], minimum_view
             assert minimum_view['localOnly'] and minimum_view['groups']>0 and minimum_view['groupsSorted'] and minimum_view['itemsSorted'], minimum_view
             assert minimum_view['minCorrect'] and minimum_view['needCorrect'] and minimum_view['neverInvent'], minimum_view
-            assert minimum_view['meta']['months']==2 and minimum_view['totalHistory']==4227 and minimum_view['noOldNav'], minimum_view
+            assert minimum_view['meta']['months']==2 and minimum_view['totalHistory']==4316 and minimum_view['noOldNav'], minimum_view
             page.locator('#fm-year').select_option('2026')
             assert page.locator('#farm-minimum-view').count()==1
             page.locator('#fm-year').select_option('')
@@ -240,7 +240,7 @@ with sync_playwright() as p:
             }""")
             assert sj_no_withdrawals['rows']>0 and sj_no_withdrawals['display']>0, sj_no_withdrawals
             assert sj_no_withdrawals['localRows'] and sj_no_withdrawals['valid'] and sj_no_withdrawals['ordered'], sj_no_withdrawals
-            assert sj_no_withdrawals['purchaseLocal'] and sj_no_withdrawals['meta']==4227, sj_no_withdrawals
+            assert sj_no_withdrawals['purchaseLocal'] and sj_no_withdrawals['meta']==4316, sj_no_withdrawals
             assert sj_no_withdrawals['date']=='19/10/2026 09:40:04', sj_no_withdrawals
             page.locator('#sj-nw-sort').select_option('unitario')
             sorted_unit=page.evaluate("""() => [...document.querySelectorAll('#sj-nw-view tr[data-sj-nw-unit]')]
@@ -313,7 +313,7 @@ with sync_playwright() as p:
             assert minimum_view['stock']>0 and minimum_view['hasCurrentStock'], minimum_view
             assert minimum_view['localOnly'] and minimum_view['groups']>0 and minimum_view['groupsSorted'] and minimum_view['itemsSorted'], minimum_view
             assert minimum_view['minCorrect'] and minimum_view['needCorrect'] and minimum_view['neverInvent'], minimum_view
-            assert minimum_view['meta']['months']==2 and minimum_view['totalHistory']==4227 and minimum_view['noOldNav'], minimum_view
+            assert minimum_view['meta']['months']==2 and minimum_view['totalHistory']==4316 and minimum_view['noOldNav'], minimum_view
             page.locator('#fm-year').select_option('2026')
             assert page.locator('#farm-minimum-view').count()==1
             page.locator('#fm-year').select_option('')
