@@ -87,7 +87,7 @@ for (const pilot of [false, true, 'chua']) {
   const prefix = 'window.CURRENT_STOCK_20260911=';
   assert(stockText.includes(prefix), 'Unknown stock payload');
   const payload = JSON.parse(stockText.slice(stockText.indexOf(prefix) + prefix.length).trim().replace(/;$/, ''));
-  assert(Array.isArray(payload.rows) && payload.rows.length === Number(payload.meta.registros), 'Invalid stock row count');
+  assert(Array.isArray(payload.rows) && payload.rows.length === Number(payload.meta.registros ?? payload.meta.posicoes), 'Invalid stock row count');
   let loaderCount = 0;
   const compiled = codes.map(({ url, code }) => {
     if (url.startsWith('/stock-current-') && /window\.CURRENT_STOCK_GZ\s*(?:\+)?=/.test(code)) return '';
