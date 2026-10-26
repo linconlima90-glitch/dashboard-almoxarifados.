@@ -1,10 +1,10 @@
 name: Publicar Dashboard no Cloudflare
-# Executa uma vez ao criar este arquivo no main; depois, apenas manualmente.
+# Implantacao ocorre depois dos testes de regressao aprovados na branch main.
 on:
-  push:
+  workflow_run:
+    workflows: [Dashboard performance regression]
+    types: [completed]
     branches: [main]
-    paths:
-      - .github/workflows/publicar-cloudflare.yml
   workflow_dispatch:
 permissions:
   contents: read
@@ -13,11 +13,14 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publicar:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Obter codigo validado
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Configurar Node
         uses: actions/setup-node@v4
         with:

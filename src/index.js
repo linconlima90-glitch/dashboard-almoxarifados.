@@ -138,7 +138,8 @@ class DashboardInjector {
       '<script src="/_data/revised-monthly-20261019.js?v=20261019-1"></script>' +
       '<script src="/current-stock-loader-20260911.js?v=20261019-0940"></script>' +
       '<script src="/movement-after-20261015.js?v=20261019-2"></script>' +
-      '<script src="/movement-reconcile-20261015.js?v=20261019-2"></script>' +
+      '<script src="/movement-after-20261019.js?v=20261026-1"></script>' +
+      '<script src="/movement-reconcile-20261015.js?v=20261026-1"></script>' +
       '<script src="/tire-stock-dashboard-20260930.js?v=20261015-1"></script>',
       { html: true }
     );
