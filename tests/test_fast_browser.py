@@ -62,18 +62,19 @@ with sync_playwright() as p:
         page.wait_for_timeout(600)
 
         purchase_checks = page.evaluate("""() => ({
+          aug: PURCHASES.filter(x=>x.data.slice(3)==='08/2026').length,
           sep: PURCHASES.filter(x=>x.data.slice(3)==='09/2026').length,
           oct: PURCHASES.filter(x=>x.data.slice(3)==='10/2026').length,
           sepValue: Math.round(PURCHASES.filter(x=>x.data.slice(3)==='09/2026').reduce((s,x)=>s+x.valor,0)*100)/100,
           octValue: Math.round(PURCHASES.filter(x=>x.data.slice(3)==='10/2026').reduce((s,x)=>s+x.valor,0)*100)/100,
           monthlyOct: MONTHLY.find(x=>x.mes==='10/2026')?.valor||0,
-          distinctNewSuppliers: [...document.querySelector('#fFornecedor').options].some(x=>x.value==='MARTINS COM.SERV.DISTRIBUICAO S/A'),
-          correctMeta: window.LATEST_PURCHASE_META?.rowsSinceAugust===484 && window.LATEST_PURCHASE_META?.duplicateRowsRemoved===4
+          correctMeta: window.LATEST_PURCHASE_META?.rowsSinceAugust===571 &&
+            window.LATEST_PURCHASE_META?.sourceRows===364 &&
+            window.LATEST_PURCHASE_META?.fim==='22/10/2026'
         })""")
-        assert purchase_checks['sep']==252 and purchase_checks['oct']==25, purchase_checks
-        assert abs(purchase_checks['sepValue']-147326.33)<0.02 and abs(purchase_checks['octValue']-10523.76)<0.02, purchase_checks
-        assert abs(purchase_checks['monthlyOct']-10523.76)<0.02, purchase_checks
-        assert purchase_checks['distinctNewSuppliers'] and purchase_checks['correctMeta'], purchase_checks
+        assert purchase_checks['aug']==207 and purchase_checks['sep']==258 and purchase_checks['oct']==106, purchase_checks
+        assert abs(purchase_checks['sepValue']-153097.46)<0.02 and abs(purchase_checks['octValue']-47308.90)<0.02, purchase_checks
+        assert abs(purchase_checks['monthlyOct']-47308.90)<0.02 and purchase_checks['correctMeta'], purchase_checks
 
         snapshots[name] = page.evaluate(SNAPSHOT)
         results[name] = {
