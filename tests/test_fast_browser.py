@@ -151,6 +151,34 @@ with sync_playwright() as p:
             assert capital_nav.get('installed') and capital_nav.get('count',0)>=2, capital_nav
             assert all(capital_nav.get(x) for x in ['inGroup','returnVisible','crumbReturned',
                                                    'buttonReturned','inProduct','productReturned']), capital_nav
+            # Clique real no navegador: regressao descoberta quando o handler do
+            # titulo redirecionava a tela Estoque mesmo apos o breadcrumb voltar.
+            exec_view=page.locator('.tab[data-view="executivo"]')
+            exec_view.evaluate("(el)=>el.click()")
+            capital_panel=page.locator('#view-executivo .capital-hierarchy')
+            capital_panel.wait_for(state='visible')
+            original_local_count=capital_panel.locator('.capital-column[data-index]').count()
+            assert original_local_count>=2
+            def ensure_executive_local():
+                assert page.locator('.tab[data-view="executivo"].active').count()==1, 'Navegacao saiu do Resumo Executivo'
+                assert capital_panel.locator('.capital-crumb[data-level="group"]').count()==0, 'Nao voltou aos locais'
+                assert capital_panel.locator('.capital-column[data-index]').count()==original_local_count, 'Locais alterados'
+            capital_panel.locator('.capital-column[data-index]').first.click()
+            assert capital_panel.locator('.capital-crumb[data-level="group"]').count()==1
+            assert page.locator('.tab[data-view="executivo"].active').count()==1
+            capital_panel.locator('.capital-crumb[data-level="local"]').click()
+            ensure_executive_local()
+            capital_panel.locator('.capital-column[data-index]').first.click()
+            assert capital_panel.locator('.capital-back-local[data-level="local"]').count()==1
+            capital_panel.locator('.capital-back-local[data-level="local"]').click()
+            ensure_executive_local()
+            capital_panel.locator('.capital-column[data-index]').first.click()
+            capital_panel.locator('.capital-column[data-index]').first.click()
+            assert capital_panel.locator('.capital-product-list').count()==1
+            capital_panel.locator('.capital-crumb[data-level="local"]').click()
+            ensure_executive_local()
+            capital_panel.locator('.board-title h3').click()
+            ensure_executive_local()
             for view in ['geral', 'estoque', 'sem-baixas', 'baixas', 'minimo', 'produtos', 'fornecedores', 'historico', 'cdi', 'variacao', 'economia', 'orcamentos']:
                 selector = f'.tab[data-view="{view}"]'
                 if not page.locator(selector).count():

@@ -102,6 +102,7 @@
     if(!panel)return false;
     if(panel.dataset.capitalHierarchy==='3')return true;
     panel.dataset.capitalHierarchy='3';panel.classList.add('capital-hierarchy');
+    panel.classList.remove('exec-clickable-title'); // A area de cabecalho e somente navegacao do grafico.
 
     const oldHead=panel.querySelector('.board-title');
     const head=document.createElement('div');head.className='board-title';
@@ -190,7 +191,8 @@
     }
 
     head.addEventListener('click',e=>{
-      const b=e.target.closest('.capital-crumb');if(!b)return;e.preventDefault();e.stopPropagation();
+      const b=e.target.closest('.capital-crumb');if(!b)return;
+      e.preventDefault();e.stopImmediatePropagation(); // Impedir outros handlers do mesmo cabecalho.
       if(b.dataset.level==='local')renderLocal();else if(b.dataset.level==='group'&&selectedLocal)renderGroup(selectedLocal);
     });
     shell.addEventListener('click',e=>{

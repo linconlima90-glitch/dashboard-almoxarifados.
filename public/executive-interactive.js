@@ -87,7 +87,11 @@
   function bindPanels(){
     for(const p of view.querySelectorAll('.board-panel')){
       const title=p.querySelector('.board-title h3')?.textContent.trim()||'';const nt=norm(title);const head=p.querySelector('.board-title');
-      if(head&&!head.dataset.execBound){let fn=null;if(nt==='ONDE ESTA O CAPITAL EM ESTOQUE')fn=()=>goExact('estoque');else if(nt==='MAIORES NECESSIDADES DE REPOSICAO')fn=()=>goExact('minimo');else if(nt==='MAIOR CAPITAL SEM GIRO')fn=showDead;else if(nt==='POTENCIAL DE ECONOMIA POR GRUPO')fn=()=>goExact('economia');else if(nt.includes('FORNECEDORES'))fn=()=>goExact('fornecedores');else if(nt==='LEITURA DE COMPRAS')fn=()=>goExact('variacao');if(fn){head.dataset.execBound='1';p.classList.add('exec-clickable-title');head.addEventListener('click',e=>{if(!e.target.closest('tbody'))fn()})}}
+      // O painel de capital possui sua propria navegacao Local > Grupo > Produto.
+      // Nao atrelar ao titulo uma segunda acao que abra a aba Estoque: ela era
+      // acionada ate quando se clicava no breadcrumb "Local".
+      if(nt==='ONDE ESTA O CAPITAL EM ESTOQUE')p.classList.remove('exec-clickable-title');
+      if(head&&nt!=='ONDE ESTA O CAPITAL EM ESTOQUE'&&!head.dataset.execBound){let fn=null;if(nt==='MAIORES NECESSIDADES DE REPOSICAO')fn=()=>goExact('minimo');else if(nt==='MAIOR CAPITAL SEM GIRO')fn=showDead;else if(nt==='POTENCIAL DE ECONOMIA POR GRUPO')fn=()=>goExact('economia');else if(nt.includes('FORNECEDORES'))fn=()=>goExact('fornecedores');else if(nt==='LEITURA DE COMPRAS')fn=()=>goExact('variacao');if(fn){head.dataset.execBound='1';p.classList.add('exec-clickable-title');head.addEventListener('click',e=>{if(!e.target.closest('tbody'))fn()})}}
       for(const tr of p.querySelectorAll('tbody tr')){if(tr.dataset.execBound)continue;let fn=null;
         if(nt==='ONDE ESTA O CAPITAL EM ESTOQUE'){const local=tr.cells[0]?.textContent.trim();fn=()=>goExact('estoque',{fLocal:local})}
         else if(nt==='MAIORES NECESSIDADES DE REPOSICAO'){const local=tr.cells[0]?.textContent.trim(),code=(tr.cells[1]?.textContent.match(/^\s*(\d+)/)||[])[1];fn=()=>goExact('minimo',{fLocal:local,fBusca:code||''})}
