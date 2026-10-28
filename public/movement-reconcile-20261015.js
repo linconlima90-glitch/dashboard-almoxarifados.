@@ -179,7 +179,7 @@
     const box=document.createElement('div');box.id='baixas-snapshot-20261015';
     box.style.cssText='background:#f5f9f6;border:1px solid #cfe3d3;border-left:4px solid #1e8747;padding:11px 15px;border-radius:10px;color:#214e32;font-size:12px;margin:10px 0 14px;line-height:1.65';
     box.innerHTML='<b>Baixas conferidas do ERP (sem transferencias): 01/07 a 26/10/2026</b> · 4.593 lancamentos integrados · <b>R$ 438.797,49</b>.'+
-      '<div style="color:#657366;font-size:11px">Os valores por produto fora deste periodo sao estimados pelo custo de estoque. 287 chaves antigas seguem em conciliacao. Do arquivo de 26/10, 277 linhas foram integradas; 10 linhas de 19/10 com possivel sobreposicao nao foram somadas. Estoque permanece na posicao de 19/10. Divergencias de unidade (KG/SC e KG/FD) sao mantidas separadamente, sem somar quantidades de unidades distintas.</div>';
+      '<div style="color:#657366;font-size:11px">Os valores por produto fora deste periodo sao estimados pelo custo de estoque. 287 chaves antigas seguem em conciliacao. Do arquivo de 26/10, 277 linhas foram integradas; 10 linhas de 19/10 com possivel sobreposicao nao foram somadas. Estoque permanece na posicao de 28/10. Divergencias de unidade (KG/SC e KG/FD) sao mantidas separadamente, sem somar quantidades de unidades distintas.</div>';
     summary.prepend(box);
   }
   // Nao manter em memoria uma segunda copia da fotografia de julho-outubro.

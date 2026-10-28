@@ -23,7 +23,7 @@
     if(typeof STOCK==='undefined'||!Array.isArray(STOCK)||
        typeof MOVEMENTS==='undefined'||!Array.isArray(MOVEMENTS)||
        typeof PURCHASES==='undefined'||!Array.isArray(PURCHASES)||
-       window.MOVEMENTS_REVISED_META?.records!==4316||!window.CURRENT_STOCK_META) return null;
+       window.MOVEMENTS_REVISED_META?.records!==4593||!window.CURRENT_STOCK_META) return null;
     const localMovements = new Set(), networkMovements = new Set(), pending = new Set();
     const allMovements = MOVEMENTS.concat(typeof MOVEMENTS_YEARLY!=='undefined'&&Array.isArray(MOVEMENTS_YEARLY)?MOVEMENTS_YEARLY:[]);
     for(const m of allMovements){
@@ -55,7 +55,7 @@
         latest:purchases[0]||null,historyCount:purchases.length,
         networkHadWithdrawal:networkMovements.has(String(s.codigo)) });
     }
-    lastMeta={ excludedPending,excludedMixed,position:String(window.CURRENT_STOCK_META.emissao||'15/10/2026'),
+    lastMeta={ excludedPending,excludedMixed,position:String(window.CURRENT_STOCK_META.emissao||'28/10/2026'),
       allRows:rows.length, networkRows:rows.filter(x=>!x.networkHadWithdrawal).length };
     currentRows=rows;
     window.CHUA_NO_WITHDRAWAL_META=lastMeta;

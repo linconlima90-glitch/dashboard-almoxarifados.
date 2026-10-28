@@ -31,7 +31,7 @@
         typeof minimumBaseRows !== 'function' ||
         typeof minimumRowsForYear !== 'function' ||
         window.STOCK_MINIMUM_MONTHS !== MONTHS ||
-        window.MOVEMENTS_REVISED_META?.records !== 4316 ||
+        window.MOVEMENTS_REVISED_META?.records !== 4593 ||
         !window.CURRENT_STOCK_META) return null;
 
     // Sempre partir da mesma base de minimo exibida no gestor principal. Para o
@@ -104,7 +104,7 @@
       code:String(code),local,year,rows,
       pendingAnnual:year ? managerBase.length-selected.length : 0,
       managerBaseCount:managerBase.length,
-      stockDate:String(window.CURRENT_STOCK_META.emissao || '15/10/2026'),
+      stockDate:String(window.CURRENT_STOCK_META.emissao || '28/10/2026'),
       usesNetwork:rows.some(x=>x.network_scope) || (String(code)==='30115' && managerBaseCountHasData(managerBase))
     };
   }
