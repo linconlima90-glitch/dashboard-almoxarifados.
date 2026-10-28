@@ -1,5 +1,7 @@
 name: Publicar Dashboard no Cloudflare
 # Implantacao ocorre depois dos testes de regressao aprovados na branch main.
+# Account ID (nao secreto) confirmado em Workers Builds do GitHub para a conta de producao.
+# Secrets/vars mantem precedencia para permitir troca sem alterar o codigo.
 on:
   workflow_run:
     workflows: [Dashboard performance regression]
@@ -28,14 +30,14 @@ jobs:
       - name: Confirmar credenciais de implantacao
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CF_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CF_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID || '65f4cc4dd3c9e6ba0c4975de251c6c57' }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
             echo "::error::Nao foi encontrado o segredo CLOUDFLARE_API_TOKEN (ou CF_API_TOKEN) neste repositorio. Configure em Settings > Secrets and variables > Actions."
             exit 1
           fi
-          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "::error::Nao foi encontrado CLOUDFLARE_ACCOUNT_ID (segredo ou variavel). Configure em Settings > Secrets and variables > Actions."
+          if ! [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]]; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID ausente ou invalido (esperado 32 digitos hexadecimais). Confira o Cloudflare Workers Builds ou defina Secrets/Variables > Actions."
             exit 1
           fi
       - name: Instalar Wrangler
@@ -45,5 +47,5 @@ jobs:
       - name: Publicar Worker e arquivos no Cloudflare
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CF_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CF_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID || '65f4cc4dd3c9e6ba0c4975de251c6c57' }}
         run: npx wrangler deploy
