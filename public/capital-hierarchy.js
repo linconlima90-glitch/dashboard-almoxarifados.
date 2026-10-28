@@ -18,6 +18,14 @@
     #view-executivo .capital-hierarchy .capital-crumb{border:0;background:transparent;color:var(--db-green-dark,#125c31);font-size:9px;font-weight:900;padding:3px 4px;border-radius:6px;cursor:pointer}
     #view-executivo .capital-hierarchy .capital-crumb:hover{background:var(--db-green-soft,#e6f3eb)}
     #view-executivo .capital-hierarchy .capital-crumb.current{color:#66736b;cursor:default;background:transparent}
+    /* Acoes de retorno explicitas para voltar do grupo/produto ao resumo dos locais. */
+    #view-executivo .capital-hierarchy .capital-crumb[data-level="local"]:not(.current){display:inline-flex;align-items:center;border:1px solid #b9d8c4;background:#eef8f2;color:#115d31;font-size:11px;padding:6px 10px;box-shadow:0 1px 4px rgba(14,89,45,.08)}
+    #view-executivo .capital-hierarchy .capital-crumb[data-level="local"]:not(.current):hover{background:#dff2e5;border-color:#6fae84;text-decoration:underline;text-underline-offset:2px}
+    #view-executivo .capital-hierarchy .capital-crumb:focus-visible{outline:2px solid var(--db-yellow,#faca04);outline-offset:2px}
+    #view-executivo .capital-hierarchy .capital-chart-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;white-space:nowrap}
+    #view-executivo .capital-hierarchy .capital-back-local{border:1px solid #b9d8c4;background:#eef8f2;color:#115d31;border-radius:7px;padding:6px 10px;font-size:10px;font-weight:900;font-family:inherit;cursor:pointer}
+    #view-executivo .capital-hierarchy .capital-back-local:hover{background:#dff2e5;border-color:#6fae84;text-decoration:underline;text-underline-offset:2px}
+    #view-executivo .capital-hierarchy .capital-back-local:focus-visible{outline:2px solid var(--db-yellow,#faca04);outline-offset:2px}
     #view-executivo .capital-hierarchy .capital-sep{color:#9aa59e;font-size:10px;font-weight:900}
     #view-executivo .capital-hierarchy .capital-level{text-align:right;font-size:9px;color:#6d786f;white-space:nowrap;line-height:1.45}
     #view-executivo .capital-hierarchy .capital-chart-shell{padding:10px 10px 12px;background:#fff}
@@ -65,6 +73,7 @@
       #view-executivo .capital-hierarchy .capital-column{width:78px;min-width:78px}
       #view-executivo .capital-hierarchy .capital-ylabel{font-size:6.5px}
       #view-executivo .capital-hierarchy .capital-product-list{min-width:820px}
+      #view-executivo .capital-hierarchy .capital-chart-summary{flex-wrap:wrap}
     }
   `;
   document.head.appendChild(style);
@@ -135,12 +144,16 @@
     function breadcrumb(){
       const bc=head.querySelector('.capital-breadcrumb'),label=head.querySelector('.capital-level');
       const parts=[];
-      parts.push(`<button type="button" class="capital-crumb ${level==='local'?'current':''}" data-level="local">Local</button>`);
+      parts.push(`<button type="button" class="capital-crumb ${level==='local'?'current':''}" data-level="local" title="${level==='local'?'Resumo por local':'Voltar ao resumo de todos os almoxarifados'}" aria-label="${level==='local'?'Resumo por local':'Voltar ao resumo de todos os almoxarifados'}">${level==='local'?'Local':'← Local'}</button>`);
       if(selectedLocal){parts.push('<span class="capital-sep">›</span>');parts.push(`<button type="button" class="capital-crumb ${level==='group'?'current':''}" data-level="group">${esc(selectedLocal)}</button>`)}
       if(selectedGroup){parts.push('<span class="capital-sep">›</span>');parts.push(`<button type="button" class="capital-crumb current" data-level="product">${esc(selectedGroup)}</button>`)}
       bc.innerHTML=parts.join('');
       const hint=level==='product'?'Itens um abaixo do outro':'Clique nas colunas';
       label.innerHTML=(level==='local'?'1. Local':level==='group'?'2. Grupo':'3. Produto')+`<br><span class="capital-open-hint">${hint}</span>`;
+    }
+
+    function backToLocalsHtml(){
+      return level==='local'?'':'<button type="button" class="capital-back-local" data-level="local" title="Voltar ao resumo de todos os almoxarifados">← Voltar aos locais</button>';
     }
 
     function chartHtml(rows,opts={}){
@@ -153,14 +166,14 @@
         const label=opts.label(x),sub=opts.sub?opts.sub(x):'';
         return `<button type="button" class="capital-column" data-index="${i}" title="${esc(label)} • ${esc(br(value))}"><span class="capital-plotcell" style="--bar-h:${h.toFixed(2)}%"><span class="capital-bar-value">${esc(brCompact(value))}</span><span class="capital-bar"></span></span><span class="capital-xlabel">${esc(label)}${sub?`<span class="capital-xsub">${esc(sub)}</span>`:''}</span></button>`;
       }).join('');
-      return `<div class="capital-chart-summary"><span>${esc(opts.summary||'')}</span><b>${br(subtotal)}</b></div><div class="capital-chart"><div class="capital-yaxis"><span class="capital-ylabel y0">${esc(brCompact(y[0]))}</span><span class="capital-ylabel y25">${esc(brCompact(y[1]))}</span><span class="capital-ylabel y50">${esc(brCompact(y[2]))}</span><span class="capital-ylabel y75">${esc(brCompact(y[3]))}</span><span class="capital-ylabel y100">R$ 0</span></div><div class="capital-chart-scroll"><div class="capital-bars">${bars}</div></div></div>`;
+      return `<div class="capital-chart-summary"><span>${esc(opts.summary||'')}</span><div class="capital-chart-actions">${backToLocalsHtml()}<b>${br(subtotal)}</b></div></div><div class="capital-chart"><div class="capital-yaxis"><span class="capital-ylabel y0">${esc(brCompact(y[0]))}</span><span class="capital-ylabel y25">${esc(brCompact(y[1]))}</span><span class="capital-ylabel y50">${esc(brCompact(y[2]))}</span><span class="capital-ylabel y75">${esc(brCompact(y[3]))}</span><span class="capital-ylabel y100">R$ 0</span></div><div class="capital-chart-scroll"><div class="capital-bars">${bars}</div></div></div>`;
     }
 
     function productListHtml(rows,group){
       if(!rows.length)return '<div class="capital-empty">Nenhum produto com estoque encontrado neste grupo.</div>';
       const subtotal=rows.reduce((a,x)=>a+(Number(x.valor)||0),0);
       const body=rows.map((x,i)=>`<tr data-index="${i}"><td><span class="capital-product-main"><span class="capital-product-code">${esc(x.codigo)}</span> ${esc(x.produto)}</span></td><td>${esc(x.un||'')}</td><td class="num">${n1(x.estoque)} ${esc(x.un||'')}</td><td class="num">${br(x.custo)}</td><td class="num"><b>${br(x.valor)}</b></td><td class="num">${pct(subtotal?x.valor/subtotal:0)}</td><td class="num"><button type="button" class="capital-open-product" data-open="${i}">Abrir item</button></td></tr>`).join('');
-      return `<div class="capital-chart-summary"><span>Produtos de ${esc(group)} • ${rows.length} itens</span><b>${br(subtotal)}</b></div><div class="capital-product-list-wrap"><table class="capital-product-list"><thead><tr><th>Código / Produto</th><th>UN</th><th class="num">Estoque</th><th class="num">Custo médio</th><th class="num">Capital</th><th class="num">% do grupo</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`;
+      return `<div class="capital-chart-summary"><span>Produtos de ${esc(group)} • ${rows.length} itens</span><div class="capital-chart-actions">${backToLocalsHtml()}<b>${br(subtotal)}</b></div></div><div class="capital-product-list-wrap"><table class="capital-product-list"><thead><tr><th>Código / Produto</th><th>UN</th><th class="num">Estoque</th><th class="num">Custo médio</th><th class="num">Capital</th><th class="num">% do grupo</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`;
     }
 
     function renderLocal(){
@@ -181,6 +194,8 @@
       if(b.dataset.level==='local')renderLocal();else if(b.dataset.level==='group'&&selectedLocal)renderGroup(selectedLocal);
     });
     shell.addEventListener('click',e=>{
+      const back=e.target.closest('.capital-back-local[data-level="local"]');
+      if(back){e.preventDefault();renderLocal();return;}
       const open=e.target.closest('.capital-open-product[data-open]');
       if(open){const x=currentRows[Number(open.dataset.open)];if(x)openStock(selectedLocal,selectedGroup,String(x.codigo));return;}
       if(level==='product'){

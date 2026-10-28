@@ -116,6 +116,41 @@ with sync_playwright() as p:
                 String(x.un)==='PC').map(x=>String(x.empresa))""")
             assert len(fiscal_positions)==2 and len(set(fiscal_positions))==2, fiscal_positions
         if optimized and 'Pilot' not in name:
+            # O atalho "Local" e o botao de retorno permitem sair de Grupo e Produto
+            # sem perder dados, filtros ou a visao geral dos almoxarifados.
+            capital_nav=page.evaluate("""() => {
+              const panel=document.querySelector('#view-executivo .capital-hierarchy');
+              if(!panel)return {installed:false};
+              const columns=()=>[...panel.querySelectorAll('.capital-column[data-index]')];
+              const count=columns().length;
+              if(count<2)return {installed:true,count};
+              columns()[0].click();
+              const crumb=panel.querySelector('.capital-crumb[data-level="local"]');
+              const inGroup=!!panel.querySelector('.capital-crumb[data-level="group"]');
+              const returnVisible=!!crumb?.textContent.includes('Local') &&
+                crumb.getAttribute('title')?.includes('Voltar') &&
+                !!panel.querySelector('.capital-back-local[data-level="local"]');
+              crumb?.click();
+              const crumbReturned=columns().length===count &&
+                !panel.querySelector('.capital-back-local') &&
+                !panel.querySelector('.capital-crumb[data-level="group"]');
+              columns()[0].click();
+              const groupBack=panel.querySelector('.capital-back-local[data-level="local"]');
+              groupBack?.click();
+              const buttonReturned=columns().length===count &&
+                !panel.querySelector('.capital-crumb[data-level="group"]');
+              columns()[0].click();
+              columns()[0]?.click();
+              const inProduct=!!panel.querySelector('.capital-product-list');
+              panel.querySelector('.capital-back-local[data-level="local"]')?.click();
+              const productReturned=columns().length===count &&
+                !panel.querySelector('.capital-crumb[data-level="group"]');
+              return {installed:true,count,inGroup,returnVisible,crumbReturned,buttonReturned,
+                      inProduct,productReturned};
+            }""")
+            assert capital_nav.get('installed') and capital_nav.get('count',0)>=2, capital_nav
+            assert all(capital_nav.get(x) for x in ['inGroup','returnVisible','crumbReturned',
+                                                   'buttonReturned','inProduct','productReturned']), capital_nav
             for view in ['geral', 'estoque', 'sem-baixas', 'baixas', 'minimo', 'produtos', 'fornecedores', 'historico', 'cdi', 'variacao', 'economia', 'orcamentos']:
                 selector = f'.tab[data-view="{view}"]'
                 if not page.locator(selector).count():

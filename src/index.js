@@ -114,7 +114,7 @@ class DashboardInjector {
       '<script src="/executive-board-v3.js?v=20261008-2"></script>' +
       '<script src="/executive-product-filter.js?v=20260909"></script>' +
       '<script src="/executive-interactive.js?v=20260909"></script>' +
-      '<script src="/capital-hierarchy.js?v=20260911-3"></script>' +
+      '<script src="/capital-hierarchy.js?v=20261028-retorno-local-1"></script>' +
       '<script src="/executive-only-capital.js?v=20260911-1"></script>' +
       '<script src="/cdi-minimum-layout.js?v=20261019-1"></script>' +
       '<script src="/minimum-policy-2months-20261008.js?v=20261008-1"></script>' +
