@@ -122,7 +122,7 @@
   const localCodeKey = x => String(x.codigo_local)+'|'+String(x.codigo);
   const productKey = x => String(x.codigo)+'|'+norm(x.un);
   const localProductKey = x => String(x.local)+'|'+productKey(x);
-  const stockDataReady = () => typeof STOCK !== 'undefined' && Array.isArray(STOCK) && typeof MOVEMENTS !== 'undefined' && Array.isArray(MOVEMENTS) && typeof PURCHASES !== 'undefined' && Array.isArray(PURCHASES) && window.CURRENT_STOCK_META && window.MOVEMENTS_REVISED_META?.records === 4593;
+  const stockDataReady = () => typeof STOCK !== 'undefined' && Array.isArray(STOCK) && typeof MOVEMENTS !== 'undefined' && Array.isArray(MOVEMENTS) && typeof PURCHASES !== 'undefined' && Array.isArray(PURCHASES) && window.CURRENT_STOCK_META && window.MOVEMENTS_REVISED_META?.records === 4749;
   const latestFirst = (a, b) => asDate(b.data)-asDate(a.data) || num(b.nrounico)-num(a.nrounico);
   let sourceRows=[], hasMovementsInNetwork=new Set(), historyByProduct=new Map(), renderedRows=[], dirty=true;
   const openLocations=new Set(), openGroups=new Set(), groupLimits=new Map();
@@ -176,7 +176,7 @@
     window.STOCK_NO_WITHDRAWAL_META={
       scope:'por almoxarifado',rows:sourceRows.length,semBaixaNaRede:sourceRows.filter(x=>!hasMovementsInNetwork.has(x.codigo)).length,
       excludedPending,excludedMixedUnits:mixedUnitsExcluded,stockDate:window.CURRENT_STOCK_META.emissao||'28/10/2026',
-      historyStart:'01/01/2025',historyEnd:'26/10/2026',purchaseLatest:'08/10/2026'
+      historyStart:'01/01/2025',historyEnd:'28/10/2026',purchaseLatest:'08/10/2026'
     };
     return true;
   }
@@ -284,7 +284,7 @@
     const meta=window.STOCK_NO_WITHDRAWAL_META||{};
     const position=String(meta.stockDate||'28/10/2026');
     $('#ns-caption').textContent=`Posição de estoque: ${position} · ${renderedRows.length} posição(ões) · itens por ${getFilters().sort==='unitario'?'maior valor unitário':getFilters().sort==='quantidade'?'maior quantidade':getFilters().sort==='compra'?'última compra mais recente':'maior valor total'}`;
-    $('#ns-note').innerHTML=`<b>Critério:</b> saldo positivo e nenhuma baixa no escopo selecionado, dentro do histórico disponível (a partir de jan/2025, mais revisão 01/07–26/10/2026). <b>Última compra:</b> data de NF, não data de entrada física. <b>Valor unitário:</b> custo unitário da posição de estoque, diferente do preço pago na última compra. <b>Estoque:</b> posição de ${esc(position)}. <b>Conciliação:</b> ${integer(excludedPending)} posições com histórico pendente e ${integer(mixedUnitsExcluded)} com baixas em outra unidade foram retiradas desta lista para evitar falso “nunca baixado”. Pneus, câmaras, lubrificantes e cimento são exibidos se atenderem ao critério. Quantidades de unidades distintas não são somadas.`;
+    $('#ns-note').innerHTML=`<b>Critério:</b> saldo positivo e nenhuma baixa no escopo selecionado, dentro do histórico disponível (a partir de jan/2025, mais revisão 01/07–28/10/2026). <b>Última compra:</b> data de NF, não data de entrada física. <b>Valor unitário:</b> custo unitário da posição de estoque, diferente do preço pago na última compra. <b>Estoque:</b> posição de ${esc(position)}. <b>Conciliação:</b> ${integer(excludedPending)} posições com histórico pendente e ${integer(mixedUnitsExcluded)} com baixas em outra unidade foram retiradas desta lista para evitar falso “nunca baixado”. Pneus, câmaras, lubrificantes e cimento são exibidos se atenderem ao critério. Quantidades de unidades distintas não são somadas.`;
     renderHierarchy(renderedRows);
     window.STOCK_NO_WITHDRAWAL_META.filteredRows=renderedRows.length;
     window.STOCK_NO_WITHDRAWAL_META.filteredValue=Math.round(sum*100)/100;

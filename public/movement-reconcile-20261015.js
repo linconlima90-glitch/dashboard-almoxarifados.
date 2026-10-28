@@ -1,4 +1,4 @@
-// Fotografia conciliada de baixas de 01/07 a 26/10/2026 (fora de transferencias).
+// Fotografia conciliada de baixas de 01/07 a 28/10/2026 (fora de transferencias).
 // Nunca somar complementos anteriores de setembro/outubro a esta fotografia.
 // Dados sem atribuicao confiavel de ano permanecem no historico legado, fora do periodo certificado.
 (function(){
@@ -10,38 +10,23 @@
   const n=x=>Number(x)||0;
   const rowKey=x=>String(x.codigo_local)+'|'+String(x.codigo);
   const monthKey=x=>String(x.mes)+'|'+rowKey(x);
-  const rev=packed.map(r=>Object.fromEntries(cols.map((c,i)=>[c,r[i]])));
-  // Importar apenas 16-19/out, porque 08-15/out ja consta da fotografia certificada.
-  const add=window.MOVEMENTS_AFTER_20261015?.rows||[];
-  if(add.length!==78||!Array.isArray(add))throw Error('Complemento de baixas 16-19/out nao carregado');
-  let newCount=0,newValue=0;
-  for(const item of add){
+  // Outubro de 2026 e a fotografia INTEGRAL do ERP; nao somar os complementos antigos.
+  if(packed.length!==1954)throw Error('Fotografia historica anterior nao confere');
+  const rev=packed.map(r=>Object.fromEntries(cols.map((c,i)=>[c,r[i]]))).filter(r=>r.mes!=='2026-10');
+  const october=window.MOVEMENTS_OCTOBER_20261028;
+  if(!october||!Array.isArray(october.rows)||october.rows.length!==515||
+     october.records!==1080||Math.abs(october.value-88793.19)>.02)
+    throw Error('Fotografia integral de outubro ausente ou invalida');
+  let octoberCount=0,octoberValue=0;
+  for(const item of october.rows){
     const [codigo_local,codigo,un,local,produto,grupo,qtd,valor,records]=item;
-    if(!(Number(records)>0)||!(Number(qtd)>0))throw Error('Baixa complementar invalida');
-    newCount+=Number(records);newValue+=Number(valor);
+    if(!codigo_local||!codigo||!un||!local||!(Number(records)>0)||!(Number(qtd)>0)||
+       !Number.isFinite(Number(valor))||Number(valor)<0)throw Error('Registro de outubro invalido');
+    octoberCount+=Number(records);octoberValue+=Number(valor);
     rev.push({mes:'2026-10',codigo_local,codigo,un,local,produto,grupo,
       qtd:Number(qtd),valor:Number(valor),records:Number(records)});
   }
-  if(newCount!==89||Math.abs(newValue-6572.73)>.02)
-    throw Error('Conferencia das baixas 16-19/out nao fechou');
-
-  // 19/10: importar somente combinacoes local/produto/unidade nao presentes no lote de 16-19.
-  // Das 287 linhas enviadas em 26/10, 10 sao sobreposicoes potenciais e ficam fora da soma.
-  const follow=window.MOVEMENTS_AFTER_20261019;
-  if(!follow||!Array.isArray(follow.rows)||follow.rows.length!==176||
-      Number(follow.records)!==277||Math.abs(Number(follow.value)-15747.17)>.02)
-    throw Error('Arquivo complementar 19-26/out nao carregado ou invalidado');
-  let followCount=0,followValue=0;
-  for(const item of follow.rows){
-    const [codigo_local,codigo,un,local,produto,grupo,qtd,valor,records]=item;
-    if(!(Number(records)>0)||!(Number(qtd)>0)||!Number.isFinite(Number(valor)))
-      throw Error('Registro de baixa 19-26/out invalido');
-    followCount+=Number(records);followValue+=Number(valor);
-    rev.push({mes:'2026-10',codigo_local,codigo,un,local,produto,grupo,
-      qtd:Number(qtd),valor:Number(valor),records:Number(records)});
-  }
-  if(followCount!==277||Math.abs(followValue-15747.17)>.02)
-    throw Error('Totais do complemento 19-26/out nao conferem');
+  if(octoberCount!==1080||Math.abs(octoberValue-88793.19)>.02)throw Error('Soma de outubro divergente');
 
   const preferredUnit=new Map();
   if(typeof STOCK!=='undefined')for(const x of STOCK)preferredUnit.set(rowKey(x),String(x.un||''));
@@ -69,8 +54,14 @@
     recKeys.add(rowKey(r));
     recByMonth[r.mes].records+=n(r.records);recByMonth[r.mes].valor+=n(r.valor);
   }
-  if(rev.length!==2208||Object.values(recByMonth).reduce((sum,v)=>sum+v.records,0)!==4593 ||
-     Math.abs(Object.values(recByMonth).reduce((sum,v)=>sum+v.valor,0)-438797.49)>.02){
+  if(recByMonth['2026-07'].records!==1245||recByMonth['2026-08'].records!==1309||
+     recByMonth['2026-09'].records!==1115||recByMonth['2026-10'].records!==1080||
+     Math.abs(recByMonth['2026-07'].valor-157871.53)>.02||
+     Math.abs(recByMonth['2026-08'].valor-108549.97)>.02||
+     Math.abs(recByMonth['2026-09'].valor-101468.51)>.02||
+     Math.abs(recByMonth['2026-10'].valor-88793.19)>.02||
+     Object.values(recByMonth).reduce((sum,v)=>sum+v.records,0)!==4749||
+     Math.abs(Object.values(recByMonth).reduce((sum,v)=>sum+v.valor,0)-456683.20)>.02){
     throw Error('Totais das baixas nao conferem; atualizacao cancelada');
   }
   const pending=new Set((typeof MOVEMENT_YEAR_PENDING==='undefined'?[]:MOVEMENT_YEAR_PENDING).map(rowKey));
@@ -86,7 +77,7 @@
     let m=movement.get(k);
     if(!m){
       const s=stock.get(k)||{};
-      m={empresa:s.empresa||'',codigo_local:String(sample.codigo_local),local:sample.local||s.local||'',grupo:sample.grupo||s.grupo||'',codigo:sample.codigo,produto:sample.produto||s.produto||'',un:sample.un||s.un||'',months:Array(12).fill(0),total:0,complete_total:0,complete_months:21,avg:0,minimum:0,stock:n(s.estoque),cost:n(s.custo_estoque),stock_value:n(s.valor_estoque),coverage:null,need:0,need_value:0,excess:0,active_month_buckets:0,consumption_value:0,status:'HISTÓRICO PARCIAL',source:'BAIXAS ERP · 01/07 A 26/10/2026',unit_source:'ESTOQUE ATUAL',cost_source:'CUSTO MEDIO DO ESTOQUE LOCAL'};
+      m={empresa:s.empresa||'',codigo_local:String(sample.codigo_local),local:sample.local||s.local||'',grupo:sample.grupo||s.grupo||'',codigo:sample.codigo,produto:sample.produto||s.produto||'',un:sample.un||s.un||'',months:Array(12).fill(0),total:0,complete_total:0,complete_months:21,avg:0,minimum:0,stock:n(s.estoque),cost:n(s.custo_estoque),stock_value:n(s.valor_estoque),coverage:null,need:0,need_value:0,excess:0,active_month_buckets:0,consumption_value:0,status:'HISTÓRICO PARCIAL',source:'BAIXAS ERP · 01/07 A 28/10/2026',unit_source:'ESTOQUE ATUAL',cost_source:'CUSTO MEDIO DO ESTOQUE LOCAL'};
       MOVEMENTS.push(m);movement.set(k,m);
     }
     const ky='2026|'+k;
@@ -163,9 +154,10 @@
     }
   }
   // Dados exatos da fotografia, independentemente de custos medios estimados para o legado.
-  window.MOVEMENTS_OCTOBER_META={from:'01/10/2026',to:'26/10/2026',records:recByMonth['2026-10'].records,value:Math.round(recByMonth['2026-10'].valor*100)/100};
-  window.MOVEMENTS_REVISED_META={from:'01/07/2026',to:'26/10/2026',records:4593,value:438797.49,
-    months:recByMonth,monthlyRows:2208,pendencias:287,newRecords:277,overlapCandidateRows:10,sourceFileRecords:287,pendingHistoricalKeys:pendingAffected,
+  window.MOVEMENTS_OCTOBER_META={from:'01/10/2026',to:'28/10/2026',records:recByMonth['2026-10'].records,value:Math.round(recByMonth['2026-10'].valor*100)/100};
+  window.MOVEMENTS_REVISED_META={from:'01/07/2026',to:'28/10/2026',records:4749,value:456683.20,
+    months:recByMonth,monthlyRows:rev.length,pendencias:287,octoberSnapshotRecords:1080,sourceFileRecords:1080,
+    replacedOldOctober:true,changeFromPriorRecords:156,pendingHistoricalKeys:pendingAffected,
     reconciliation:'FOTOGRAFIA SUBSTITUTIVA',snapshot:true,mixedUnits};
   if(typeof STOCK!=='undefined'){
     const by=new Map(MOVEMENTS.map(x=>[rowKey(x),x]));
@@ -175,17 +167,18 @@
   }
   // Evidenciar no painel a janela exata do ERP, distinta do historico legado.
   const summary=document.querySelector('#view-baixas');
-  if(summary&&!document.getElementById('baixas-snapshot-20261015')){
-    const box=document.createElement('div');box.id='baixas-snapshot-20261015';
+  if(summary&&!document.getElementById('baixas-snapshot-20261028')){
+    const box=document.createElement('div');box.id='baixas-snapshot-20261028';
     box.style.cssText='background:#f5f9f6;border:1px solid #cfe3d3;border-left:4px solid #1e8747;padding:11px 15px;border-radius:10px;color:#214e32;font-size:12px;margin:10px 0 14px;line-height:1.65';
-    box.innerHTML='<b>Baixas conferidas do ERP (sem transferencias): 01/07 a 26/10/2026</b> · 4.593 lancamentos integrados · <b>R$ 438.797,49</b>.'+
-      '<div style="color:#657366;font-size:11px">Os valores por produto fora deste periodo sao estimados pelo custo de estoque. 287 chaves antigas seguem em conciliacao. Do arquivo de 26/10, 277 linhas foram integradas; 10 linhas de 19/10 com possivel sobreposicao nao foram somadas. Estoque permanece na posicao de 28/10. Divergencias de unidade (KG/SC e KG/FD) sao mantidas separadamente, sem somar quantidades de unidades distintas.</div>';
+    box.innerHTML='<b>Baixas conferidas do ERP (sem transferencias): 01/07 a 28/10/2026</b> · 4.749 lancamentos · <b>R$ 456.683,20</b>.'+
+      '<div style="color:#657366;font-size:11px">Outubro parcial (01 a 28/10): 1.080 lancamentos, R$ 88.793,19, substituindo integralmente os lotes anteriores sem duplicar. Outubro nao entra na media do minimo de dois meses. O saldo permanece a posicao ERP de 28/10; nao subtrair baixas novamente. 287 chaves historicas continuam em conciliacao; unidades divergentes nao sao misturadas.</div>';
     summary.prepend(box);
   }
   // Nao manter em memoria uma segunda copia da fotografia de julho-outubro.
   delete P.revised_monthly_rows;
   delete window.MOVEMENTS_AFTER_20261015;
   delete window.MOVEMENTS_AFTER_20261019;
+  delete window.MOVEMENTS_OCTOBER_20261028;
   try{if(typeof render==='function')render()}catch(e){console.warn('Baixas revistas: render',e)}
   window.dispatchEvent(new CustomEvent('movements-updated',{detail:window.MOVEMENTS_REVISED_META}));
   return true;

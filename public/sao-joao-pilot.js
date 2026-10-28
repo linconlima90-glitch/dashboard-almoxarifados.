@@ -69,7 +69,7 @@
     <div class="sj-head"><div class="sj-head-in">
       <div class="sj-logo">DB</div>
       <div class="sj-title"><h1>Almoxarifado São João</h1><p>Painel operacional do responsável • visão exclusiva do local</p></div>
-      <div class="sj-status">Posição de estoque: <b>28/10/2026</b><br>Baixas atualizadas até: <b>26/10/2026</b></div>
+      <div class="sj-status">Posição de estoque: <b>28/10/2026</b><br>Baixas atualizadas até: <b>28/10/2026</b></div>
     </div></div>
     <main class="sj-wrap">
       <nav class="sj-nav">

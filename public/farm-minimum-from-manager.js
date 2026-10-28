@@ -31,7 +31,7 @@
         typeof minimumBaseRows !== 'function' ||
         typeof minimumRowsForYear !== 'function' ||
         window.STOCK_MINIMUM_MONTHS !== MONTHS ||
-        window.MOVEMENTS_REVISED_META?.records !== 4593 ||
+        window.MOVEMENTS_REVISED_META?.records !== 4749 ||
         !window.CURRENT_STOCK_META) return null;
 
     // Sempre partir da mesma base de minimo exibida no gestor principal. Para o
