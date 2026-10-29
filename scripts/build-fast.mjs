@@ -39,10 +39,9 @@ source = source.replace(cdiPanelPattern, read('scripts/cdi-minimum-panel.html').
 // Separate the physical Chuá warehouse from its CDI demand view. Both use the
 // same ERP location 30115, so distinguish them by management scope, not by code.
 // The underlying stock and withdrawals are not duplicated or rewritten.
-const chuaLocalMinimumPatch = String.raw`
-const CDI_CHUA_LOCAL_VIEW = 'ALMOXARIFADO GERAL F CHUA';
-const CDI_CHUA_NETWORK_VIEW = 'CDI DE PECAS CHUA';
-`;
+const cdiConstAnchor = 'const CDI_CHUA_MIN_LOCAL="ALMOXARIFADO GERAL F CHUA";';
+assert(source.includes(cdiConstAnchor), 'CDI warehouse constant changed');
+source=source.replace(cdiConstAnchor,cdiConstAnchor+"\nconst CDI_CHUA_LOCAL_VIEW = 'ALMOXARIFADO GERAL F CHUA';\nconst CDI_CHUA_NETWORK_VIEW = 'CDI DE PECAS CHUA';");
 const oldBase = /function minimumBaseRows\(\)\{.*?return regular\.concat\(cdi\)\}/;
 assert(oldBase.test(source), 'Minimum base renderer changed; review Chuá/CDI separation');
 source = source.replace(oldBase, String.raw`
