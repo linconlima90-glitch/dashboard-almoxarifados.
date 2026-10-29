@@ -40,7 +40,7 @@
     <div class="ns-note" id="ns-note">A data da <b>última compra</b> representa a data informada na NF e não comprova recebimento físico. A posição de estoque é apresentada separadamente. Histórico anterior sem ano definido permanece sujeito à conciliação.</div>
     <div class="ns-table-panel">
       <div class="ns-table-title"><strong>Estoque por local e grupo</strong><span id="ns-caption">Preparando dados...</span></div>
-      <p class="ns-hierarchy-hint">Clique em um <b>local</b> para abrir os grupos e em um <b>grupo</b> para ver os itens. Locais e grupos em ordem alfabética.</p>
+      <p class="ns-hierarchy-hint">Clique em um <b>local</b> para abrir os grupos e em um <b>grupo</b> para ver os itens. Locais e grupos ordenados do <b>maior para o menor valor em estoque</b>.</p>
       <div id="ns-rows" class="ns-hierarchy"><div class="ns-empty">O levantamento será calculado quando esta aba for aberta.</div></div>
       <div class="ns-footer"><span id="ns-progress" role="status" aria-live="polite"></span></div>
     </div>
@@ -236,8 +236,8 @@
       group.value+=row.valor;group.rows.push(row);
     }
     // Agrupar a lista completa antes de paginar preserva todos os locais e grupos.
-    return [...locations.values()].sort((a,b)=>(a.name||'Local não informado').localeCompare(b.name||'Local não informado','pt-BR')).map(local=>({
-      ...local,groups:[...local.groups.values()].sort((a,b)=>(a.name||'Grupo não informado').localeCompare(b.name||'Grupo não informado','pt-BR'))
+    return [...locations.values()].sort((a,b)=>b.value-a.value||(a.name||'Local não informado').localeCompare(b.name||'Local não informado','pt-BR')).map(local=>({
+      ...local,groups:[...local.groups.values()].sort((a,b)=>b.value-a.value||(a.name||'Grupo não informado').localeCompare(b.name||'Grupo não informado','pt-BR'))
     }));
   }
   function groupItemsHTML(group){
