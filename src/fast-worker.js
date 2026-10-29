@@ -24,10 +24,13 @@ export default {
           !safeEqual(decoded.slice(colon + 1), env.DASHBOARD_PASSWORD)) return unauthorized();
     }
     const url = new URL(request.url);
+    const isPortal = url.pathname === '/' || url.pathname === '/portal' || url.pathname === '/portal/';
+    const isManagement = url.pathname === '/almoxarifados' || url.pathname === '/almoxarifados/';
+    const isFuel = url.pathname === '/combustiveis' || url.pathname === '/combustiveis/';
     const chua = ['/chua', '/chua/', '/fazenda-chua', '/fazenda-chua/'].includes(url.pathname);
     const pilot = chua || url.pathname === '/sao-joao' || url.pathname === '/sao-joao/';
     // Recovery route retains the original page and injector, with the same auth.
-    if (url.searchParams.get('legacy') === '1' && (url.pathname === '/' || pilot)) {
+    if (url.searchParams.get('legacy') === '1' && (isManagement || pilot)) {
       const originalAssets = env.ASSETS;
       return legacyWorker.fetch(request, { ...env, ASSETS: { fetch(assetRequest) {
         const assetUrl = new URL(assetRequest.url);
@@ -36,9 +39,20 @@ export default {
       }}});
     }
     const assetUrl = new URL(request.url);
-    if (chua) { assetUrl.pathname = '/_fast-chua/'; assetUrl.search = ''; }
+    if (isPortal) { assetUrl.pathname = '/portal.html'; assetUrl.search = ''; }
+    else if (isManagement) { assetUrl.pathname = '/'; assetUrl.search = ''; }
+    else if (isFuel) { assetUrl.pathname = '/combustiveis.html'; assetUrl.search = ''; }
+    else if (chua) { assetUrl.pathname = '/_fast-chua/'; assetUrl.search = ''; }
     else if (pilot) { assetUrl.pathname = '/_fast-sao-joao/'; assetUrl.search = ''; }
-    const response = await env.ASSETS.fetch(new Request(assetUrl, request));
+    let response = await env.ASSETS.fetch(new Request(assetUrl, request));
+    // One-click return to the DB portal, without changing the dashboards' own tabs.
+    if ((isManagement || isFuel || pilot) && response.headers.get('content-type')?.includes('text/html')) {
+      response = new HTMLRewriter().on('body', {
+        element(el) {
+          el.prepend('<a href="/" aria-label="Voltar à Central de Gestão DB" style="position:fixed;right:18px;bottom:17px;z-index:2147483640;background:#0d4726;color:#fff;border:2px solid #faca04;border-radius:999px;padding:11px 17px;font:700 13px Arial,sans-serif;text-decoration:none;box-shadow:0 6px 20px rgba(0,0,0,.2)">&#8592; Central DB</a>', { html: true });
+        }
+      }).transform(response);
+    }
     const headers = new Headers(response.headers);
     const hashedAsset = /^\/_fast\/[a-z0-9-]+-[0-9a-f]{16}\.js$/.test(url.pathname);
     const cacheable = hashedAsset && (response.status === 200 || response.status === 304);
