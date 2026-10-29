@@ -39,9 +39,9 @@ export default {
       }}});
     }
     const assetUrl = new URL(request.url);
-    if (isPortal) { assetUrl.pathname = '/portal.html'; assetUrl.search = ''; }
+    if (isPortal) { assetUrl.pathname = '/portal'; assetUrl.search = ''; }
     else if (isManagement) { assetUrl.pathname = '/'; assetUrl.search = ''; }
-    else if (isFuel) { assetUrl.pathname = '/combustiveis.html'; assetUrl.search = ''; }
+    else if (isFuel) { assetUrl.pathname = '/combustiveis'; assetUrl.search = ''; }
     else if (chua) { assetUrl.pathname = '/_fast-chua/'; assetUrl.search = ''; }
     else if (pilot) { assetUrl.pathname = '/_fast-sao-joao/'; assetUrl.search = ''; }
     let response = await env.ASSETS.fetch(new Request(assetUrl, request));
