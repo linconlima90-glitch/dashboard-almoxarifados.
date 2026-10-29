@@ -35,6 +35,42 @@ assert(cdiPanelPattern.test(source) && cdiRowsPattern.test(source), 'Review chan
 source = source.replace(cdiPanelPattern, read('scripts/cdi-minimum-panel.html').trimEnd())
   .replace(cdiRowsPattern, "  if(typeof window.renderCdiMinimum==='function')window.renderCdiMinimum(mov);\n")
   .replace('Necessidade de reposição por grupo · consumo interno', 'Necessidade de reposição por grupo · demanda total da rede');
+
+// Separate the physical Chuá warehouse from its CDI demand view. Both use the
+// same ERP location 30115, so distinguish them by management scope, not by code.
+// The underlying stock and withdrawals are not duplicated or rewritten.
+const chuaLocalMinimumPatch = String.raw`
+const CDI_CHUA_LOCAL_VIEW = 'ALMOXARIFADO GERAL F CHUA';
+const CDI_CHUA_NETWORK_VIEW = 'CDI DE PECAS CHUA';
+`;
+const oldBase = /function minimumBaseRows\(\)\{.*?return regular\.concat\(cdi\)\}/;
+assert(oldBase.test(source), 'Minimum base renderer changed; review Chuá/CDI separation');
+source = source.replace(oldBase, String.raw`
+function minimumBaseRows(){
+  const f=criteria();
+  const localChua=MOVEMENTS.filter(x=>x.local===CDI_CHUA_MIN_LOCAL).map(x=>({
+    ...x,local:CDI_CHUA_LOCAL_VIEW,network_scope:false,source:'CONSUMO LOCAL CHUA · BAIXAS DO ALMOXARIFADO'
+  }));
+  const regular=MOVEMENTS.filter(x=>x.local!==CDI_CHUA_MIN_LOCAL).concat(localChua)
+    .filter(x=>(!f.empresa||norm(x.empresa).includes(norm(f.empresa)))&&(!f.local||x.local===f.local)&&(!f.grupo||x.grupo===f.grupo)&&(!f.un||x.un===f.un)&&(!f.q||norm(x.produto).includes(f.q)||String(x.codigo).includes(f.q)||norm(x.local).includes(f.q)||norm(x.grupo).includes(f.q)));
+  const allowCdi=(!f.local||f.local===CDI_CHUA_LOCAL_VIEW||f.local===CDI_CHUA_NETWORK_VIEW)&&(!f.empresa||norm(CDI_CHUA_MIN_COMPANY).includes(norm(f.empresa)));
+  const cdi=allowCdi?cdiNetworkAllRows().map(x=>({...x,local:CDI_CHUA_NETWORK_VIEW,network_scope:true}))
+    .filter(x=>(!f.grupo||x.grupo===f.grupo)&&(!f.un||x.un===f.un)&&(!f.q||norm(x.produto).includes(f.q)||String(x.codigo).includes(f.q)||norm(x.grupo).includes(f.q))):[];
+  return regular.concat(cdi);
+}
+`);
+// Annual CDI demand must be selected by its scope flag, never by the physical
+// warehouse name, because the local Chuá has its own exact annual movements.
+const annualScope = 'if(x.local===CDI_CHUA_MIN_LOCAL){a=CDI_NETWORK_YEAR_MAP.get(';
+assert(source.includes(annualScope), 'Annual CDI scope changed; review source');
+source=source.replace(annualScope,'if(x.network_scope===true){a=CDI_NETWORK_YEAR_MAP.get(');
+const annualPending='x.local!==CDI_CHUA_MIN_LOCAL&&MINIMUM_YEAR_PENDING_KEYS.has(';
+assert(source.includes(annualPending), 'Annual pending scope changed; review source');
+source=source.replace(annualPending,'!x.network_scope&&MINIMUM_YEAR_PENDING_KEYS.has(');
+// The two minimums are independent demand indicators, but the ERP stock remains
+// a single non-segregated balance. Warn users not to add the two reorder figures.
+source=source.replace('O CDI Chua usa a demanda consolidada anual da rede com data exata;', 'O CDI usa a demanda consolidada da rede; o almoxarifado Chuá usa somente suas próprias baixas. Ambos compartilham o saldo ERP 30115; não somar as necessidades antes de separar o saldo;');
+
 const legacy = read('src/index.js');
 const report = { originalHtmlBytes: Buffer.byteLength(source), datasets: [], routes: {} };
 fs.rmSync(out, { recursive: true, force: true });
