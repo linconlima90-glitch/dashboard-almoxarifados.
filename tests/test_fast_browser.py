@@ -45,7 +45,7 @@ with sync_playwright() as p:
         page.on('request', lambda request: requests.append(request.url))
         page.goto(base + route, wait_until='load', timeout=120000)
         try:
-            page.wait_for_function("window.CURRENT_STOCK_META && window.STOCK_MINIMUM_MONTHS===2 && window.MOVEMENTS_REVISED_META?.records===4831", timeout=90000)
+            page.wait_for_function("window.CURRENT_STOCK_META && window.STOCK_MINIMUM_MONTHS===2 && window.MOVEMENTS_REVISED_META?.records===4870", timeout=90000)
         except Exception:
             print("BOOT DEBUG", name, json.dumps(page.evaluate("""() => ({
               stock: typeof STOCK === 'undefined' ? 'undefined' : STOCK.length,
@@ -100,12 +100,14 @@ with sync_playwright() as p:
               positive:window.INVENTORY_LEDGER.entries.filter(x=>x.quantidadeAjuste>0).length,
               negative:window.INVENTORY_LEDGER.entries.filter(x=>x.quantidadeAjuste<0).length,
               distinct:new Set(window.INVENTORY_LEDGER.entries.map(x=>x.codigo)).size,
-              correctMissing:window.INVENTORY_HISTORY.getRows().every(x=>x.tipoRegistro==='AJUSTE'&&x.saldoAnterior===null&&x.quantidadeContada===null),
+              correctMissing:window.INVENTORY_HISTORY.getRows().filter(x=>x.tipoRegistro==='AJUSTE').every(x=>x.saldoAnterior===null&&x.quantidadeContada===null),
               impact:window.INVENTORY_HISTORY.getRows().reduce((sum,x)=>sum+x.impacto,0)
             })""")
-            assert actual_inventory['rows']==106 and actual_inventory['entries']==106, actual_inventory
+            assert actual_inventory['rows']==199 and actual_inventory['entries']==199, actual_inventory
             assert actual_inventory['positive']==53 and actual_inventory['negative']==53, actual_inventory
-            assert actual_inventory['distinct']==104 and actual_inventory['correctMissing'], actual_inventory
+            assert actual_inventory['distinct']==197 and actual_inventory['correctMissing'], actual_inventory
+            ok_rows=page.evaluate("""() => window.INVENTORY_HISTORY.getRows().filter(x=>x.tipoRegistro==='SEM_DIFERENCA_DECLARADA').map(x=>[x.delta,x.saldoReferencia,x.statusERP])""")
+            assert len(ok_rows)==93 and all(x[0]==0 and x[1]>0 and x[2]=='SEM_DIFERENCA' for x in ok_rows), ok_rows[:4]
             assert abs(actual_inventory['impact']+1656.16)<0.02, actual_inventory
             if inventory_check['empty']:
                 assert inventory_check['emptyText'], inventory_check
@@ -141,11 +143,11 @@ with sync_playwright() as p:
                 emitted:window.CURRENT_STOCK_META?.emissao,
                 total:STOCK.reduce((s,x)=>s+(Number(x.valor_estoque)||0),0),
                 warehouses:new Set(STOCK.map(x=>x.local)).size,
-                preserveHistory:window.MOVEMENTS_REVISED_META?.records===4831,
+                preserveHistory:window.MOVEMENTS_REVISED_META?.records===4870,
                 preserveMin:window.STOCK_MINIMUM_MONTHS===2
             })""")
-            assert stockmeta['emitted']=='30/10/2026 08:42:10', stockmeta
-            assert abs(stockmeta['total']-2256558.71)<0.01 and stockmeta['warehouses']==9, stockmeta
+            assert stockmeta['emitted']=='30/10/2026 15:17:37', stockmeta
+            assert abs(stockmeta['total']-2254812.18)<0.01 and stockmeta['warehouses']==9, stockmeta
             assert stockmeta['preserveHistory'] and stockmeta['preserveMin'], stockmeta
             october=page.evaluate("""() => ({
                 month:window.MOVEMENTS_OCTOBER_META,
@@ -155,8 +157,8 @@ with sync_playwright() as p:
                     replaced:window.MOVEMENTS_REVISED_META.replacedOldOctober
                 }
             })""")
-            assert october['month']['records']==1162 and abs(october['month']['value']-95523.61)<0.02, october
-            assert october['full']['records']==4831 and abs(october['full']['value']-463413.62)<0.02, october
+            assert october['month']['records']==1201 and abs(october['month']['value']-98330.24)<0.02, october
+            assert october['full']['records']==4870 and abs(october['full']['value']-466220.25)<0.02, october
             assert october['full']['replaced'], october
 
 
@@ -272,7 +274,7 @@ with sync_playwright() as p:
             assert no_withdrawals['locationsSorted'] and no_withdrawals['groupsSorted'], no_withdrawals
             assert all(no_withdrawals[x] for x in ['locationCounts','groupCounts','locationValues','groupValues']), no_withdrawals
             assert no_withdrawals['filtered']==no_withdrawals['rows'] and no_withdrawals['purchaseHistoryAvailable'], no_withdrawals
-            assert no_withdrawals['position']=='30/10/2026 08:42:10', no_withdrawals
+            assert no_withdrawals['position']=='30/10/2026 15:17:37', no_withdrawals
             assert no_withdrawals['header']=='Estoque sem baixas registradas' and no_withdrawals['groupLabel'], no_withdrawals
 
             def open_no_withdrawal_group(key):
@@ -436,7 +438,7 @@ with sync_playwright() as p:
             assert minimum_view['stock']>0 and minimum_view['hasCurrentStock'], minimum_view
             assert minimum_view['localOnly'] and minimum_view['groups']>0 and minimum_view['groupsSorted'] and minimum_view['itemsSorted'], minimum_view
             assert minimum_view['minCorrect'] and minimum_view['needCorrect'] and minimum_view['neverInvent'], minimum_view
-            assert minimum_view['meta']['months']==2 and minimum_view['totalHistory']==4831 and minimum_view['noOldNav'], minimum_view
+            assert minimum_view['meta']['months']==2 and minimum_view['totalHistory']==4870 and minimum_view['noOldNav'], minimum_view
             page.locator('#fm-year').select_option('2026')
             assert page.locator('#farm-minimum-view').count()==1
             page.locator('#fm-year').select_option('')
@@ -464,8 +466,8 @@ with sync_playwright() as p:
             }""")
             assert sj_no_withdrawals['rows']>0 and sj_no_withdrawals['display']>0, sj_no_withdrawals
             assert sj_no_withdrawals['localRows'] and sj_no_withdrawals['valid'] and sj_no_withdrawals['ordered'], sj_no_withdrawals
-            assert sj_no_withdrawals['purchaseLocal'] and sj_no_withdrawals['meta']==4831, sj_no_withdrawals
-            assert sj_no_withdrawals['date']=='30/10/2026 08:42:10', sj_no_withdrawals
+            assert sj_no_withdrawals['purchaseLocal'] and sj_no_withdrawals['meta']==4870, sj_no_withdrawals
+            assert sj_no_withdrawals['date']=='30/10/2026 15:17:37', sj_no_withdrawals
             page.locator('#sj-nw-sort').select_option('unitario')
             sorted_unit=page.evaluate("""() => [...document.querySelectorAll('#sj-nw-view tr[data-sj-nw-unit]')]
               .map(el=>Number(el.dataset.sjNwUnit)).every((x,i,a)=>!i||a[i-1]>=x)""")
@@ -537,7 +539,7 @@ with sync_playwright() as p:
             assert minimum_view['stock']>0 and minimum_view['hasCurrentStock'], minimum_view
             assert minimum_view['localOnly'] and minimum_view['groups']>0 and minimum_view['groupsSorted'] and minimum_view['itemsSorted'], minimum_view
             assert minimum_view['minCorrect'] and minimum_view['needCorrect'] and minimum_view['neverInvent'], minimum_view
-            assert minimum_view['meta']['months']==2 and minimum_view['totalHistory']==4831 and minimum_view['noOldNav'], minimum_view
+            assert minimum_view['meta']['months']==2 and minimum_view['totalHistory']==4870 and minimum_view['noOldNav'], minimum_view
             page.locator('#fm-year').select_option('2026')
             assert page.locator('#farm-minimum-view').count()==1
             page.locator('#fm-year').select_option('')
@@ -566,10 +568,10 @@ with sync_playwright() as p:
             assert 'São João' not in page.locator('#sj-pilot-root').inner_text()
         results[name]['errors'] = errors.copy()
         page.close()
-    assert results['fast']['stockRows'] == 4302, 'Unexpected stock positions'
-    assert results['fastPilot']['stockRows'] == 4302, 'Unexpected Sao Joao stock positions'
-    assert results['fastChuaPilot']['stockRows'] == 4302, 'Unexpected Chua stock positions'
-    assert abs(results['fast']['stockValue'] - 2256558.71) < 0.01, 'Unexpected stock value'
+    assert results['fast']['stockRows'] == 4310, 'Unexpected stock positions'
+    assert results['fastPilot']['stockRows'] == 4310, 'Unexpected Sao Joao stock positions'
+    assert results['fastChuaPilot']['stockRows'] == 4310, 'Unexpected Chua stock positions'
+    assert abs(results['fast']['stockValue'] - 2254812.18) < 0.01, 'Unexpected stock value'
     if snapshots['legacy'] != snapshots['fast']:
         for field in snapshots['legacy']:
             left, right = snapshots['legacy'][field], snapshots['fast'][field]
