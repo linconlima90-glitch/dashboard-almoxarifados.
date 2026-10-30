@@ -175,8 +175,8 @@
     dirty=false;
     window.STOCK_NO_WITHDRAWAL_META={
       scope:'por almoxarifado',rows:sourceRows.length,semBaixaNaRede:sourceRows.filter(x=>!hasMovementsInNetwork.has(x.codigo)).length,
-      excludedPending,excludedMixedUnits:mixedUnitsExcluded,stockDate:window.CURRENT_STOCK_META.emissao||'28/10/2026',
-      historyStart:'01/01/2025',historyEnd:'29/10/2026',purchaseLatest:'08/10/2026'
+      excludedPending,excludedMixedUnits:mixedUnitsExcluded,stockDate:window.CURRENT_STOCK_META.emissao||'30/10/2026',
+      historyStart:'01/01/2025',historyEnd:'29/10/2026',purchaseLatest:'22/10/2026'
     };
     return true;
   }
@@ -236,8 +236,8 @@
       group.value+=row.valor;group.rows.push(row);
     }
     // Agrupar a lista completa antes de paginar preserva todos os locais e grupos.
-    return [...locations.values()].sort((a,b)=>b.value-a.value||(a.name||'Local não informado').localeCompare(b.name||'Local não informado','pt-BR')).map(local=>({
-      ...local,groups:[...local.groups.values()].sort((a,b)=>b.value-a.value||(a.name||'Grupo não informado').localeCompare(b.name||'Grupo não informado','pt-BR'))
+    return [...locations.values()].sort((a,b)=>(a.name||'Local não informado').localeCompare(b.name||'Local não informado','pt-BR')).map(local=>({
+      ...local,groups:[...local.groups.values()].sort((a,b)=>(a.name||'Grupo não informado').localeCompare(b.name||'Grupo não informado','pt-BR'))
     }));
   }
   function groupItemsHTML(group){
@@ -282,7 +282,7 @@
     $('#ns-locals').textContent=integer(new Set(renderedRows.map(x=>x.local)).size);
     $('#ns-unpurchased').textContent=integer(renderedRows.filter(x=>!x.historyCount).length);
     const meta=window.STOCK_NO_WITHDRAWAL_META||{};
-    const position=String(meta.stockDate||'28/10/2026');
+    const position=String(meta.stockDate||'30/10/2026');
     $('#ns-caption').textContent=`Posição de estoque: ${position} · ${renderedRows.length} posição(ões) · itens por ${getFilters().sort==='unitario'?'maior valor unitário':getFilters().sort==='quantidade'?'maior quantidade':getFilters().sort==='compra'?'última compra mais recente':'maior valor total'}`;
     $('#ns-note').innerHTML=`<b>Critério:</b> saldo positivo e nenhuma baixa no escopo selecionado, dentro do histórico disponível (a partir de jan/2025, mais revisão 01/07–29/10/2026). <b>Última compra:</b> data de NF, não data de entrada física. <b>Valor unitário:</b> custo unitário da posição de estoque, diferente do preço pago na última compra. <b>Estoque:</b> posição de ${esc(position)}. <b>Conciliação:</b> ${integer(excludedPending)} posições com histórico pendente e ${integer(mixedUnitsExcluded)} com baixas em outra unidade foram retiradas desta lista para evitar falso “nunca baixado”. Pneus, câmaras, lubrificantes e cimento são exibidos se atenderem ao critério. Quantidades de unidades distintas não são somadas.`;
     renderHierarchy(renderedRows);
@@ -341,7 +341,7 @@
     const sep=';';
     const csvField=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
     const values=[['Código','Produto','Grupo','Empresa fiscal','Local do estoque','Quantidade','Unidade','Valor unitário do estoque (R$)','Valor em estoque (R$)','Data última compra identificada','Fornecedor','NF','Local da última compra','Preço unitário (R$)','Quantidade comprada','Qtd. de compras no histórico','Posição do estoque']];
-    for(const x of rows){const p=x.newest;values.push([x.codigo,x.produto,x.grupo,x.empresa,x.local,x.quantidade,x.un,x.custo,x.valor,p?.data||'',p?.fornecedor||'',p?.nota||'',p?.local||'',p?.preco??'',p?.qtd??'',x.historyCount,String(window.CURRENT_STOCK_META?.emissao||'28/10/2026')]);}
+    for(const x of rows){const p=x.newest;values.push([x.codigo,x.produto,x.grupo,x.empresa,x.local,x.quantidade,x.un,x.custo,x.valor,p?.data||'',p?.fornecedor||'',p?.nota||'',p?.local||'',p?.preco??'',p?.qtd??'',x.historyCount,String(window.CURRENT_STOCK_META?.emissao||'30/10/2026')]);}
     const content='\ufeff'+values.map(row=>row.map(csvField).join(sep)).join('\r\n');
     const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));
     const a=document.createElement('a');a.href=url;a.download='estoque_sem_baixas_19-10-2026.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),500);

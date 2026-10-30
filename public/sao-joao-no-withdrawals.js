@@ -55,7 +55,7 @@
         latest:purchases[0]||null,historyCount:purchases.length,
         networkHadWithdrawal:networkMovements.has(String(s.codigo)) });
     }
-    lastMeta={ excludedPending,excludedMixed,position:String(window.CURRENT_STOCK_META.emissao||'28/10/2026'),
+    lastMeta={ excludedPending,excludedMixed,position:String(window.CURRENT_STOCK_META.emissao||'30/10/2026'),
       allRows:rows.length, networkRows:rows.filter(x=>!x.networkHadWithdrawal).length };
     currentRows=rows;
     window.SJ_NO_WITHDRAWAL_META=lastMeta;

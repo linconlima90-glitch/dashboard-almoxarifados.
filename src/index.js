@@ -119,24 +119,25 @@ class DashboardInjector {
       '<script src="/cdi-minimum-layout.js?v=20261019-1"></script>' +
       '<script src="/minimum-policy-2months-20261008.js?v=20261008-1"></script>' +
       '<script src="/stock-current-b64-init.js?v=20261008-1"></script>' +
-      '<script src="/stock-current-20261028-01.js?v=20261028-0832"></script>' +
-      '<script src="/stock-current-20261028-02.js?v=20261028-0832"></script>' +
-      '<script src="/stock-current-20261028-03.js?v=20261028-0832"></script>' +
-      '<script src="/stock-current-20261028-04.js?v=20261028-0832"></script>' +
-      '<script src="/stock-current-20261028-05.js?v=20261028-0832"></script>' +
-      '<script src="/stock-current-20261028-06.js?v=20261028-0832"></script>' +
-      '<script src="/stock-current-20261028-07.js?v=20261028-0832"></script>' +
-      '<script src="/stock-current-20261028-08.js?v=20261028-0832"></script>' +
-      '<script src="/stock-current-20261028-09.js?v=20261028-0832"></script>' +
-      '<script src="/stock-current-20261028-10.js?v=20261028-0832"></script>' +
-      '<script src="/stock-current-20261028-11.js?v=20261028-0832"></script>' +
+      '<script src="/stock-current-20261030-01.js?v=20261030-0842"></script>' +
+      '<script src="/stock-current-20261030-02.js?v=20261030-0842"></script>' +
+      '<script src="/stock-current-20261030-03.js?v=20261030-0842"></script>' +
+      '<script src="/stock-current-20261030-04.js?v=20261030-0842"></script>' +
+      '<script src="/stock-current-20261030-05.js?v=20261030-0842"></script>' +
+      '<script src="/stock-current-20261030-06.js?v=20261030-0842"></script>' +
+      '<script src="/stock-current-20261030-07.js?v=20261030-0842"></script>' +
+      '<script src="/stock-current-20261030-08.js?v=20261030-0842"></script>' +
+      '<script src="/stock-current-20261030-09.js?v=20261030-0842"></script>' +
+      '<script src="/stock-current-20261030-10.js?v=20261030-0842"></script>' +
+      '<script src="/stock-current-20261030-11.js?v=20261030-0842"></script>' +
+      '<script src="/stock-current-20261030-12.js?v=20261030-0842"></script>' +
 
 
 
 
 
       '<script src="/_data/revised-monthly-20261019.js?v=20261019-1"></script>' +
-      '<script src="/current-stock-loader-20260911.js?v=20261028-0832"></script>' +
+      '<script src="/current-stock-loader-20260911.js?v=20261030-0842"></script>' +
       '<script src="/movement-october-20261028.js?v=20261028-0834"></script>' +
       '<script src="/movement-day-20261029.js?v=20261030-0832"></script>' +
       '<script src="/movement-reconcile-20261015.js?v=20261030-0832"></script>' +
