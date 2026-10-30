@@ -25,19 +25,31 @@
       ids.add(r.id);
       if(!r.local||!r.codigoLocal||!r.empresaFiscal||!r.grupo||!r.codigo||!r.produto||!r.un)
         throw Error('Linha sem almoxarifado, empresa fiscal, codigo, grupo ou unidade.');
-      const before=numeric(r.saldoSistema),counted=numeric(r.saldoContado);
-      if(before===null||counted===null||before<0||counted<0)
-        throw Error('Saldo do ERP e quantidade contada obrigatorios; vazio nao e zero.');
+      // Ajustes ERP sao diferentes de contagens fisicas: nunca estimar saldos.
+      const isAdjustment=r.tipoRegistro==='AJUSTE';
+      const before=isAdjustment?null:numeric(r.saldoSistema),counted=isAdjustment?null:numeric(r.saldoContado);
+      if(!isAdjustment&&(before===null||counted===null||before<0||counted<0))
+        throw Error('Saldo do sistema e contagem exigidos; celula vazia nao e zero.');
       const cost=r.custoUnitario===null||r.custoUnitario===undefined||r.custoUnitario===''?null:numeric(r.custoUnitario);
-      if(cost!==null&&cost<0)throw Error('Custo de inventario invalido.');
-      const delta=Math.round((counted-before)*10000)/10000;
+      if(cost!==null&&cost<0)throw Error('Custo do inventario invalido.');
+      const qty=isAdjustment?numeric(r.quantidadeAjuste):null;
+      if(isAdjustment&&(qty===null||qty===0||
+        (r.saldoSistema!==null&&r.saldoSistema!==undefined)||
+        (r.saldoContado!==null&&r.saldoContado!==undefined)))
+        throw Error('Relatorio de ajuste sem quantidade assinada ou com saldo nao demonstrado.');
+      const delta=isAdjustment?Math.round(qty*10000)/10000:Math.round((counted-before)*10000)/10000;
+      const total=isAdjustment?numeric(r.valorAjuste):null;
+      if(isAdjustment&&(total===null||total===0||Math.sign(total)!==Math.sign(delta)))
+        throw Error('Valor de ajuste invalido ou com sinal incorreto.');
       const erp=r.statusERP||(delta?'PENDENTE':'SEM_DIFERENCA');
       if(!['PENDENTE','CONFIRMADO','SEM_DIFERENCA'].includes(erp)||
-         (delta===0)!==(erp==='SEM_DIFERENCA'))
-        throw Error('Status ERP incompativel com a diferenca: '+r.id);
-      rows.push({...r,date:sessions.get(r.inventoryId).date,sourceFile:sessions.get(r.inventoryId).sourceFile,
+         (delta===0)!==(erp==='SEM_DIFERENCA'))throw Error('Situacao ERP incoerente.');
+      rows.push({...r,date:sessions.get(r.inventoryId).date,
+        sourceFile:r.sourceFile||sessions.get(r.inventoryId).sourceFile,
+        tipoRegistro:isAdjustment?'AJUSTE':'CONTAGEM',
         saldoAnterior:before,quantidadeContada:counted,delta,custoUnitario:cost,
-        impacto:cost===null?null:Math.round(cost*delta*100)/100,statusERP:erp});
+        impacto:isAdjustment?Math.round(total*100)/100:
+          cost===null?null:Math.round(cost*delta*100)/100,statusERP:erp});
     }
     return{sessions:[...sessions.values()].sort((a,b)=>b.date.localeCompare(a.date)),rows};
   }
@@ -46,10 +58,10 @@
   const section=document.createElement('section');section.id='view-inventarios';section.className='view';
   section.innerHTML=`
     <div class="iv-head"><h2>Inventários realizados</h2>
-      <p>Histórico das contagens físicas por almoxarifado, grupo e produto, com diferenças e documentos dos ajustes.</p></div>
+      <p>Histórico de conferências e de ajustes por almoxarifado, grupo e produto.</p></div>
     <div class="iv-cards">
       <div><span>Inventários</span><strong id="iv-count">0</strong></div>
-      <div><span>Posições conferidas</span><strong id="iv-lines">0</strong></div>
+      <div><span>Itens registrados</span><strong id="iv-lines">0</strong></div>
       <div><span>Acréscimos (+)</span><strong id="iv-plus">0</strong></div>
       <div><span>Baixas (−)</span><strong id="iv-minus">0</strong></div>
       <div><span>Pendentes ERP</span><strong id="iv-pending">0</strong></div>
@@ -64,7 +76,7 @@
         <option value="sem">Sem diferença</option><option value="pendente">Pendente no ERP</option></select></label>
       <button type="button" id="iv-export">Exportar CSV</button>
     </div>
-    <p class="iv-note">A contagem <b>não altera automaticamente o saldo do ERP</b>.
+    <p class="iv-note">Os ajustes informados <b>não comprovam contagem física e não alteram automaticamente o saldo do ERP</b>.
       Acréscimos e baixas ficam <b>pendentes</b> até a confirmação do ajuste.
       O histórico de estoque, compras e consumo não é modificado por esta aba.</p>
     <div class="iv-panel"><div class="iv-panel-head"><b>Inventários por local e grupo</b><span id="iv-caption"></span></div>
@@ -150,14 +162,14 @@
   function table(rows){
     const sorted=rows.slice().sort((a,b)=>b.date.localeCompare(a.date)||
       Math.abs(b.impacto||0)-Math.abs(a.impacto||0)||String(a.codigo).localeCompare(String(b.codigo),'pt-BR'));
-    return '<div class="iv-scroll"><table><thead><tr><th>Inventário / data</th><th>Código / produto</th><th>Empresa fiscal</th><th>UN</th><th class="iv-num">Sistema</th><th class="iv-num">Contado</th><th class="iv-num">Diferença</th><th class="iv-num">Impacto (R$)</th><th>Ação</th><th>ERP</th><th>Observações</th></tr></thead><tbody>'+
-      sorted.map(x=>'<tr><td><b>'+h(dated(x.date))+'</b><div class="iv-detail">'+h(x.inventoryId)+'</div></td>'+
+    return '<div class="iv-scroll"><table><thead><tr><th>Inventário / data</th><th>Código / produto</th><th>Empresa fiscal</th><th>UN</th><th class="iv-num">Sistema</th><th class="iv-num">Contado</th><th class="iv-num">Diferença / ajuste</th><th class="iv-num">Impacto (R$)</th><th>Ação</th><th>ERP</th><th>Observações</th></tr></thead><tbody>'+
+      sorted.map(x=>'<tr><td><b>'+h(dated(x.date))+'</b><div class="iv-detail">'+h(x.tipoRegistro==='AJUSTE'?'Ajuste informado':'Contagem física')+'</div><div class="iv-detail">'+h(x.inventoryId)+'</div></td>'+
       '<td><b>'+h(x.codigo)+'</b> - '+h(x.produto)+'</td><td>'+h(x.empresaFiscal)+'</td><td>'+h(x.un)+'</td>'+
-      '<td class="iv-num">'+fmt(x.saldoAnterior)+'</td><td class="iv-num">'+fmt(x.quantidadeContada)+'</td>'+
+      '<td class="iv-num">'+(x.saldoAnterior===null?'—':fmt(x.saldoAnterior))+'</td><td class="iv-num">'+(x.quantidadeContada===null?'—':fmt(x.quantidadeContada))+'</td>'+
       '<td class="iv-num '+(x.delta>0?'iv-positive':x.delta<0?'iv-negative':'')+'">'+
       (x.delta>0?'+':'')+fmt(x.delta)+'</td><td class="iv-num">'+currency(x.impacto)+'</td>'+
       '<td>'+h(action(x))+'</td><td><span class="iv-status '+(x.statusERP==='PENDENTE'?'pending':x.statusERP==='CONFIRMADO'?'done':'')+'">'+h(status(x))+'</span></td>'+
-      '<td>'+h(x.observacao||'—')+(x.documentoERP?'<div class="iv-detail">ERP: '+h(x.documentoERP)+'</div>':'')+'</td></tr>').join('')+'</tbody></table></div>';
+      '<td>'+h(x.observacao||'—')+(x.sourceRow?'<div class="iv-detail">'+h(x.sourceFile)+' · linha '+h(x.sourceRow)+'</div>':'')+(x.documentoERP?'<div class="iv-detail">ERP: '+h(x.documentoERP)+'</div>':'')+'</td></tr>').join('')+'</tbody></table></div>';
   }
   function render(){
     const all=parsed.rows,s=stats(all),shown=filtered();
@@ -194,9 +206,9 @@
   $('#iv-q').addEventListener('input',render);
   $('#iv-export').addEventListener('click',()=>{
     if(error||!parsed.rows.length)return;
-    const rows=[['Inventario','Data','Arquivo origem','Local','Codigo local','Empresa fiscal','Grupo','Codigo','Produto','UN','Saldo ERP','Contagem fisica','Diferenca','Custo unitario','Impacto R$','Acao','Status ERP','Documento ERP','Observacao']];
+    const rows=[['Inventario','Data','Arquivo origem','Local','Codigo local','Empresa fiscal','Grupo','Codigo','Produto','UN','Saldo ERP (se informado)','Contagem (se informada)','Diferenca / ajuste','Custo unitario','Impacto R$','Acao','Status ERP','Documento ERP','Observacao']];
     for(const x of filtered())rows.push([x.inventoryId,dated(x.date),x.sourceFile,x.local,x.codigoLocal,
-      x.empresaFiscal,x.grupo,x.codigo,x.produto,x.un,x.saldoAnterior,x.quantidadeContada,x.delta,
+      x.empresaFiscal,x.grupo,x.codigo,x.produto,x.un,x.saldoAnterior??'',x.quantidadeContada??'',x.delta,
       x.custoUnitario??'',x.impacto??'',action(x),status(x),x.documentoERP||'',x.observacao||'']);
     const csv=v=>{let t=String(v??'');if(typeof v==='string'&&/^[=+\-@\t\r]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"'};
     const content='\ufeff'+rows.map(r=>r.map(csv).join(';')).join('\r\n');

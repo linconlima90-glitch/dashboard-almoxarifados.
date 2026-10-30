@@ -66,7 +66,7 @@
       const cost = stock && stock.cost > 0 ? stock.cost : number(manager.cost);
       // Sem historico de baixa comprovado nao existe consumo para justificar reposicao.
       // Uma referencia de minimo legada nao pode inventar necessidade de compra.
-      const noHistory = !(avg > 0) && !(total > 0);
+      const noHistory = !(total > 0);
       const minimum = noHistory ? 0 : (
         Number.isFinite(Number(manager.minimum)) && number(manager.minimum)>=0
           ? number(manager.minimum) : roundNeed(avg*MONTHS,manager.un)

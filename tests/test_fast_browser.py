@@ -71,8 +71,9 @@ with sync_playwright() as p:
         assert tire_panel_check['removed'] and tire_panel_check['tireItemsStillInStock'], tire_panel_check
 
         if optimized and 'Pilot' not in name:
-            assert page.locator('.clean-sub-btn[data-view="inventarios"]').count()==1
             page.locator('.tab[data-view="inventarios"]').evaluate('(el)=>el.click()')
+            page.wait_for_function('document.querySelector(\'.clean-sub-btn[data-view="inventarios"]\')!==null')
+            assert page.locator('.clean-sub-btn[data-view="inventarios"]').count()==1
             inventory_check=page.evaluate("""() => {
               const h=window.INVENTORY_HISTORY,d=window.INVENTORY_LEDGER;
               const fixture={schemaVersion:1,inventories:[{id:'INV-TEST',date:'2026-10-29',sourceFile:'test.xlsx'}],
@@ -93,6 +94,19 @@ with sync_playwright() as p:
             assert inventory_check['active'] and inventory_check['menu'], inventory_check
             assert inventory_check['delta']==[3,-2,0] and inventory_check['unitCostUnknown'], inventory_check
             assert inventory_check['twoCompanies'] and inventory_check['blanksRejected'], inventory_check
+            actual_inventory=page.evaluate("""() => ({
+              rows:window.INVENTORY_HISTORY.getRows().length,
+              entries:window.INVENTORY_LEDGER.entries.length,
+              positive:window.INVENTORY_LEDGER.entries.filter(x=>x.quantidadeAjuste>0).length,
+              negative:window.INVENTORY_LEDGER.entries.filter(x=>x.quantidadeAjuste<0).length,
+              distinct:new Set(window.INVENTORY_LEDGER.entries.map(x=>x.codigo)).size,
+              correctMissing:window.INVENTORY_HISTORY.getRows().every(x=>x.tipoRegistro==='AJUSTE'&&x.saldoAnterior===null&&x.quantidadeContada===null),
+              impact:window.INVENTORY_HISTORY.getRows().reduce((sum,x)=>sum+x.impacto,0)
+            })""")
+            assert actual_inventory['rows']==106 and actual_inventory['entries']==106, actual_inventory
+            assert actual_inventory['positive']==53 and actual_inventory['negative']==53, actual_inventory
+            assert actual_inventory['distinct']==104 and actual_inventory['correctMissing'], actual_inventory
+            assert abs(actual_inventory['impact']+1656.16)<0.02, actual_inventory
             if inventory_check['empty']:
                 assert inventory_check['emptyText'], inventory_check
             page.locator('.tab[data-view="executivo"]').evaluate('(el)=>el.click()')
