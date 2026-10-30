@@ -70,6 +70,33 @@ with sync_playwright() as p:
         })""")
         assert tire_panel_check['removed'] and tire_panel_check['tireItemsStillInStock'], tire_panel_check
 
+        if optimized and 'Pilot' not in name:
+            assert page.locator('.clean-sub-btn[data-view="inventarios"]').count()==1
+            page.locator('.tab[data-view="inventarios"]').evaluate('(el)=>el.click()')
+            inventory_check=page.evaluate("""() => {
+              const h=window.INVENTORY_HISTORY,d=window.INVENTORY_LEDGER;
+              const fixture={schemaVersion:1,inventories:[{id:'INV-TEST',date:'2026-10-29',sourceFile:'test.xlsx'}],
+                entries:[
+                  {id:'one',inventoryId:'INV-TEST',local:'SJ',codigoLocal:'50115',empresaFiscal:'A',grupo:'ROLAMENTOS',codigo:'123',produto:'Rolamento',un:'PC',saldoSistema:5,saldoContado:8,statusERP:'PENDENTE'},
+                  {id:'two',inventoryId:'INV-TEST',local:'SJ',codigoLocal:'50115',empresaFiscal:'B',grupo:'ROLAMENTOS',codigo:'123',produto:'Rolamento',un:'PC',saldoSistema:5,saldoContado:3,statusERP:'CONFIRMADO'},
+                  {id:'three',inventoryId:'INV-TEST',local:'CHUA',codigoLocal:'30115',empresaFiscal:'C',grupo:'FILTROS',codigo:'124',produto:'Filtro',un:'UN',saldoSistema:2,saldoContado:2}
+                ]};
+              const rows=h.validate(fixture).rows;
+              let blanksRejected=false;
+              try{h.validate({...fixture,entries:[{...fixture.entries[0],saldoSistema:null}]})}catch(e){blanksRejected=true}
+              return {active:!!document.querySelector('#view-inventarios.active'),
+                menu:!!document.querySelector('.clean-sub-btn[data-view="inventarios"]'),
+                empty:d.entries.length===0,emptyText:document.querySelector('#iv-hierarchy').textContent.includes('Nenhum inventário'),
+                delta:rows.map(x=>x.delta),unitCostUnknown:rows[0].impacto===null,
+                twoCompanies:rows[0].empresaFiscal!==rows[1].empresaFiscal,blanksRejected};
+            }""")
+            assert inventory_check['active'] and inventory_check['menu'], inventory_check
+            assert inventory_check['delta']==[3,-2,0] and inventory_check['unitCostUnknown'], inventory_check
+            assert inventory_check['twoCompanies'] and inventory_check['blanksRejected'], inventory_check
+            if inventory_check['empty']:
+                assert inventory_check['emptyText'], inventory_check
+            page.locator('.tab[data-view="executivo"]').evaluate('(el)=>el.click()')
+
         purchase_checks = page.evaluate("""() => ({
           aug: PURCHASES.filter(x=>x.data.slice(3)==='08/2026').length,
           sep: PURCHASES.filter(x=>x.data.slice(3)==='09/2026').length,

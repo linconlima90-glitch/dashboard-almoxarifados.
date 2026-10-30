@@ -83,6 +83,7 @@ class DashboardInjector {
 
     element.append(
       (this.pilot ? '' : '<script src="/stock-no-withdrawals-tab-20261015.js?v=20261019-local-grupo-itens"></script>') +
+      (this.pilot ? '' : '<script src="/inventory-audit-data.js?v=20261030-1"></script><script src="/inventory-history-tab.js?v=20261030-1"></script>') +
       '<script src="/layout-clean-v2.js?v=20261015-2"></script>' +
       '<script src="/db-brand-theme.js?v=20261008-1"></script>' +
       '<script src="/db-brand-fixes.js?v=20261008-1"></script>' +
