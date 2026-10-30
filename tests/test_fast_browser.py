@@ -61,6 +61,15 @@ with sync_playwright() as p:
             page.wait_for_function("document.documentElement.dataset.fastReady==='1'")
         page.wait_for_timeout(600)
 
+        # O usuario removeu o painel de pneus e camaras do rodape do Resumo.
+        # Os pneus continuam no cadastro e devem ser consultaveis no Estoque.
+        tire_panel_check=page.evaluate("""() => ({
+            removed:document.querySelector('#tire-stock-panel')===null,
+            tireItemsStillInStock:STOCK.some(x =>
+                String(x.grupo||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase().includes('PNEU'))
+        })""")
+        assert tire_panel_check['removed'] and tire_panel_check['tireItemsStillInStock'], tire_panel_check
+
         purchase_checks = page.evaluate("""() => ({
           aug: PURCHASES.filter(x=>x.data.slice(3)==='08/2026').length,
           sep: PURCHASES.filter(x=>x.data.slice(3)==='09/2026').length,
