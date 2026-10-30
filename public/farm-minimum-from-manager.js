@@ -67,10 +67,8 @@
       // Sem historico de baixa comprovado nao existe consumo para justificar reposicao.
       // Uma referencia de minimo legada nao pode inventar necessidade de compra.
       const noHistory = !(total > 0);
-      const minimum = noHistory ? 0 : (
-        Number.isFinite(Number(manager.minimum)) && number(manager.minimum)>=0
-          ? number(manager.minimum) : roundNeed(avg*MONTHS,manager.un)
-      );
+      // Calcular sempre a politica de 2 meses a partir da media atual deste local.
+      const minimum = noHistory ? 0 : roundNeed(avg*MONTHS,manager.un);
       const need = roundNeed(Math.max(0,minimum-stockQty),manager.un);
       let status = 'SEM DADOS DE BAIXA';
       if (avg > 0 && total > 0) {
