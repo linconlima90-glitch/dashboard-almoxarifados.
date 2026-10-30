@@ -1,7 +1,16 @@
-// Histórico de compras atualizado com o arquivo de 28/10/2026; dados oficiais até 22/10.
+// Histórico de compras ERP: 30/10/2026 15:53:46; compras de outubro ate 29/10.
 (function(){
 const P=window.LATEST_PURCHASE_PACK;if(!P||!P.L||!Array.isArray(P.R))return;const L=P.L;
 const NEW_PURCHASES=P.R.map(r=>({status:L.status[r[0]],nrounico:r[1],nota:r[2],data:L.data[r[3]],fornecedor_codigo:r[4],fornecedor:L.fornecedor[r[5]],empresa_compra:L.empresa_compra[r[6]],empresa_local:L.empresa_local[r[7]],codigo:r[8],grupo:L.grupo[r[9]],produto:L.produto[r[10]],un:L.un[r[11]],local:L.local[r[12]],qtd:r[13],preco:r[14],valor:r[15],observacao:r[16]==null?'':(L.observacao?.[r[16]]||''),seq:r[17]??null,codigo_local:r[18]??null}));
+
+if(P.meta?.rowsSinceAugust!==602||P.meta?.sourceRows!==137||NEW_PURCHASES.length!==602)
+  throw Error('Compras ERP: pacote outubro e meses anteriores nao confere');
+const octoberNew=NEW_PURCHASES.filter(x=>String(x.data||'').endsWith('/10/2026'));
+const octValue=octoberNew.reduce((s,x)=>s+(Number(x.valor)||0),0);
+const purchaseKeys=new Set(octoberNew.map(x=>[x.nrounico,x.seq,x.codigo,x.codigo_local].join('|')));
+if(octoberNew.length!==137||purchaseKeys.size!==137||Math.abs(octValue-64843.17)>.02||
+   octoberNew.some(x=>Number(String(x.data).slice(0,2))>29))
+  throw Error('Compras de outubro divergentes ou duplicadas');
 const dk=s=>{const p=String(s||'').split('/');return p.length===3?Number(p[2])*10000+Number(p[1])*100+Number(p[0]):0};
 for(let i=PURCHASES.length-1;i>=0;i--)if(dk(PURCHASES[i].data)>=20260801)PURCHASES.splice(i,1);PURCHASES.push(...NEW_PURCHASES);PURCHASES.sort((a,b)=>dk(b.data)-dk(a.data)||Number(b.nrounico||0)-Number(a.nrounico||0));
 const hist=new Map();for(const x of PURCHASES){const k=String(x.codigo)+'|'+String(x.un||'');let h=hist.get(k);if(!h){h={rows:[],pos:[],sup:new Set(),q:0,v:0};hist.set(k,h)}h.rows.push(x);h.sup.add(x.fornecedor);h.q+=Number(x.qtd)||0;h.v+=Number(x.valor)||0;if(Number(x.preco)>0)h.pos.push(x)}
@@ -12,7 +21,7 @@ for(const mes of ['08/2026','09/2026','10/2026']){const a=PURCHASES.filter(x=>St
 const total=PURCHASES.reduce((s,x)=>s+(Number(x.valor)||0),0),bench=new Map();for(const x of PURCHASES){if(!(Number(x.preco)>0))continue;const k=String(x.codigo)+'|'+String(x.un||''),b=bench.get(k);if(!b||x.preco<b.preco)bench.set(k,x)}let savings=0,atBest=0,eligible=0,above=0;const saveSup=new Map();for(const x of PURCHASES){if(!(Number(x.preco)>0&&Number(x.qtd)>0))continue;const b=bench.get(String(x.codigo)+'|'+String(x.un||''));if(!b)continue;eligible++;const d=x.preco-b.preco;if(Math.abs(d)<.005)atBest++;else if(d>.005){above++;const v=d*x.qtd;savings+=v;saveSup.set(x.fornecedor,(saveSup.get(x.fornecedor)||0)+v)}}
 const lm=new Map();for(const x of PURCHASES){let a=lm.get(x.local);if(!a){a={v:0,n:0,p:new Set(),f:new Set(),u:''};lm.set(x.local,a)}a.v+=Number(x.valor)||0;a.n++;a.p.add(x.codigo);a.f.add(x.fornecedor);if(!a.u||dk(x.data)>dk(a.u))a.u=x.data}for(const l of LOCATIONS){const a=lm.get(l.local);l.valor_comprado=a?.v||0;l.linhas=a?.n||0;l.produtos_comprados=a?.p.size||0;l.fornecedores=a?.f.size||0;l.ultima=a?.u||''}
 const sm=new Map();for(const x of PURCHASES){let a=sm.get(x.fornecedor);if(!a){a={codigo:String(x.fornecedor_codigo||''),fornecedor:x.fornecedor,linhas:0,notas:new Set(),produtos:new Set(),locais:new Set(),empresas:new Set(),qtd:0,valor:0,primeira:x.data,ultima:x.data,lanc_receb:0,nao_lanc_receb:0};sm.set(x.fornecedor,a)}a.linhas++;a.notas.add(x.nrounico);a.produtos.add(x.codigo);a.locais.add(x.local);a.empresas.add(x.empresa_compra);a.qtd+=Number(x.qtd)||0;a.valor+=Number(x.valor)||0;if(dk(x.data)<dk(a.primeira))a.primeira=x.data;if(dk(x.data)>dk(a.ultima))a.ultima=x.data;if(x.status==='LANC.RECEB.')a.lanc_receb++;else a.nao_lanc_receb++}SUPPLIERS.splice(0,SUPPLIERS.length,...[...sm.values()].map(a=>({...a,notas:a.notas.size,produtos:a.produtos.size,locais:a.locais.size,empresas:a.empresas.size,ticket:a.linhas?a.valor/a.linhas:0,participacao:total?a.valor/total:0})).sort((a,b)=>b.valor-a.valor));
-for(const el of document.querySelectorAll('header p'))el.innerHTML=el.innerHTML.replace(/histórico de compras:\s*02\/01\/2025\s*a\s*\d{2}\/\d{2}\/\d{4}/,'histórico de compras: 02/01/2025 a 22/10/2026');try{render()}catch(e){console.error(e)}
+for(const el of document.querySelectorAll('header p'))el.innerHTML=el.innerHTML.replace(/histórico de compras:\s*02\/01\/2025\s*a\s*\d{2}\/\d{2}\/\d{4}/,'histórico de compras: 02/01/2025 a '+(P.meta?.fim||'29/10/2026'));try{render()}catch(e){console.error(e)}
 const br=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0),pf=v=>new Intl.NumberFormat('pt-BR',{style:'percent',minimumFractionDigits:1,maximumFractionDigits:1}).format(v||0);for(const el of document.querySelectorAll('.exec-kpi')){const k=el.querySelector('.k')?.textContent.trim(),v=el.querySelector('.v');if(k==='Valor comprado histórico')v.textContent=br(total);if(k==='Economia potencial em compras')v.textContent=br(savings);if(k==='Linhas compradas no menor preço')v.textContent=eligible?pf(atBest/eligible):'—'}
 
 // Os filtros iniciais sao criados antes do carregamento dos complementos de compras.

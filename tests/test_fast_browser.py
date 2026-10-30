@@ -120,13 +120,14 @@ with sync_playwright() as p:
           sepValue: Math.round(PURCHASES.filter(x=>x.data.slice(3)==='09/2026').reduce((s,x)=>s+x.valor,0)*100)/100,
           octValue: Math.round(PURCHASES.filter(x=>x.data.slice(3)==='10/2026').reduce((s,x)=>s+x.valor,0)*100)/100,
           monthlyOct: MONTHLY.find(x=>x.mes==='10/2026')?.valor||0,
-          correctMeta: window.LATEST_PURCHASE_META?.rowsSinceAugust===571 &&
-            window.LATEST_PURCHASE_META?.sourceRows===364 &&
-            window.LATEST_PURCHASE_META?.fim==='22/10/2026'
+          octoberUnique: (() => {const rows=PURCHASES.filter(x=>x.data.slice(3)==='10/2026');return new Set(rows.map(x=>[x.nrounico,x.seq,x.codigo,x.codigo_local].join('|'))).size===rows.length;})(),
+          correctMeta: window.LATEST_PURCHASE_META?.rowsSinceAugust===602 &&
+            window.LATEST_PURCHASE_META?.sourceRows===137 &&
+            window.LATEST_PURCHASE_META?.fim==='29/10/2026'
         })""")
-        assert purchase_checks['aug']==207 and purchase_checks['sep']==258 and purchase_checks['oct']==106, purchase_checks
-        assert abs(purchase_checks['sepValue']-153097.46)<0.02 and abs(purchase_checks['octValue']-47308.90)<0.02, purchase_checks
-        assert abs(purchase_checks['monthlyOct']-47308.90)<0.02 and purchase_checks['correctMeta'], purchase_checks
+        assert purchase_checks['aug']==207 and purchase_checks['sep']==258 and purchase_checks['oct']==137, purchase_checks
+        assert abs(purchase_checks['sepValue']-153097.46)<0.02 and abs(purchase_checks['octValue']-64843.17)<0.02, purchase_checks
+        assert abs(purchase_checks['monthlyOct']-64843.17)<0.02 and purchase_checks['correctMeta'] and purchase_checks['octoberUnique'], purchase_checks
 
         snapshots[name] = page.evaluate(SNAPSHOT)
         results[name] = {

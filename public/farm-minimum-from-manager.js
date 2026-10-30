@@ -60,8 +60,9 @@
 
     const rows = [];
     function normalize(manager,stock) {
-      const avg = Math.max(0,number(manager.avg));
       const total = number(manager.total);
+      // Media residual sem baixa comprovada nao pode gerar minimo nem necessidade.
+      const avg = total > 0 ? Math.max(0,number(manager.avg)) : 0;
       const stockQty = stock ? stock.stock : 0;
       const cost = stock && stock.cost > 0 ? stock.cost : number(manager.cost);
       // Sem historico de baixa comprovado nao existe consumo para justificar reposicao.
