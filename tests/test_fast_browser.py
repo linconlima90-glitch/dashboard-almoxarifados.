@@ -326,12 +326,10 @@ with sync_playwright() as p:
             panel.locator('#dbmx-mode').select_option('all')
             assert panel.locator('.dbmx-legend--need').count()==1
             assert panel.locator('.dbmx-legend--excess').count()==1
-            assert panel.locator('.dbmx-legend--ok').count()==1
-            assert panel.locator('.dbmx-legend--history').count()==1
-            assert panel.get_by_text('Amarelo: precisa repor', exact=True).count()==1
-            assert panel.get_by_text('Verde escuro: excedente disponível', exact=True).count()==1
-            assert panel.get_by_text('Verde claro: estoque adequado / atenção', exact=True).count()==1
-            assert panel.get_by_text('Cinza: sem baixas / histórico insuficiente', exact=True).count()==1
+            assert panel.locator('.dbmx-legend--ok').count()==0
+            assert panel.locator('.dbmx-legend--history').count()==0
+            assert panel.get_by_text('Amarelo: Repor', exact=True).count()==1
+            assert panel.get_by_text('Verde: Excedente', exact=True).count()==1
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.inlineCascade") is True
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.colorCoding") is True
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.statusColors") == {
@@ -340,9 +338,23 @@ with sync_playwright() as p:
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.withdrawalsFrom") == 'ERP_MOVEMENTS_YEARLY'
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.withdrawalPeriodMonths") == 22
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.withdrawalTotalsPhysical") is not None
-            assert panel.locator('.dbmx-withdrawals').count() == 10
-            assert panel.locator('.dbmx-withdrawals').first.inner_text().startswith('Baixas da rede') or (
-                panel.locator('.dbmx-withdrawals').first.inner_text().startswith('Qtd. baixada'))
+            # Resumo compacto: somente nome, repor e excedente, com quantidade de itens e valor.
+            assert panel.locator('.dbmx-withdrawals').count() == 0
+            assert panel.locator('.dbmx-state-summary').count() == 0
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.compactSummary") is True
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.withdrawalDetailOnly") is True
+            local_rows=panel.locator('.dbmx-local')
+            assert local_rows.count()==10
+            assert local_rows.first.locator('.dbmx-name').count()==1
+            assert local_rows.first.locator('.dbmx-metric--need').count()==1
+            assert local_rows.first.locator('.dbmx-metric--excess').count()==1
+            assert 'Repor' in local_rows.first.locator('.dbmx-metric--need').inner_text()
+            assert 'Excedente' in local_rows.first.locator('.dbmx-metric--excess').inner_text()
+            assert 'R$' in local_rows.first.locator('.dbmx-metric--need').inner_text()
+            assert 'R$' in local_rows.first.locator('.dbmx-metric--excess').inner_text()
+            assert 'Qtd. baixada' not in local_rows.first.inner_text()
+            assert 'Sem histórico' not in local_rows.first.inner_text()
+            assert 'Adequado' not in local_rows.first.inner_text()
             assert all('withdrawalTotals' in x for x in
                        page.evaluate("window.DB_STOCK_UNIFIED.meta.locations"))
             brand_visual=page.evaluate("""() => ({
@@ -359,8 +371,12 @@ with sync_playwright() as p:
             assert panel.locator('.dbmx-local-block').first.locator(':scope > .dbmx-detail').count()==1
             assert panel.locator('.dbmx-local-block').first.locator(':scope > .dbmx-detail .dbmx-group').count()>0
             assert panel.locator('.dbmx-products').count()==0
-            assert panel.locator('.dbmx-withdrawals').count()>10
-            assert panel.locator('.dbmx-detail').get_by_text('Total baixado neste almoxarifado:', exact=False).count()>=1
+            assert panel.locator('.dbmx-withdrawals').count()==0
+            assert panel.locator('.dbmx-state-summary').count()==0
+            assert 'Total baixado neste almoxarifado:' not in panel.locator('.dbmx-detail').inner_text()
+            assert panel.locator('.dbmx-group').first.locator('.dbmx-metric--need').count()==1
+            assert panel.locator('.dbmx-group').first.locator('.dbmx-metric--excess').count()==1
+            assert 'Qtd. baixada' not in panel.locator('.dbmx-group').first.inner_text()
             panel.locator('.dbmx-group').first.click()
             assert panel.locator('.dbmx-scroll table').count()==1
             assert panel.locator('.dbmx-group-wrap').first.locator(':scope > .dbmx-products').count()==1
@@ -373,7 +389,7 @@ with sync_playwright() as p:
             brand_rows=page.evaluate("""() => Array.from(document.querySelectorAll(
                 '#db-stock-maximum tbody tr')).map(el=>getComputedStyle(el).backgroundColor)""")
             assert all(x in ('rgba(0, 0, 0, 0)','rgb(247, 250, 248)') for x in brand_rows),brand_rows
-            assert panel.locator('.dbmx-state-summary').count()>0
+            assert panel.locator('.dbmx-state-summary').count()==0
             assert panel.locator('.dbmx-status').count()>0
             statuses=page.evaluate("""() => Array.from(document.querySelectorAll('#db-stock-maximum tbody tr'))
                 .map(row => ({kind:row.dataset.dbmxColor,label:row.querySelector('.dbmx-status')?.textContent||''}))
