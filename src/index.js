@@ -97,6 +97,7 @@ class DashboardInjector {
       '<script src="/purchase-data-20261030.js?v=20261030-1553"></script>' +
       '<script src="/purchase-update.js?v=20261030-1553"></script>' +
       '<script src="/purchase-variation.js?v=20260908-2"></script>' +
+      '<script src="/purchase-savings-detail.js?v=20261103-1"></script>' +
       '<script src="/quote-update-newfix-45978601.js?v=20260908"></script>' +
       '<script src="/quote-update-lima-ferramentas-03092026.js?v=20260908"></script>' +
       '<script src="/quote-update-casa-parafusos-24796.js?v=20260908"></script>' +
