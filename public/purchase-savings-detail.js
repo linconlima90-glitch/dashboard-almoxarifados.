@@ -251,14 +251,18 @@
 
   let previousFocus=null,previousOverflow='';
   function close(){
+    if(!layer.classList.contains('ps-open')) return;
     layer.classList.remove('ps-open');
+    layer.style.display='none';
     document.body.style.overflow=previousOverflow;
-    if(previousFocus&&typeof previousFocus.focus==='function')previousFocus.focus();
+    if(previousFocus&&typeof previousFocus.focus==='function'){
+      try{previousFocus.focus({preventScroll:true})}catch(_){previousFocus.focus()}
+    }
   }
   function open(){
     previousFocus=focusBefore();previousOverflow=document.body.style.overflow;
     search.value='';year.value='';local.value='';group.value='';
-    refresh();layer.classList.add('ps-open');document.body.style.overflow='hidden';search.focus();
+    refresh();layer.style.removeProperty('display');layer.classList.add('ps-open');document.body.style.overflow='hidden';search.focus();
   }
   // Avisar nas duas métricas principais sem alterar seus valores exibidos.
   for(const id of ['kEconomiaPotencial','kEconomiaPct']){
@@ -277,7 +281,7 @@
   card.title='Clique para comparar todos os produtos com potencial de economia';
   card.addEventListener('click',open);
   card.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open()}});
-  $('.ps-close').addEventListener('click',close);
+  $('.ps-close').addEventListener('click',event=>{event.preventDefault();event.stopPropagation();close()},{capture:true});
   layer.addEventListener('click',event=>{if(event.target===layer)close()});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&layer.classList.contains('ps-open'))close()});
   for(const control of [search,local,group])control.addEventListener(control===search?'input':'change',render);
