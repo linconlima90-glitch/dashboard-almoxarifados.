@@ -31,7 +31,7 @@
         typeof minimumBaseRows !== 'function' ||
         typeof minimumRowsForYear !== 'function' ||
         window.STOCK_MINIMUM_MONTHS !== MONTHS ||
-        window.MOVEMENTS_REVISED_META?.records !== 4940 ||
+        window.MOVEMENTS_REVISED_META?.records !== 19465 ||
         !window.CURRENT_STOCK_META) return null;
 
     // Sempre partir da mesma base de minimo exibida no gestor principal. Para o
@@ -175,8 +175,8 @@
     }).join('');
 
     const period = state.year==='2025' ? '2025 · 12 meses completos' :
-      state.year==='2026' ? '2026 · 9 meses completos (outubro parcial)' :
-      'Histórico completo · 21 meses completos (outubro parcial)';
+      state.year==='2026' ? '2026 · 10 meses completos (novembro parcial)' :
+      '2025 + 2026 · 22 meses completos (2024 apenas consulta)';
     const extra = current.usesNetwork
       ? '<div class="sj-note fm-network"><b>Critério do gestor principal para o CDI Chuá:</b> demanda consolidada de todos os almoxarifados, comparada com o saldo atual de Chuá. Não confundir com consumo exclusivo da fazenda.</div>' : '';
     const warning = current.pendingAnnual

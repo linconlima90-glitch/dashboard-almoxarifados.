@@ -11,21 +11,21 @@ const read = name => fs.readFileSync(path.join(root, name), 'utf8');
 // Normalize the templates themselves so group/year/filter renders keep the right labels.
 let source = read('public/index.html')
   .replaceAll('minimumRoundUp(avg*4,', 'minimumRoundUp(avg*(window.STOCK_MINIMUM_MONTHS||2),')
-  .replace("completeMonths=y==='2026'?8:12", "completeMonths=y==='2026'?9:12")
-  .replace('avg=complete/19,minimum', 'avg=complete/21,minimum')
-  .replace('complete_months:19,avg', 'complete_months:21,avg')
+  .replace("completeMonths=y==='2026'?8:12", "completeMonths=y==='2026'?10:12")
+  .replace('avg=complete/19,minimum', 'avg=complete/22,minimum')
+  .replace('complete_months:19,avg', 'complete_months:22,avg')
   .replaceAll('Mínimo 4M', 'Mínimo 2 meses')
   .replaceAll('Mínimo Local 4M', 'Mínimo Local 2 meses')
   .replaceAll('mínimo de 4 meses', 'mínimo de 2 meses')
   .replace('Todos os anos · média com 19 observações completas', 'Todos os anos · média dos meses completos do histórico')
   .replace('2026 · média com jan–ago (8 meses completos); setembro parcial só entra na quantidade total',
-    '2026 · média com jan–set (9 meses completos); outubro parcial só entra na quantidade total')
+    '2026 · média com jan–out (10 meses completos); novembro parcial não entra na média')
   .replace(/<div class="notice"><b>Regra do estoque mínimo:<\/b>.*?<\/div>/,
     '<div class="notice"><b>Regra do estoque mínimo:</b> média mensal de consumo × <b>2 meses</b>. '+
     'A necessidade de compra é a diferença positiva entre o mínimo e o estoque atual, arredondada conforme a unidade. '+
-    'Em <b>Todos os anos</b>, a média usa os meses completos do histórico disponível. '+
-    'Ao selecionar <b>2025</b>, usa os 12 meses completos; em <b>2026</b>, usa janeiro a setembro (9 meses completos). '+
-    'Outubro parcial aparece somente na quantidade total baixada. O saldo de comparação é sempre o estoque atual. '+
+    'Em <b>Todos os anos</b>, a média usa somente os meses completos de 2025 e 2026 (2024 apenas consulta). '+
+    'Ao selecionar <b>2025</b>, usa os 12 meses completos; em <b>2026</b>, usa janeiro a outubro (10 meses completos). '+
+    'Novembro parcial aparece somente na quantidade total baixada. O saldo de comparação é sempre o estoque atual. '+
     'No filtro anual, combinações local + ano sem cruzamento exato ficam fora do cálculo para evitar rateios estimados. '+
     'O filtro de Status permite selecionar vários status simultaneamente.</div>');
 // Keep the CDI item drilldown aligned with the minimum-stock layout on every route.

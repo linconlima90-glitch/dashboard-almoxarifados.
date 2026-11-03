@@ -82,13 +82,13 @@ class DashboardInjector {
     `, { html: true });
 
     element.append(
-      (this.pilot ? '' : '<script src="/stock-no-withdrawals-tab-20261015.js?v=20261019-local-grupo-itens"></script>') +
+      (this.pilot ? '' : '<script src="/stock-no-withdrawals-tab-20261015.js?v=20261103-full-history"></script>') +
       (this.pilot ? '' : '<script src="/inventory-audit-data.js?v=20261030-sj-cor-final"></script><script src="/inventory-history-tab.js?v=20261030-sj-cor-final"></script>') +
       '<script src="/layout-clean-v2.js?v=20261015-2"></script>' +
       '<script src="/db-brand-theme.js?v=20261008-1"></script>' +
       '<script src="/db-brand-fixes.js?v=20261008-1"></script>' +
-      (this.pilot ? `<script src="/${this.chua ? 'chua-no-withdrawals' : 'sao-joao-no-withdrawals'}.js?v=20261015-2"></script>` : '') +
-      (this.pilot ? '<script src="/farm-minimum-from-manager.js?v=20261019-2meses"></script>' : '') +
+      (this.pilot ? `<script src="/${this.chua ? 'chua-no-withdrawals' : 'sao-joao-no-withdrawals'}.js?v=20261103-full-history"></script>` : '') +
+      (this.pilot ? '<script src="/farm-minimum-from-manager.js?v=20261103-full-history"></script>' : '') +
       (this.pilot ? `<script src="/${this.chua ? 'chua-pilot' : 'sao-joao-pilot'}.js?v=20261015-1"></script>` : '') +
       '<script>(function(){var s=document.getElementById("db-boot-screen");if(s)s.remove();document.documentElement.classList.remove("db-booting");})();</script>' +
       '<script src="/stock-update.js?v=20260908"></script>' +
@@ -117,7 +117,7 @@ class DashboardInjector {
       '<script src="/executive-interactive.js?v=20261028-capital-nav-fix"></script>' +
       '<script src="/capital-hierarchy.js?v=20261028-capital-nav-fix"></script>' +
       '<script src="/executive-only-capital.js?v=20260911-1"></script>' +
-      '<script src="/cdi-minimum-layout.js?v=20261019-1"></script>' +
+      '<script src="/cdi-minimum-layout.js?v=20261103-full-history"></script>' +
       '<script src="/minimum-policy-2months-20261008.js?v=20261008-1"></script>' +
       '<script src="/stock-current-b64-init.js?v=20261008-1"></script>' +
       '<script src="/stock-current-20261103-0954-01.js?v=20261103-0954"></script>' +
@@ -137,13 +137,14 @@ class DashboardInjector {
 
 
 
-      '<script src="/_data/revised-monthly-20261019.js?v=20261019-1"></script>' +
       '<script src="/current-stock-loader-20260911.js?v=20261103-0954"></script>' +
-      '<script src="/movement-october-20261028.js?v=20261028-0834"></script>' +
-      '<script src="/movement-day-20261029.js?v=20261030-0832"></script>' +
-      '<script src="/movement-day-20261030.js?v=20261030-1519"></script>' +
-      '<script src="/movement-after-20261030-20261103.js?v=20261103-0952"></script>' +
-      '<script src="/movement-reconcile-20261015.js?v=20261103-0952"></script>',
+      '<script src="/movement-full-base-20261103.js?v=20261103-1032"></script>' +
+      '<script src="/movement-full-01-20261103.js?v=20261103-1032"></script>' +
+      '<script src="/movement-full-02-20261103.js?v=20261103-1032"></script>' +
+      '<script src="/movement-full-03-20261103.js?v=20261103-1032"></script>' +
+      '<script src="/movement-full-04-20261103.js?v=20261103-1032"></script>' +
+      '<script src="/movement-reconcile-full-20261103.js?v=20261103-1032"></script>' +
+      (this.pilot ? '' : '<script src="/movement-history-ui-20261103.js?v=20261103-1032"></script>'),
       { html: true }
     );
   }

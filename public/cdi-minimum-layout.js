@@ -67,7 +67,7 @@
       input.checked = state.statuses.includes(input.value);
     });
     const period = state.year === '2025' ? '2025 · média com 12 meses completos'
-      : state.year === '2026' ? '2026 · média com jan–set (9 meses completos); outubro parcial só entra na quantidade total'
+      : state.year === '2026' ? '2026 · média com jan–out (10 meses completos); novembro parcial não entra na média'
       : 'Todos os anos · média dos meses completos do histórico';
     el('cdiMinimumFilterInfo').textContent = period + (state.statuses.length
       ? ' · status: ' + state.statuses.join(' + ') : ' · todos os status');
