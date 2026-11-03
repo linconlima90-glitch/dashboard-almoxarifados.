@@ -292,8 +292,11 @@ with sync_playwright() as p:
             assert page.locator('#view-minimo .db-min-top-chart').count()==2
             assert page.locator('#view-minimo .db-min-top-chart[data-db-min-chart="value"] .db-min-top-row').count()==10
             assert page.locator('#view-minimo .db-min-top-chart[data-db-min-chart="count"] .db-min-top-row').count()==10
-            assert page.locator('#view-minimo').get_by_text('Necessidade de reposição por local', exact=True).count()==1
-            assert page.locator('#view-minimo').get_by_text('Itens abaixo do mínimo por local', exact=True).count()==1
+            # Os titulos originais continuam no DOM, mas ficam ocultos para compatibilidade.
+            assert page.locator('#view-minimo .db-min-top-chart').get_by_text('Necessidade de reposição por local', exact=True).count()==1
+            assert page.locator('#view-minimo .db-min-top-chart').get_by_text('Itens abaixo do mínimo por local', exact=True).count()==1
+            assert page.locator('#view-minimo [data-db-min-top-card="value"] > .db-min-top-host').count()==1
+            assert page.locator('#view-minimo [data-db-min-top-card="count"] > .db-min-top-host').count()==1
             assert page.locator('#db-minimum-all-locals').is_hidden()
             assert page.locator('#db-minimum-all-locals .dl-chart').count()==0
             c=page.locator('#view-minimo .db-min-top-chart[data-db-min-chart="value"] .db-min-top-row')

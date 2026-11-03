@@ -307,10 +307,21 @@
     if(topValue===topCount){topValue=null;topCount=null;}
     const nativeReady=!!(topValue&&topCount);
     if(nativeReady){
-      topValue.dataset.dbMinTopCard='value';
-      topCount.dataset.dbMinTopCard='count';
-      topValue.innerHTML=chartMarkup('value');
-      topCount.innerHTML=chartMarkup('count');
+      // Keep hidden original DOM nodes alive: renderMinimum still updates their IDs.
+      // Replacing the card innerHTML caused downstream redraw errors.
+      function preserveAndDraw(card,side){
+        card.dataset.dbMinTopCard=side;
+        let host=[...card.children].find(el=>el.classList.contains('db-min-top-host'));
+        if(!host){
+          host=document.createElement('div');
+          host.className='db-min-top-host';
+          card.appendChild(host);
+        }
+        for(const child of card.children)if(child!==host)child.style.display='none';
+        host.innerHTML=chartMarkup(side);
+      }
+      preserveAndDraw(topValue,'value');
+      preserveAndDraw(topCount,'count');
     }
     if(!view.dataset.dbMinClicks){
       view.dataset.dbMinClicks='1';
