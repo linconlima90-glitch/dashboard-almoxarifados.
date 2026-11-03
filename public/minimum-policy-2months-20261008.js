@@ -34,7 +34,11 @@
     for(const m of MOVEMENTS){
       const k=key(m),b=balances.get(k);
       const average=Math.max(0,num(m.avg));
-      const minimum=excludedFromMinimum(m)?0:average*MONTHS;
+      const minimum=excludedFromMinimum(m)?0:(typeof minimumRoundUp==='function'
+        ? minimumRoundUp(average*MONTHS,m.un)
+        : (typeof MINIMUM_CONTINUOUS_UNITS!=='undefined'&&MINIMUM_CONTINUOUS_UNITS.has(String(m.un||'').toUpperCase())
+          ? Math.ceil((average*MONTHS-1e-10)*100)/100
+          : Math.ceil(average*MONTHS-1e-10)));
       const stock=b?b.q:num(m.stock);
       const cost=b&&b.cost>0?b.cost:num(m.cost);
       const total=num(m.total);
