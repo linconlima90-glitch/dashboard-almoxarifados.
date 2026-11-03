@@ -492,10 +492,8 @@
           esc(loc.local)+'" aria-expanded="'+opened+'"><span class="dbmx-name">'+
           '<span class="dbmx-arrow" aria-hidden="true">'+(opened?'▾':'▸')+'</span>'+esc(loc.local)+
           (loc.network?' · rede (não somar ao físico)':'')+'</span>'+
-          '<span class="dbmx-metric dbmx-metric--need"><span>Repor · '+int(loc.needCount)+
-          ' produtos</span><strong>'+brl(loc.needValue)+'</strong></span>'+
-          '<span class="dbmx-metric dbmx-metric--excess"><span>Excedente · '+int(loc.excessCount)+
-          ' produtos</span><strong>'+brl(loc.excessValue)+'</strong></span></button>';
+          '<span class="dbmx-metric dbmx-metric--need"><span>Repor</span><strong>'+brl(loc.needValue)+'</strong></span>'+
+          '<span class="dbmx-metric dbmx-metric--excess"><span>Excedente</span><strong>'+brl(loc.excessValue)+'</strong></span></button>';
         if(!opened)return row+'</div>';
         const expandedGroups=included.length?included.map(g=>{
           const groupOpen=config.group===g.name;
@@ -503,10 +501,8 @@
             esc(g.name)+'" aria-expanded="'+groupOpen+'"><span class="dbmx-name">'+
             '<span class="dbmx-arrow" aria-hidden="true">'+(groupOpen?'▾':'▸')+'</span>'+
             esc(g.name)+'</span>'+
-            '<span class="dbmx-metric dbmx-metric--need"><span>Repor · '+int(g.needCount)+
-            ' produtos</span><strong>'+brl(g.needValue)+'</strong></span>'+
-            '<span class="dbmx-metric dbmx-metric--excess"><span>Excedente · '+int(g.excessCount)+
-            ' produtos</span><strong>'+brl(g.excessValue)+'</strong></span></button>';
+            '<span class="dbmx-metric dbmx-metric--need"><span>Repor</span><strong>'+brl(g.needValue)+'</strong></span>'+
+            '<span class="dbmx-metric dbmx-metric--excess"><span>Excedente</span><strong>'+brl(g.excessValue)+'</strong></span></button>';
           return groupRow+(groupOpen?'<div class="dbmx-products" data-dbmx-products-for="'+esc(g.name)+
             '"><h3>Produtos · '+esc(g.name)+'</h3>'+itemTable(g.rows)+'</div>':'')+'</div>';
         }).join(''):'<p>Nenhum produto neste filtro.</p>';
