@@ -144,7 +144,8 @@ class DashboardInjector {
       '<script src="/movement-full-03-20261103.js?v=20261103-1032"></script>' +
       '<script src="/movement-full-04-20261103.js?v=20261103-1032"></script>' +
       '<script src="/movement-reconcile-full-20261103.js?v=20261103-1032"></script>' +
-      (this.pilot ? '' : '<script src="/movement-history-ui-20261103.js?v=20261103-1032"></script>'),
+      (this.pilot ? '' : '<script src="/movement-history-ui-20261103.js?v=20261103-1032"></script>' +
+        '<script src="/baixas-consolidadas-20261103.js?v=20261103-1"></script>'),
       { html: true }
     );
   }
