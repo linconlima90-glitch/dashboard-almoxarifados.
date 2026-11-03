@@ -40,7 +40,7 @@
     </div>
     <div class="tablepanel variation-table">
       <div class="tablehead">
-        <div><h2>Variação histórica de compra por item</h2><div class="hint">Mesmo código + unidade • preços zero desconsiderados • maior variação primeiro</div></div>
+        <div><h2>Variação histórica de compra por item</h2><div class="hint">Mesmo código + unidade • pneus e câmaras excluídos • maior variação primeiro</div></div>
       </div>
       <div class="tablewrap" style="max-height:760px">
         <table>
@@ -60,7 +60,7 @@
 
   function buildRows(){
     let base=[];
-    try{base=purchasesFiltered()}catch(e){base=Array.isArray(PURCHASES)?PURCHASES:[]}
+    try{base=purchasesFiltered().filter(x=>!window.DB_IS_TIRE_OR_CAMERA(x))}catch(e){base=Array.isArray(PURCHASES)?PURCHASES.filter(x=>!window.DB_IS_TIRE_OR_CAMERA(x)):[]}
     const groups=new Map();
     for(const r of base){
       const price=Number(r.preco)||0;

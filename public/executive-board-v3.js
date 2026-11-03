@@ -22,10 +22,11 @@
   for(const [k,needs] of needBy){const srcs=srcBy.get(k)||[];for(const d of needs.sort((a,b)=>(b.need_value||0)-(a.need_value||0))){for(const o of srcs.sort((a,b)=>(b.excess||0)-(a.excess||0))){if(d.local===o.local||d.left<=0||o.left<=0)continue;const q=Math.min(d.left,o.left);if(q<=0)continue;const cost=Number(d.cost)||Number(o.cost)||0;transfers.push({codigo:d.codigo,produto:d.produto,origem:o.local,destino:d.local,qtd:q,valor:q*cost});d.left-=q;o.left-=q;}}}
   const transferValue=transfers.reduce((a,x)=>a+x.valor,0);
   const buyAfter=Math.max(needGross-transferValue,0);
+  const analyzedPurchases=PURCHASES.filter(x=>!window.DB_IS_TIRE_OR_CAMERA(x));
   const bench=new Map();
-  for(const x of PURCHASES){const p=Number(x.preco)||0;if(!(p>0))continue;const k=String(x.codigo)+'|'+String(x.un||'');const b=bench.get(k);if(!b||p<b.preco)bench.set(k,x)}
+  for(const x of analyzedPurchases){const p=Number(x.preco)||0;if(!(p>0))continue;const k=String(x.codigo)+'|'+String(x.un||'');const b=bench.get(k);if(!b||p<b.preco)bench.set(k,x)}
   let histSavings=0,eligible=0,atBest=0;
-  for(const x of PURCHASES){const p=Number(x.preco)||0,q=Number(x.qtd)||0;if(!(p>0&&q>0))continue;const b=bench.get(String(x.codigo)+'|'+String(x.un||''));if(!b)continue;eligible++;const d=p-(Number(b.preco)||0);if(Math.abs(d)<.005)atBest++;else if(d>.005)histSavings+=d*q}
+  for(const x of analyzedPurchases){const p=Number(x.preco)||0,q=Number(x.qtd)||0;if(!(p>0&&q>0))continue;const b=bench.get(String(x.codigo)+'|'+String(x.un||''));if(!b)continue;eligible++;const d=p-(Number(b.preco)||0);if(Math.abs(d)<.005)atBest++;else if(d>.005)histSavings+=d*q}
   const recent=PURCHASES.filter(x=>dk(x.data)>=20260801);
   const recentValue=recent.reduce((a,x)=>a+(Number(x.valor)||0),0);
   const broad=window.ECONOMY_POTENTIAL_DATA?.summary||{};

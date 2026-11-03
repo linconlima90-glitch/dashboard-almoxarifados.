@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import { createHash } from 'node:crypto';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import assert from 'node:assert/strict';
+import { applyPurchaseAnalyticsPolicy } from './purchase-analytics-policy.mjs';
 
 const root = process.cwd(), input = path.join(root, 'public'), out = path.join(root, 'dist');
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
@@ -69,6 +70,8 @@ source=source.replace(annualPending,'!x.network_scope&&MINIMUM_YEAR_PENDING_KEYS
 // The two minimums are independent demand indicators, but the ERP stock remains
 // a single non-segregated balance. Warn users not to add the two reorder figures.
 source=source.replace('O CDI Chua usa a demanda consolidada anual da rede com data exata;', 'O CDI usa a demanda consolidada da rede; o almoxarifado Chuá usa somente suas próprias baixas. Ambos compartilham o saldo ERP 30115; não somar as necessidades antes de separar o saldo;');
+
+source = applyPurchaseAnalyticsPolicy(source);
 
 const legacy = read('src/index.js');
 const report = { originalHtmlBytes: Buffer.byteLength(source), datasets: [], routes: {} };

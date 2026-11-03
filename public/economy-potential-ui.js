@@ -27,7 +27,7 @@
       <div class="panel"><h2>Como interpretar</h2><p class="notice">A tela principal mostra somente os grupos para facilitar a leitura. Ao clicar em um grupo, o detalhamento abre imediatamente e apresenta os itens disponíveis daquele grupo.</p><p class="notice">Para cada item são exibidos quantidade analisada, maior e menor custo histórico, respectivas datas quando identificadas, variação percentual e potencial de economia em reais.</p><p class="notice">Esta análise inclui custos associados a compra direta e complementa — sem substituir — o histórico de compras com fornecedor.</p></div>
     </div>`;
   wrap.appendChild(sec);
-  const rowsGroups=D.groups.filter(g=>(Number(g[3])||0)>0).sort((a,b)=>(Number(b[3])||0)-(Number(a[3])||0));
+  const rowsGroups=D.groups.filter(g=>(Number(g[3])||0)>0&&!window.DB_IS_TIRE_OR_CAMERA({grupo:g[0]})).sort((a,b)=>(Number(b[3])||0)-(Number(a[3])||0));
   const gbody=sec.querySelector('#economyGroups');
   gbody.innerHTML=rowsGroups.map(g=>`<tr data-group="${esc(g[0])}"><td><b>${esc(g[0])}</b></td><td class="num">${n1(g[1])}</td><td class="num">${n1(g[6])}</td><td class="num"><b>${br(g[3])}</b></td><td class="num">${pc((g[3]||0)/(s.potential||1))}</td></tr>`).join('');
 
@@ -46,7 +46,7 @@
   function renderGroup(){
     renderQueued=false;
     const body=drawer.querySelector('.economy-drawer-body'),q=(drawer.querySelector('#economyDrawerSearch').value||'').trim().toUpperCase();
-    const source=groupRows();
+    const source=groupRows().filter(r=>!window.DB_IS_TIRE_OR_CAMERA({grupo:r[2],produto:r[1]}));
     const rows=source.filter(r=>!q||String(r[0]).includes(q)||String(r[1]).toUpperCase().includes(q)).slice().sort((a,b)=>(Number(b[9])||0)-(Number(a[9])||0));
     const ready=!!window.ECONOMY_FULL_READY;
 
