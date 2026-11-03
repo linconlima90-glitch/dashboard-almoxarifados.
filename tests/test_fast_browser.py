@@ -278,6 +278,13 @@ with sync_playwright() as p:
                 page.wait_for_timeout(120)
                 assert page.locator('#view-' + view).evaluate("el=>el.classList.contains('active')"), view
 
+            # Todos os nove saldos ERP e o CDI virtual devem aparecer, inclusive seis sem reposicao.
+            page.locator('.tab[data-view="minimo"]').evaluate('(el)=>el.click()')
+            page.wait_for_function("window.DB_MINIMUM_LOCALS_COVERAGE_META?.totalLocals===10", timeout=15000)
+            locs=page.evaluate("window.DB_MINIMUM_LOCALS_COVERAGE_META")
+            assert locs['needLocals']==4 and locs['noNeedLocals']==6, locs
+            assert locs['below']==1075 and abs(locs['amount']-119999.63)<0.02, locs
+            assert page.locator('#db-minimum-all-locals .dl-row').count()==10
             # A aba e criada dinamicamente antes do layout e usa o historico reconciliado.
             assert page.locator('.clean-sub-btn[data-view="sem-baixas"]').count() >= 0
             page.locator('.tab[data-view="sem-baixas"]').evaluate('(el)=>el.click()')

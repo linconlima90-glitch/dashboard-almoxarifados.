@@ -165,6 +165,82 @@
     }
   }
 
+
+  // O grafico de reposicao exibe apenas locais com necessidade positiva.
+  // Mostra tambem os demais locais avaliados, sem inventar compras.
+  function patchMinimumLocations(){
+    const view=document.getElementById('view-minimo');
+    if(!view||!window.CURRENT_STOCK_META||!window.MOVEMENTS_REVISED_META)return;
+    const base=rows();
+    const yearSelect=[...view.querySelectorAll('select')].find(select=>
+      [...select.options].some(o=>o.value==='2025')&&[...select.options].some(o=>o.value==='2026'));
+    const year=yearSelect?.value||'';
+    let list=year&&typeof minimumRowsForYear==='function'?minimumRowsForYear(base,year):base;
+    const allowed=new Set(['SEM ESTOQUE','ABAIXO DO MÍNIMO','ATENÇÃO','OK','HISTÓRICO PARCIAL','SEM DADOS DE BAIXA']);
+    const statuses=[...view.querySelectorAll('input[type="checkbox"]:checked')]
+      .map(input=>input.value).filter(status=>allowed.has(status));
+    if(statuses.length)list=list.filter(x=>statuses.includes(x.status));
+    const globalFiltered=['fEmpresa','fLocal','fGrupo','fUn','fBusca']
+      .some(key=>String(document.getElementById(key)?.value||'').trim());
+    const names=new Set(globalFiltered?base.map(x=>String(x.local||'')):
+      (typeof STOCK==='undefined'?[]:STOCK.map(x=>String(x.local||''))));
+    if(!globalFiltered&&base.some(x=>x.network_scope||x.local==='CDI DE PECAS CHUA'))
+      names.add('CDI DE PECAS CHUA');
+    for(const x of list)names.add(String(x.local||''));
+    names.delete('');
+    const data=new Map([...names].map(local=>[local,{local,items:0,need:0,critical:0,amount:0}]));
+    for(const x of list){
+      const loc=String(x.local||'');
+      if(!data.has(loc))data.set(loc,{local:loc,items:0,need:0,critical:0,amount:0});
+      const d=data.get(loc);d.items++;
+      if(num(x.need)>0)d.need++;
+      if(x.status==='SEM ESTOQUE'||x.status==='ABAIXO DO MÍNIMO')d.critical++;
+      d.amount+=num(x.need_value);
+    }
+    const entries=[...data.values()].sort((a,b)=>b.amount-a.amount||b.critical-a.critical||a.local.localeCompare(b.local,'pt-BR'));
+    const positive=entries.filter(x=>x.need>0);
+    let panel=document.getElementById('db-minimum-all-locals');
+    if(!panel){
+      panel=document.createElement('section');panel.id='db-minimum-all-locals';
+      const note=[...view.querySelectorAll('.notice')].find(x=>x.textContent.includes('Regra do estoque mínimo'));
+      if(note)note.before(panel);else view.appendChild(panel);
+    }
+    if(!document.getElementById('db-minimum-all-locals-style')){
+      const style=document.createElement('style');style.id='db-minimum-all-locals-style';
+      style.textContent=[
+        '#db-minimum-all-locals{border:1px solid #d7e6db;border-radius:12px;background:white;margin:14px 0;overflow:hidden}',
+        '#db-minimum-all-locals .dl-head{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;padding:14px 16px}',
+        '#db-minimum-all-locals h3{color:#145b32;font-size:14px;margin:0}',
+        '#db-minimum-all-locals p{font-size:11px;color:#637568;line-height:1.5;margin:4px 0 0}',
+        '#db-minimum-all-locals .dl-head strong{color:#145b32;font-size:12px}',
+        '#db-minimum-all-locals .dl-columns,#db-minimum-all-locals .dl-row{display:grid;grid-template-columns:minmax(235px,3fr) minmax(95px,1fr) minmax(110px,1fr) minmax(140px,1.2fr);gap:10px;align-items:center;padding:11px 15px;font-size:11px}',
+        '#db-minimum-all-locals .dl-columns{background:#edf6f0;font-size:10px;font-weight:bold;color:#4b7357}',
+        '#db-minimum-all-locals .dl-row{border-top:1px solid #e9efeb}',
+        '#db-minimum-all-locals .dl-row b{color:#26563b}',
+        '#db-minimum-all-locals .dl-row small{display:block;font-size:10px;color:#607a6a;margin-top:4px}',
+        '#db-minimum-all-locals .dl-row .need{color:#925c05}',
+        '#db-minimum-all-locals .dl-row .ok{color:#257544}',
+        '#db-minimum-all-locals .dl-foot{padding:10px 15px 14px;border-top:1px solid #e5ede6}',
+        '@media(max-width:700px){#db-minimum-all-locals .dl-columns{display:none}#db-minimum-all-locals .dl-row{grid-template-columns:1fr 1fr}#db-minimum-all-locals .dl-row>div:first-child{grid-column:span 2}}'
+      ].join('\n');document.head.appendChild(style);
+    }
+    panel.innerHTML='<div class="dl-head"><div><h3>Todos os locais analisados</h3>'+
+      '<p>Os gráficos acima mostram somente locais com reposição. Os demais também foram avaliados.</p></div>'+
+      '<strong>'+n0(positive.length)+' com reposição · '+n0(entries.length-positive.length)+' sem reposição</strong></div>'+
+      '<div class="dl-columns"><span>Almoxarifado</span><span>Produtos a repor</span><span>Abaixo / sem estoque</span><span>Valor de reposição</span></div>'+
+      entries.map(d=>'<div class="dl-row"><div><b>'+esc(d.local)+'</b><small>'+
+        n0(d.items)+' produtos analisados'+(d.local==='CDI DE PECAS CHUA'?' · visão da rede':'')+'</small></div>'+
+        '<div class="'+(d.need?'need':'ok')+'">'+n0(d.need)+' · '+(d.need?'Repor':'Sem reposição')+'</div>'+
+        '<div>'+n0(d.critical)+'</div><div><b>'+br(d.amount)+'</b></div></div>').join('')+
+      '<p class="dl-foot"><b>Importante:</b> o CDI de Peças Chuá é uma análise de demanda da rede e compartilha o saldo ERP com o almoxarifado físico Chuá. '+
+      'Não somar as necessidades dos dois sem separar esse saldo.</p>';
+    window.DB_MINIMUM_LOCALS_COVERAGE_META={
+      totalLocals:entries.length,needLocals:positive.length,noNeedLocals:entries.length-positive.length,
+      below:entries.reduce((a,x)=>a+x.critical,0),amount:entries.reduce((a,x)=>a+x.amount,0),
+      items:entries.map(x=>({local:x.local,need:x.need,below:x.critical,amount:x.amount}))
+    };
+  }
+
   function refresh(repaint){
     if(!recalc())return;
     if(repaint){
@@ -174,15 +250,18 @@
     }
     patchExecutive();
     patchCopy();
+    patchMinimumLocations();
     window.dispatchEvent(new CustomEvent('minimum-policy-updated',{detail:window.STOCK_MINIMUM_POLICY_META}));
   }
 
   refresh(true);
   window.addEventListener('stock-position-updated',()=>refresh(true));
   window.addEventListener('movements-updated',()=>refresh(true));
+  document.addEventListener('change',e=>{if(e.target.closest('#view-minimo,#fEmpresa,#fLocal,#fGrupo,#fUn,#fBusca'))setTimeout(patchMinimumLocations,60)});
+  document.addEventListener('input',e=>{if(e.target.matches('#fBusca'))setTimeout(patchMinimumLocations,120)});
   document.addEventListener('click',e=>{
     if(e.target?.closest?.('.tab[data-view="minimo"],.tab[data-view="executivo"],.clean-primary-btn[data-group="resumo"],.clean-primary-btn[data-group="estoque"],.clean-sub-btn')){
-      setTimeout(()=>{recalc();patchExecutive();patchCopy()},35);
+      setTimeout(()=>{recalc();patchExecutive();patchCopy();patchMinimumLocations()},35);
     }
   });
 })();
