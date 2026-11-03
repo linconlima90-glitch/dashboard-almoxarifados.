@@ -77,6 +77,21 @@ const legacy = read('src/index.js');
 const report = { originalHtmlBytes: Buffer.byteLength(source), datasets: [], routes: {} };
 fs.rmSync(out, { recursive: true, force: true });
 fs.cpSync(input, out, { recursive: true });
+// Monta a fotografia auditada de compras sem transportar arquivos Excel ao navegador.
+const auditedPurchaseB64=Array.from({length:4},(_,i)=>{
+  const filename='public/audited-purchase-part-20261103-'+(i+1)+'.js';
+  const code=read(filename);
+  const matched=code.match(/window\\.DB_AUDITED_PURCHASE_PARTS\\[\\d+\\]=["']([A-Za-z0-9+/=]+)["'];/);
+  assert(matched,'Trecho auditado de compras ausente: '+filename);
+  return matched[1];
+}).join('');
+const auditedPurchasePack=JSON.parse(gunzipSync(Buffer.from(auditedPurchaseB64,'base64')).toString('utf8'));
+assert(auditedPurchasePack.meta?.count===2873 && Math.abs(auditedPurchasePack.meta.total-1814454.14)<0.01
+  && auditedPurchasePack.R.length===670 && auditedPurchasePack.U.length===498
+  && auditedPurchasePack.D.length===210,'Falha na integridade da base auditada');
+fs.writeFileSync(path.join(out,'audited-purchases-20261103-data.js'),
+  'window.DB_AUDITED_PURCHASE_DELTA='+JSON.stringify(auditedPurchasePack)+';\\n');
+
 fs.mkdirSync(path.join(out, '_fast'), { recursive: true });
 fs.mkdirSync(path.join(out, '_legacy'), { recursive: true });
 fs.writeFileSync(path.join(out, '_legacy/index.html'), source);
