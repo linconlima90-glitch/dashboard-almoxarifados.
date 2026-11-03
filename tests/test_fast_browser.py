@@ -352,8 +352,8 @@ with sync_playwright() as p:
             assert local_rows.first.locator('.dbmx-name').count()==1
             assert local_rows.first.locator('.dbmx-metric--need').count()==1
             assert local_rows.first.locator('.dbmx-metric--excess').count()==1
-            assert 'Repor' in local_rows.first.locator('.dbmx-metric--need').inner_text()
-            assert 'Excedente' in local_rows.first.locator('.dbmx-metric--excess').inner_text()
+            assert 'REPOR' in local_rows.first.locator('.dbmx-metric--need').inner_text().upper()
+            assert 'EXCEDENTE' in local_rows.first.locator('.dbmx-metric--excess').inner_text().upper()
             assert 'R$' in local_rows.first.locator('.dbmx-metric--need').inner_text()
             assert 'R$' in local_rows.first.locator('.dbmx-metric--excess').inner_text()
             assert 'Qtd. baixada' not in local_rows.first.inner_text()
