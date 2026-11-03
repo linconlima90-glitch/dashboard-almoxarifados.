@@ -60,6 +60,8 @@
     '.ps-table-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 3px;font-size:11px;color:#506a57;flex-shrink:0}',
     '.ps-table>tbody>tr.ps-detail>td{overflow-wrap:anywhere}',
     '.ps-note{font-size:10px;line-height:1.5;color:#5b715f;margin:8px 2px 0;flex-shrink:0}',
+    '.ps-audit-warning{background:#fff7e1;border:1px solid #e9c36c;border-left:4px solid #cb900e;padding:11px 13px;color:#634b18;font-size:11px;line-height:1.55;border-radius:8px;margin:0 0 11px;flex-shrink:0}',
+    '.ps-audit-caption{display:block;color:#875b00;font-size:10px;font-weight:800;margin-top:5px;line-height:1.3}',
     '@media(max-width:780px){.ps-layer{padding:0}.ps-modal{height:100%;max-height:none;border-radius:0}.ps-head{padding:13px}.ps-head h2{font-size:16px}.ps-content{padding:11px}.ps-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.ps-metric{padding:8px}.ps-metric strong{font-size:16px}.ps-controls{gap:6px}.ps-controls .ps-search{min-width:100%}}'
   ].join('');
   document.head.appendChild(style);
@@ -73,11 +75,12 @@
         '<p>Produtos adquiridos acima do menor preço histórico disponível para o mesmo código e unidade.</p>',
       '</div><button type="button" class="ps-close" aria-label="Fechar comparativo">Fechar ✕</button></header>',
       '<div class="ps-content">',
+        '<div class="ps-audit-warning"><strong>Atenção: custos históricos ainda não auditados.</strong> Em 03/11/2026, o relatório do ERP apresentou mudanças de custo unitário para as mesmas notas fiscais já exibidas em uma extração anterior. O campo <strong>Vlr.Unit.Custo</strong> não confirma o preço negociado em cada nota; portanto os valores abaixo são <strong>simulações matemáticas, não economia comprovada</strong>. A origem da referência é o menor custo registrado para o mesmo código e unidade (inclusive de outros anos), não necessariamente a melhor cotação disponível na data da compra.</div>',
         '<div class="ps-metrics">',
-          '<div class="ps-metric"><small>Economia potencial</small><strong id="ps-saving">—</strong><span>Diferença estimada nas compras</span></div>',
-          '<div class="ps-metric"><small>Potencial sobre comprado</small><strong id="ps-rate">—</strong><span>Base elegível do filtro principal</span></div>',
+          '<div class="ps-metric"><small>Diferença teórica</small><strong id="ps-saving">—</strong><span>Simulação com custos do ERP</span></div>',
+          '<div class="ps-metric"><small>Diferença / valor comprado</small><strong id="ps-rate">—</strong><span>Percentual não auditado</span></div>',
           '<div class="ps-metric"><small>Produtos com oportunidade</small><strong id="ps-products">—</strong><span>Código + unidade distintos</span></div>',
-          '<div class="ps-metric"><small>Compras acima do menor preço</small><strong id="ps-lines">—</strong><span>Lançamentos com diferença positiva</span></div>',
+          '<div class="ps-metric"><small>Registros acima do menor custo</small><strong id="ps-lines">—</strong><span>Diferenças somente no relatório ERP</span></div>',
         '</div>',
         '<div class="ps-controls">',
           '<label class="ps-search">Buscar produto ou código<input id="ps-search" placeholder="Digite o código ou nome do produto" autocomplete="off"></label>',
@@ -88,12 +91,12 @@
         '</div>',
         '<div class="ps-table-wrap"><table class="ps-table">',
           '<thead><tr><th>#</th><th>Local</th><th>Código</th><th>Produto</th><th>Grupo</th><th>UN</th>',
-          '<th class="ps-num">Qtd. comprada</th><th class="ps-num">Preço médio pago</th>',
-          '<th class="ps-num">Menor preço</th><th>Fornecedor / data do menor</th>',
-          '<th class="ps-num">Economia possível</th></tr></thead>',
+          '<th class="ps-num">Qtd. comprada</th><th class="ps-num">Custo médio ERP</th>',
+          '<th class="ps-num">Menor custo ERP</th><th>Registro do menor custo</th>',
+          '<th class="ps-num">Diferença teórica</th></tr></thead>',
           '<tbody id="ps-rows"></tbody></table></div>',
         '<div class="ps-table-foot"><span id="ps-showing"></span></div>',
-        '<p class="ps-note">O filtro de ano considera a data de cada compra; o menor preço de referência continua sendo o menor preço do histórico disponível, mesmo quando for de outro ano. Todos os registros do filtro aparecem na tabela. Clique em um produto para conferir as compras; em telas menores, deslize lateralmente (a coluna de economia permanece visível). ',
+        '<p class="ps-note">O filtro de ano considera a data da compra. A referência continua sendo o menor custo do histórico disponível, inclusive de outros anos. Clique em um produto para conferir os registros; em telas menores, deslize lateralmente (a coluna de diferença teórica permanece visível). ',
         'A economia é teórica e depende de disponibilidade, marca, especificação, frete, impostos e condições comerciais. ',
         'Pneus e câmaras de ar não entram nesta comparação, mas continuam nas compras por mês.</p>',
       '</div>',
@@ -219,16 +222,16 @@
       '</strong><p class="ps-small">Comparação de ',integer.format(r.count),
       ' compra(s) acima do preço de referência. Melhor preço: ',money.format(r.reference.preco),
       ' · ',esc(r.reference.fornecedor),' · ',esc(r.reference.data),'</p>',
-      '<table><thead><tr><th>Data</th><th>Fornecedor pago</th><th>Nota</th>',
-      '<th class="ps-num">Quantidade</th><th class="ps-num">Preço pago</th>',
-      '<th class="ps-num">Preço referência</th><th class="ps-num">Diferença estimada</th></tr></thead>',
+      '<table><thead><tr><th>Data</th><th>Fornecedor da compra</th><th>Nota</th>',
+      '<th class="ps-num">Quantidade</th><th class="ps-num">Custo ERP</th>',
+      '<th class="ps-num">Menor custo ERP</th><th class="ps-num">Diferença teórica</th></tr></thead>',
       '<tbody>',lines,'</tbody></table></div></td>'
     ].join('');
     row.after(detail);row.setAttribute('aria-expanded','true');
   }
 
   function exportCsv(){
-    const headers=['Local','Codigo','Produto','Grupo','Unidade','Quantidade comprada','Preco medio pago','Menor preco historico','Fornecedor menor preco','Data menor preco','Economia potencial'];
+    const headers=['Local','Codigo','Produto','Grupo','Unidade','Quantidade comprada','Custo unitario medio ERP','Menor custo ERP','Fornecedor do registro menor custo','Data registro menor custo','Diferenca teorica nao auditada'];
     const safe=value=>{
       let s=String(value==null?'':value);
       if(/^[=+\-@\t\r]/.test(s))s="'"+s;
@@ -256,6 +259,17 @@
     previousFocus=focusBefore();previousOverflow=document.body.style.overflow;
     search.value='';year.value='';local.value='';group.value='';
     refresh();layer.classList.add('ps-open');document.body.style.overflow='hidden';search.focus();
+  }
+  // Avisar nas duas métricas principais sem alterar seus valores exibidos.
+  for(const id of ['kEconomiaPotencial','kEconomiaPct']){
+    const metric=document.getElementById(id);
+    const parent=metric?.closest('.card');
+    if(parent && !parent.querySelector('.ps-audit-caption')){
+      const hint=document.createElement('span');
+      hint.className='ps-audit-caption';
+      hint.textContent='Simulação por custo ERP · não auditada';
+      parent.appendChild(hint);
+    }
   }
   card.classList.add('ps-kpi-action');
   card.setAttribute('role','button');card.setAttribute('tabindex','0');
