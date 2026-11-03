@@ -1,7 +1,7 @@
 name: Dashboard performance regression
 on:
   push:
-    branches: [main, perf/initial-load-20261008, perf/initial-load-20261015, perf/purchases-20261015, feature/estoque-sem-baixas-20261015, data/estoque-20261015-1340, feature/stock-maximum-20261103, feature/analise-unificada-min-max-20261103, feature/cascade-colors-stock-20261103, feature/db-colors-withdrawals-20261103, feature/compact-stock-summary-20261103, feature/full-width-withdrawal-sorting-20261103, feature/horizontal-columns-no-purchase-value-20261103]
+    branches: [main, perf/initial-load-20261008, perf/initial-load-20261015, perf/purchases-20261015, feature/estoque-sem-baixas-20261015, data/estoque-20261015-1340, feature/stock-maximum-20261103, feature/analise-unificada-min-max-20261103, feature/cascade-colors-stock-20261103, feature/db-colors-withdrawals-20261103, feature/compact-stock-summary-20261103, feature/full-width-withdrawal-sorting-20261103, feature/horizontal-columns-no-purchase-value-20261103, feature/min-max-screenshot-layout-20261103]
 permissions:
   contents: read
 jobs:

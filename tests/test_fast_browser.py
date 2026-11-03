@@ -301,7 +301,11 @@ with sync_playwright() as p:
             assert len(meta4['locations'])==10
             panel=page.locator('#db-stock-maximum')
             assert panel.is_visible(), 'Unified dashboard should be the only visible stock analysis'
-            assert panel.get_by_text('Análise integrada de estoque · Mínimo e Máximo', exact=True).count()==1
+            assert panel.get_by_text('Estoque mínimo / Estoque máximo', exact=True).count()==1
+            assert page.locator('.tab[data-view="minimo"]').inner_text().strip()=='Estoque mínimo / Estoque máximo'
+            assert page.locator('.clean-sub-btn[data-view="minimo"]').inner_text().strip()=='Estoque mínimo / Estoque máximo'
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.screenshotCardLayout") is True
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.tabLabel") == 'Estoque mínimo / Estoque máximo'
             assert panel.locator('.dbmx-kpi').count()==6
             assert panel.locator('#dbmx-months').input_value()=='4'
             assert panel.locator('#dbmx-year').input_value()==''
@@ -348,13 +352,40 @@ with sync_playwright() as p:
             assert local_rows.first.locator('.dbmx-name').count()==1
             assert local_rows.first.locator('.dbmx-metric--need').count()==1
             assert local_rows.first.locator('.dbmx-metric--excess').count()==1
-            assert 'Repor' in local_rows.first.locator('.dbmx-metric--need').inner_text()
-            assert 'Excedente' in local_rows.first.locator('.dbmx-metric--excess').inner_text()
+            assert 'REPOR' in local_rows.first.locator('.dbmx-metric--need').inner_text().upper()
+            assert 'EXCEDENTE' in local_rows.first.locator('.dbmx-metric--excess').inner_text().upper()
             assert 'R$' in local_rows.first.locator('.dbmx-metric--need').inner_text()
             assert 'R$' in local_rows.first.locator('.dbmx-metric--excess').inner_text()
             assert 'Qtd. baixada' not in local_rows.first.inner_text()
             assert 'Sem histórico' not in local_rows.first.inner_text()
             assert 'Adequado' not in local_rows.first.inner_text()
+            assert panel.locator('.dbmx-list-heading').count()==1
+            assert panel.locator('.dbmx-list-heading h3').inner_text()=='1. Almoxarifados'
+            card_styles=page.evaluate("""() => {
+                const card=document.querySelector('#db-stock-maximum .dbmx-local');
+                const name=card.querySelector('.dbmx-name');
+                const need=card.querySelector('.dbmx-metric--need');
+                const excess=card.querySelector('.dbmx-metric--excess');
+                const rect=card.getBoundingClientRect();
+                const needRect=need.getBoundingClientRect();
+                const excessRect=excess.getBoundingClientRect();
+                return {
+                  bg:getComputedStyle(card).backgroundColor,
+                  border:getComputedStyle(card).borderStyle,
+                  radius:getComputedStyle(card).borderRadius,
+                  grid:getComputedStyle(card).display,
+                  metricBg:getComputedStyle(need).backgroundColor,
+                  metricBorder:getComputedStyle(need).borderLeftStyle,
+                  aligned:needRect.left>name.getBoundingClientRect().left&&excessRect.left>needRect.left,
+                  width:rect.width
+                };
+              }""")
+            assert card_styles['bg']=='rgb(255, 255, 255)', card_styles
+            assert card_styles['border']=='solid', card_styles
+            assert card_styles['grid']=='grid' and card_styles['width']>700, card_styles
+            assert card_styles['metricBg']=='rgba(0, 0, 0, 0)', card_styles
+            assert card_styles['metricBorder'] in ('none','hidden'), card_styles
+            assert card_styles['aligned'], card_styles
             assert all('withdrawalTotals' in x for x in
                        page.evaluate("window.DB_STOCK_UNIFIED.meta.locations"))
             brand_visual=page.evaluate("""() => ({
@@ -368,6 +399,8 @@ with sync_playwright() as p:
             panel.locator('.dbmx-local').first.click()
             assert panel.locator('.dbmx-detail').count()==1
             assert panel.locator('.dbmx-group').count()>0
+            assert panel.locator('.dbmx-inner-heading').count()==1
+            assert panel.locator('.dbmx-inner-heading h3').inner_text()=='Grupos de produtos'
             assert panel.locator('.dbmx-local-block').first.locator(':scope > .dbmx-detail').count()==1
             assert panel.locator('.dbmx-local-block').first.locator(':scope > .dbmx-detail .dbmx-group').count()>0
             assert panel.locator('.dbmx-products').count()==0
