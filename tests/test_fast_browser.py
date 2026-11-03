@@ -284,22 +284,35 @@ with sync_playwright() as p:
             locs=page.evaluate("window.DB_MINIMUM_LOCALS_COVERAGE_META")
             assert locs['needLocals']==4 and locs['noNeedLocals']==6, locs
             assert locs['below']==1075 and abs(locs['amount']-119999.63)<0.02, locs
-            assert page.locator('#db-minimum-all-locals .dl-row').count()==10
-            assert locs['chartRows']==10 and locs['grouped'] and locs['estimatedByItem'], locs
-            assert page.locator('#db-minimum-all-locals .dl-chart').count()==2
-            assert page.locator('#db-minimum-all-locals .dl-chart:first-child .dl-chart-row').count()==10
-            assert page.locator('#db-minimum-all-locals .dl-chart:nth-child(2) .dl-chart-row').count()==10
 
+            assert locs['nativeReady'] is True and locs['duplicated'] is False, locs
+            assert locs['chartRows']==10 and locs['grouped'] and locs['estimatedByItem'], locs
             assert locs['above']>0 and locs['attention']>=0 and locs['unknown']>=0, locs
             assert sum(x['items'] for x in locs['items'])==locs['above']+locs['below']+locs['unknown'], locs
-            assert page.locator('#db-minimum-all-locals').get_by_text('No mínimo ou acima').count()>=1
-            page.locator('#db-minimum-all-locals button[data-minimum-local]').first.click()
-            assert page.locator('#db-minimum-all-locals .dl-detail tbody tr').count()>0
+            assert page.locator('#view-minimo .db-min-top-chart').count()==2
+            assert page.locator('#view-minimo .db-min-top-chart[data-db-min-chart="value"] .db-min-top-row').count()==10
+            assert page.locator('#view-minimo .db-min-top-chart[data-db-min-chart="count"] .db-min-top-row').count()==10
+            assert page.locator('#view-minimo').get_by_text('Necessidade de reposição por local', exact=True).count()==1
+            assert page.locator('#view-minimo').get_by_text('Itens abaixo do mínimo por local', exact=True).count()==1
+            assert page.locator('#db-minimum-all-locals').is_hidden()
+            assert page.locator('#db-minimum-all-locals .dl-chart').count()==0
+            c=page.locator('#view-minimo .db-min-top-chart[data-db-min-chart="value"] .db-min-top-row')
+            assert 'CDI DE PECAS CHUA' in c.first.inner_text()
+            assert 'R$' in c.first.inner_text()
+            assert 'R$ 0,00' in c.last.inner_text()
+            c.first.click()
+            assert page.locator('#db-minimum-all-locals').is_visible()
             assert page.locator('#db-minimum-all-locals .dl-group').count()>0
+            assert page.locator('#db-minimum-all-locals .dl-detail tbody tr').count()>0
             assert page.locator('#db-minimum-all-locals th').get_by_text('Total estimado da compra').count()>0
             assert page.locator('#db-minimum-all-locals .dl-detail').get_by_text('Custo unit. ERP').count()>0
-            page.locator('#db-minimum-all-locals button[data-minimum-local]').first.click()
-            assert page.locator('#db-minimum-all-locals .dl-detail').count()==0
+            page.locator('#db-minimum-all-locals button[data-minimum-close]').click()
+            assert page.locator('#db-minimum-all-locals').is_hidden()
+            page.locator('#view-minimo .db-min-top-chart[data-db-min-chart="count"] .db-min-top-row').last.click()
+            assert page.locator('#db-minimum-all-locals').is_visible()
+            assert 'R$ 0,00' in page.locator('#db-minimum-all-locals .dl-selected-head').inner_text()
+            page.locator('#db-minimum-all-locals button[data-minimum-close]').click()
+            assert page.locator('#db-minimum-all-locals').is_hidden()
             # A aba e criada dinamicamente antes do layout e usa o historico reconciliado.
             assert page.locator('.clean-sub-btn[data-view="sem-baixas"]').count() >= 0
             page.locator('.tab[data-view="sem-baixas"]').evaluate('(el)=>el.click()')

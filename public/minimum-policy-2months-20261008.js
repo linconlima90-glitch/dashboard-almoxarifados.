@@ -260,74 +260,117 @@
         '<div class="dl-subtotal">Total estimado deste almoxarifado: <b>'+br(d.amount)+'</b>'+
         (d.uncosted?' · '+n0(d.uncosted)+' itens sem custo cadastrado (fora deste valor)':'')+'</div></div>';
     }
+
+    // Usa exclusivamente os dois cartoes visuais do topo, com todas as unidades.
+    // Os grupos e produtos sao montados apenas quando o usuario seleciona um local.
     function chartRows(type){
       const max=Math.max(1,...entries.map(d=>type==='value'?d.amount:d.critical));
       return entries.map(d=>{
         const val=type==='value'?d.amount:d.critical;
-        const width=(100*val/max).toFixed(2)+'%';
-        return '<button class="dl-chart-row" data-minimum-chart="'+esc(d.local)+'" type="button" '+
-          'aria-label="Abrir grupos de '+esc(d.local)+'">'+
-          '<span class="dl-chart-label" title="'+esc(d.local)+'">'+esc(d.local)+'</span>'+
-          '<span class="dl-track"><span class="dl-fill '+(type==='value'?'dl-fill-value':'dl-fill-count')+
+        const width=Math.max(0,Math.min(100,100*val/max)).toFixed(2)+'%';
+        return '<button class="db-min-top-row" type="button" data-minimum-chart="'+esc(d.local)+'" '+
+          'aria-expanded="'+(expandedMinimumLocal===d.local)+'" '+
+          'aria-label="Abrir grupos e produtos de '+esc(d.local)+'">'+
+          '<span class="db-min-top-local" title="'+esc(d.local)+'">'+esc(d.local)+'</span>'+
+          '<span class="db-min-top-track"><span class="db-min-top-fill '+(type==='value'?'db-min-value':'db-min-count')+
           '" style="width:'+width+'"></span></span>'+
-          '<strong class="dl-chart-val">'+(type==='value'?br(val):n0(val))+'</strong></button>';
+          '<strong class="db-min-top-number">'+(type==='value'?br(val):n0(val))+'</strong></button>';
       }).join('');
     }
-    const charts='<div class="dl-charts">'+
-      '<section class="dl-chart"><h4>Necessidade de reposição por local</h4>'+
-      '<p>Todos os almoxarifados, inclusive valores zerados.</p>'+chartRows('value')+'</section>'+
-      '<section class="dl-chart"><h4>Itens abaixo do mínimo por local</h4>'+
-      '<p>Mesma ordem: maior valor de reposição primeiro.</p>'+chartRows('count')+'</section></div>';
-    let panel=document.getElementById('db-minimum-all-locals');
-    if(!panel){
-      panel=document.createElement('section');panel.id='db-minimum-all-locals';
-      panel.addEventListener('click',event=>{
-        const button=event.target.closest('[data-minimum-local],[data-minimum-chart]');
-        if(!button||!panel.contains(button))return;
-        const local=button.dataset.minimumLocal||button.dataset.minimumChart;
-        expandedMinimumLocal=(expandedMinimumLocal===local&&button.hasAttribute('data-minimum-local'))?'':local;
+    function nativeChart(label,side){
+      const old=view.querySelector('[data-db-min-top-card="'+side+'"]');
+      if(old)return old;
+      const labelNorm=norm(label);
+      const other=norm(side==='value'?'Itens abaixo do mínimo por local':'Necessidade de reposição por local');
+      const titles=[...view.querySelectorAll('h2,h3,h4,strong,b,span,.card-title,.chart-title')];
+      const heading=titles.find(el=>!el.closest('#db-minimum-all-locals')&&
+        norm(el.textContent||'').trim()===labelNorm&&el.children.length===0);
+      if(!heading)return null;
+      let fallback=null;
+      for(let node=heading.parentElement;node&&node!==view;node=node.parentElement){
+        const content=norm(node.textContent||'');
+        if(content.includes(other))break;
+        if(entries.some(d=>content.includes(norm(d.local))))return node;
+        if(node.children.length>1&&/(card|chart|panel)/i.test(String(node.className||'')))fallback=node;
+      }
+      return fallback;
+    }
+    function chartMarkup(type){
+      const value=type==='value';
+      return '<div class="db-min-top-chart" data-db-min-chart="'+type+'">'+
+        '<div class="db-min-top-head"><h3>'+(value?'Necessidade de reposição por local':'Itens abaixo do mínimo por local')+'</h3>'+
+        (value?'<span class="db-min-top-badge">Ordenado pelo maior valor de necessidade</span>':'')+
+        '</div><div class="db-min-top-list">'+chartRows(type)+'</div></div>';
+    }
+    let topValue=nativeChart('Necessidade de reposição por local','value');
+    let topCount=nativeChart('Itens abaixo do mínimo por local','count');
+    if(topValue===topCount){topValue=null;topCount=null;}
+    const nativeReady=!!(topValue&&topCount);
+    if(nativeReady){
+      topValue.dataset.dbMinTopCard='value';
+      topCount.dataset.dbMinTopCard='count';
+      topValue.innerHTML=chartMarkup('value');
+      topCount.innerHTML=chartMarkup('count');
+    }
+    if(!view.dataset.dbMinClicks){
+      view.dataset.dbMinClicks='1';
+      view.addEventListener('click',event=>{
+        const btn=event.target.closest('button[data-minimum-chart],button[data-minimum-close]');
+        if(!btn||!view.contains(btn))return;
+        event.preventDefault();
+        expandedMinimumLocal=btn.hasAttribute('data-minimum-close')?'':(
+          expandedMinimumLocal===btn.dataset.minimumChart?'':btn.dataset.minimumChart);
         patchMinimumLocations();
-        if(button.hasAttribute('data-minimum-chart')){
-          const target=[...panel.querySelectorAll('.dl-row')].find(el=>el.dataset.minimumRow===local);
-          if(target)target.scrollIntoView({block:'center',behavior:'smooth'});
+        if(expandedMinimumLocal){
+          const p=document.getElementById('db-minimum-all-locals');
+          if(p&&!p.hidden)p.scrollIntoView({behavior:'smooth',block:'nearest'});
         }
       });
-      const note=[...view.querySelectorAll('.notice')].find(x=>x.textContent.includes('Regra do estoque mínimo'));
+    }
+    let panel=document.getElementById('db-minimum-all-locals');
+    if(!panel){
+      panel=document.createElement('section');
+      panel.id='db-minimum-all-locals';
+    }
+    if(nativeReady){
+      const host=topValue.parentElement===topCount.parentElement?topValue.parentElement:topCount;
+      if(panel.previousElementSibling!==host)host.after(panel);
+    }else if(!panel.isConnected){
+      const note=[...view.querySelectorAll('.notice')].find(el=>el.textContent.includes('Regra do estoque mínimo'));
       if(note)note.before(panel);else view.appendChild(panel);
     }
     if(!document.getElementById('db-minimum-all-locals-style')){
-      const style=document.createElement('style');style.id='db-minimum-all-locals-style';
+      const style=document.createElement('style');
+      style.id='db-minimum-all-locals-style';
       style.textContent=[
+        '#view-minimo .db-min-top-chart{min-width:0}',
+        '#view-minimo .db-min-top-head{display:flex;justify-content:space-between;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}',
+        '#view-minimo .db-min-top-head h3{font-size:13px;color:#145231;margin:0;font-weight:850}',
+        '#view-minimo .db-min-top-badge{color:#15518c;background:#edf4ff;border-radius:22px;padding:5px 9px;font-size:10px;font-weight:800}',
+        '#view-minimo .db-min-top-list{max-height:510px;overflow:auto;padding-right:4px}',
+        '#view-minimo .db-min-top-row{display:grid;grid-template-columns:minmax(165px,2.5fr) minmax(130px,5fr) minmax(94px,1.4fr);gap:10px;align-items:center;width:100%;min-width:415px;min-height:34px;padding:5px 0;border:0;background:transparent;text-align:left;cursor:pointer;color:#2f3944;font-size:11px}',
+        '#view-minimo .db-min-top-row:hover,#view-minimo .db-min-top-row[aria-expanded="true"]{background:#f2f8f4}',
+        '#view-minimo .db-min-top-local{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+        '#view-minimo .db-min-top-track{height:16px;background:#e8eff8;border-radius:99px;overflow:hidden}',
+        '#view-minimo .db-min-top-fill{display:block;height:100%;border-radius:99px}',
+        '#view-minimo .db-min-value{background:linear-gradient(90deg,#f7c078,#df7c05)}',
+        '#view-minimo .db-min-count{background:linear-gradient(90deg,#6accc5,#15a09a)}',
+        '#view-minimo .db-min-top-number{font-size:11px;color:#0e497d;font-weight:850;text-align:right;white-space:nowrap}',
+        '#db-minimum-all-locals[hidden]{display:none!important}',
         '#db-minimum-all-locals{border:1px solid #d7e6db;border-radius:12px;background:#fff;margin:14px 0;overflow:hidden}',
-        '#db-minimum-all-locals .dl-head{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;padding:14px 16px}',
-        '#db-minimum-all-locals h3{color:#145b32;font-size:15px;margin:0}',
-        '#db-minimum-all-locals p{font-size:11px;color:#637568;line-height:1.5;margin:4px 0 8px}',
-        '#db-minimum-all-locals .dl-head strong{color:#145b32;font-size:12px}',
-        '#db-minimum-all-locals .dl-charts{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 14px 14px}',
-        '#db-minimum-all-locals .dl-chart{border:1px solid #d9e5dc;border-radius:10px;padding:12px;min-width:0}',
-        '#db-minimum-all-locals .dl-chart h4{margin:0 0 4px;font-size:12px;color:#175634}',
-        '#db-minimum-all-locals .dl-chart-row{width:100%;display:grid;grid-template-columns:minmax(125px,2fr) minmax(90px,3fr) minmax(82px,1.2fr);gap:8px;align-items:center;border:0;border-bottom:1px solid #eef2ef;background:transparent;text-align:left;padding:7px 1px;cursor:pointer;font-size:10px;color:#365345}',
-        '#db-minimum-all-locals .dl-chart-row:hover{background:#f5faf6}',
-        '#db-minimum-all-locals .dl-chart-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-        '#db-minimum-all-locals .dl-track{height:10px;border-radius:8px;background:#e9eef0;overflow:hidden}',
-        '#db-minimum-all-locals .dl-fill{display:block;height:100%;border-radius:8px}',
-        '#db-minimum-all-locals .dl-fill-value{background:linear-gradient(90deg,#f9c27f,#dd8600)}',
-        '#db-minimum-all-locals .dl-fill-count{background:linear-gradient(90deg,#6ec5bd,#07968f)}',
-        '#db-minimum-all-locals .dl-chart-val{text-align:right;color:#244b37;font-size:10px;white-space:nowrap}',
-        '#db-minimum-all-locals .dl-columns,#db-minimum-all-locals .dl-row{display:grid;grid-template-columns:minmax(230px,3fr) minmax(100px,1fr) minmax(115px,1fr) minmax(85px,.8fr) minmax(145px,1.2fr);gap:10px;align-items:center;padding:11px 15px;font-size:11px}',
-        '#db-minimum-all-locals .dl-columns{background:#edf6f0;font-size:10px;font-weight:bold;color:#4b7357}',
-        '#db-minimum-all-locals .dl-row{border-top:1px solid #e9efeb}',
-        '#db-minimum-all-locals .dl-row b{color:#26563b}',
-        '#db-minimum-all-locals .dl-row small{display:block;font-size:10px;color:#607a6a;margin-top:4px}',
+        '#db-minimum-all-locals .dl-selected-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding:14px 16px}',
+        '#db-minimum-all-locals .dl-selected-head h3{font-size:14px;color:#145b32;margin:0}',
+        '#db-minimum-all-locals .dl-selected-head small{display:block;margin-top:5px;color:#637568;font-size:10px}',
+        '#db-minimum-all-locals .dl-open{border:1px solid #bddbc7;border-radius:6px;background:#e8f4ed;color:#145b32;padding:7px 10px;font-size:10px;cursor:pointer}',
         '#db-minimum-all-locals .dl-risk{color:#b23b33;font-weight:700}',
         '#db-minimum-all-locals .dl-warn{color:#925c05;font-weight:700}',
         '#db-minimum-all-locals .dl-safe{color:#257544;font-weight:700}',
         '#db-minimum-all-locals .dl-na{color:#607a6a}',
-        '#db-minimum-all-locals .dl-open{margin-top:5px;background:#e8f4ed;color:#145b32;border:1px solid #bddbc7;padding:6px 9px;border-radius:6px;cursor:pointer;font-size:10px}',
         '#db-minimum-all-locals .dl-detail{padding:12px 15px 15px;border-top:1px solid #d7e6db;background:#f8fbf9}',
+        '#db-minimum-all-locals .dl-detail p{font-size:11px;color:#637568;line-height:1.5;margin:4px 0 8px}',
         '#db-minimum-all-locals .dl-groups{display:grid;gap:8px;padding-top:9px}',
         '#db-minimum-all-locals .dl-group{border:1px solid #d5e3d9;border-radius:8px;overflow:hidden;background:#fff}',
-        '#db-minimum-all-locals .dl-group summary{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;cursor:pointer;background:#eef6f0;padding:10px 12px;font-size:11px;color:#165730}',
+        '#db-minimum-all-locals .dl-group summary{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;align-items:center;cursor:pointer;background:#eef6f0;padding:10px 12px;font-size:11px;color:#165730}',
         '#db-minimum-all-locals .dl-group summary span{font-size:10px;color:#5b7463}',
         '#db-minimum-all-locals .dl-scroll{overflow-x:auto;max-height:440px;overflow-y:auto;background:#fff}',
         '#db-minimum-all-locals table{border-collapse:collapse;width:100%;min-width:1170px;font-size:10px}',
@@ -335,37 +378,30 @@
         '#db-minimum-all-locals th{position:sticky;top:0;background:#edf6f0;color:#315e3f;z-index:1}',
         '#db-minimum-all-locals td.dl-num{text-align:right;white-space:nowrap}',
         '#db-minimum-all-locals .dl-subtotal{padding-top:10px;font-size:11px;color:#395946}',
-        '#db-minimum-all-locals .dl-foot{padding:10px 15px 14px;border-top:1px solid #e5ede6}',
-        '@media(max-width:1050px){#db-minimum-all-locals .dl-charts{grid-template-columns:1fr}}',
-        '@media(max-width:700px){#db-minimum-all-locals .dl-columns{display:none}#db-minimum-all-locals .dl-row{grid-template-columns:1fr 1fr}#db-minimum-all-locals .dl-row>div:first-child{grid-column:span 2}#db-minimum-all-locals .dl-row>div:last-child{grid-column:span 2}#db-minimum-all-locals .dl-chart-row{grid-template-columns:minmax(100px,2fr) minmax(60px,2fr) minmax(75px,1fr)}}'
-      ].join('\n');document.head.appendChild(style);
+        '#db-minimum-all-locals .dl-foot{padding:10px 15px 14px;border-top:1px solid #e5ede6;font-size:10px;line-height:1.5;color:#627669}',
+        '@media(max-width:750px){#view-minimo .db-min-top-row{min-width:410px}}'
+      ].join('\n');
+      document.head.appendChild(style);
     }
-    panel.innerHTML='<div class="dl-head"><div><h3>Estoque mínimo por almoxarifado — gráficos e grupos</h3>'+
-      '<p>Locais em ordem decrescente de valor de reposição, inclusive os sem compras. Clique na barra ou abra um almoxarifado para consultar grupos e produtos.</p></div>'+
-      '<strong>'+n0(positive.length)+' com reposição · '+n0(entries.length-positive.length)+' sem reposição</strong></div>'+
-      charts+
-      '<div class="dl-columns"><span>Almoxarifado / grupos</span><span>Abaixo / sem estoque</span>'+
-      '<span>No mínimo ou acima</span><span>Sem histórico</span><span>Valor para repor</span></div>'+
-      entries.map(d=>'<div class="dl-row" data-minimum-row="'+esc(d.local)+'"><div><b>'+esc(d.local)+'</b><small>'+
-        n0(d.items)+' produtos · '+n0(d.need)+' a repor'+
-        (d.local==='CDI DE PECAS CHUA'?' · visão consolidada da rede':'')+'</small>'+
-        '<button type="button" class="dl-open" data-minimum-local="'+esc(d.local)+'" aria-expanded="'+(expandedMinimumLocal===d.local)+'">'+
-        (expandedMinimumLocal===d.local?'Fechar grupos':'Abrir grupos e produtos')+'</button></div>'+
-        '<div class="dl-risk">'+n0(d.critical)+'<small>Reposição</small></div>'+
-        '<div class="dl-safe">'+n0(d.above)+'<small>'+n0(d.attention)+' em atenção</small></div>'+
-        '<div class="dl-na">'+n0(d.unknown)+'</div>'+
-        '<div><b>'+br(d.amount)+'</b>'+(d.uncosted?'<small>'+n0(d.uncosted)+' sem custo</small>':'')+'</div></div>'+
-        (expandedMinimumLocal===d.local?detail(d):'')).join('')+
-      '<p class="dl-foot"><b>Critérios:</b> reposição = diferença positiva entre mínimo de 2 meses e estoque atual. '+
-      'Estimativa de compra = quantidade a repor × custo unitário ERP (não é cotação). '+
-      'Itens a repor sem custo são sinalizados e não entram no valor. Itens sem histórico não geram compra presumida. '+
-      'Pneus, câmaras e cimento permanecem excluídos. '+
-      'CDI de Peças Chuá é visão da rede, com saldo compartilhado: não somar o valor com o Chuá físico.</p>';
+    const selected=entries.find(d=>d.local===expandedMinimumLocal);
+    panel.hidden=!selected;
+    if(selected){
+      panel.innerHTML='<div class="dl-selected-head"><div><h3>'+esc(selected.local)+'</h3>'+
+        '<small>'+n0(selected.items)+' produtos · '+n0(selected.need)+' a repor · '+
+        n0(selected.attention)+' em atenção · '+br(selected.amount)+' estimados</small></div>'+
+        '<button type="button" class="dl-open" data-minimum-close>Fechar detalhamento</button></div>'+
+        detail(selected)+
+        '<p class="dl-foot">Cálculo: diferença positiva entre estoque mínimo de 2 meses e saldo atual, '+
+        'multiplicada pelo custo ERP. Itens sem custo registrado não entram na estimativa. '+
+        'Pneus, câmaras e cimento estão excluídos. CDI de Peças Chuá é uma visão da rede, '+
+        'com estoque compartilhado: não somar ao Chuá físico.</p>';
+    }else if(panel.innerHTML)panel.innerHTML='';
     window.DB_MINIMUM_LOCALS_COVERAGE_META={
       totalLocals:entries.length,needLocals:positive.length,noNeedLocals:entries.length-positive.length,
       below:entries.reduce((a,x)=>a+x.critical,0),above:entries.reduce((a,x)=>a+x.above,0),
       attention:entries.reduce((a,x)=>a+x.attention,0),unknown:entries.reduce((a,x)=>a+x.unknown,0),
       amount:entries.reduce((a,x)=>a+x.amount,0),chartRows:entries.length,grouped:true,estimatedByItem:true,
+      nativeReady,duplicated:false,selectedLocal:expandedMinimumLocal,
       items:entries.map(x=>({local:x.local,items:x.items,need:x.need,below:x.critical,
         above:x.above,attention:x.attention,unknown:x.unknown,uncosted:x.uncosted,amount:x.amount}))
     };
