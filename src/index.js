@@ -95,7 +95,8 @@ class DashboardInjector {
       '<script src="/stock-latest-data.js?v=20260908-1530"></script>' +
       '<script src="/stock-latest.js?v=20260908-1530"></script>' +
       '<script src="/purchase-data-20261030.js?v=20261030-1553"></script>' +
-      '<script src="/purchase-update.js?v=20261030-1553"></script>' +
+      '<script src="/audited-purchases-20261103-data.js?v=20261103-auditoria-aprovada"></script>' +
+      '<script src="/purchase-update.js?v=20261103-auditoria-aprovada"></script>' +
       '<script src="/purchase-variation.js?v=20260908-2"></script>' +
       '<script src="/purchase-savings-detail.js?v=20261103-1"></script>' +
       '<script src="/quote-update-newfix-45978601.js?v=20260908"></script>' +
