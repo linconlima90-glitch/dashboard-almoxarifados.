@@ -324,11 +324,40 @@ with sync_playwright() as p:
             panel.locator('#dbmx-months').select_option('4')
             page.wait_for_function("window.DB_STOCK_UNIFIED.meta.months===4")
             panel.locator('#dbmx-mode').select_option('all')
+            assert panel.locator('.dbmx-legend--need').count()==1
+            assert panel.locator('.dbmx-legend--excess').count()==1
+            assert panel.locator('.dbmx-legend--ok').count()==1
+            assert panel.locator('.dbmx-legend--history').count()==1
+            assert panel.get_by_text('Roxo: sem baixas / histórico insuficiente', exact=True).count()==1
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.inlineCascade") is True
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.colorCoding") is True
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.statusColors") == {
+                'need':'red','excess':'blue','ok':'green','history':'purple'}
             panel.locator('.dbmx-local').first.click()
             assert panel.locator('.dbmx-detail').count()==1
             assert panel.locator('.dbmx-group').count()>0
+            assert panel.locator('.dbmx-local-block').first.locator(':scope > .dbmx-detail').count()==1
+            assert panel.locator('.dbmx-local-block').first.locator(':scope > .dbmx-detail .dbmx-group').count()>0
+            assert panel.locator('.dbmx-products').count()==0
             panel.locator('.dbmx-group').first.click()
             assert panel.locator('.dbmx-scroll table').count()==1
+            assert panel.locator('.dbmx-group-wrap').first.locator(':scope > .dbmx-products').count()==1
+            assert panel.locator('.dbmx-state-summary').count()>0
+            assert panel.locator('.dbmx-status').count()>0
+            statuses=page.evaluate("""() => Array.from(document.querySelectorAll('#db-stock-maximum tbody tr'))
+                .map(row => ({kind:row.dataset.dbmxColor,label:row.querySelector('.dbmx-status')?.textContent||''}))
+                .filter(row=>row.kind)""")
+            assert all(x['kind'] in ['need','excess','ok','history'] for x in statuses),statuses
+            assert all(x['label'] in ['REPOR','EXCEDENTE DISPONÍVEL','ESTOQUE ADEQUADO',
+                'SEM BAIXAS','HISTÓRICO INSUFICIENTE'] for x in statuses),statuses
+            # Os produtos devem expandir abaixo do respectivo grupo, sem painel de detalhe apartado.
+            panel.locator('.dbmx-group').first.click()
+            assert panel.locator('.dbmx-products').count()==0
+            panel.locator('.dbmx-local').first.click()
+            assert panel.locator('.dbmx-detail').count()==0
+            panel.locator('.dbmx-local').first.click()
+            assert panel.locator('.dbmx-detail').count()==1
+            panel.locator('.dbmx-group').first.click()
             for header in ['Mínimo (2 meses)','Máximo (4 meses)','Saldo atual','Qtd. a repor',
                            'Valor a comprar','Qtd. excedente','Valor excedente','Custo unit. ERP']:
                 assert panel.get_by_text(header, exact=True).count()>0, header
