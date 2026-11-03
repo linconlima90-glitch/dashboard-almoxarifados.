@@ -386,6 +386,8 @@ with sync_playwright() as p:
             # Ordem por quantidade efetivamente baixada, nao por valor financeiro do excedente.
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.sortedByWithdrawalsDesc") is True
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.fullWidthProducts") is True
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.allProductColumnsHorizontal") is True
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.purchaseValueColumnHidden") is True
             def inspect_products_layout():
                 return page.evaluate("""() => {
                     const box=document.querySelector('#db-stock-maximum .dbmx-scroll');
@@ -403,24 +405,34 @@ with sync_playwright() as p:
                         count:rows.length,columns:cell.length,
                         lastColumn:!!last && last.getAttribute('data-label')==='Situação / possíveis transferências',
                         hasExcess:rows.some(r=>r.querySelector('[data-label="Valor excedente"]')),
-                        allCellsLabeled:rows.every(r=>[...r.querySelectorAll('td')].length===14&&
+                        allCellsLabeled:rows.every(r=>[...r.querySelectorAll('td')].length===13&&
                           [...r.querySelectorAll('td')].every(c=>c.hasAttribute('data-label'))),
+                        removedPurchaseValue: !table.textContent.includes('Valor a comprar'),
+                        headers:[...table.querySelectorAll('th')].length,
                         boxScrollHorizontal:box.scrollWidth>box.clientWidth+2,
                         tableFits:tableRect.right<=boxRect.right+2,
-                        mode:getComputedStyle(rows[0]).display
+                        tableMode:getComputedStyle(table).display,
+                        rowMode:getComputedStyle(rows[0]).display,
+                        headerMode:getComputedStyle(table.tHead).display
                     };
                 }""")
             layout1440=inspect_products_layout()
             assert layout1440['sorted'] and layout1440['count']>4,layout1440
-            assert layout1440['columns']==14 and layout1440['lastColumn'],layout1440
+            assert layout1440['columns']==13 and layout1440['lastColumn'],layout1440
+            assert layout1440['headers']==13 and layout1440['removedPurchaseValue'],layout1440
             assert layout1440['allCellsLabeled'] and layout1440['hasExcess'],layout1440
+            assert layout1440['tableMode']=='table' and layout1440['rowMode']=='table-row',layout1440
+            assert layout1440['headerMode']=='table-header-group',layout1440
             assert not layout1440['boxScrollHorizontal'] and layout1440['tableFits'],layout1440
             for test_width in (1700,1280,900,768):
                 page.set_viewport_size({'width':test_width,'height':1000})
                 page.wait_for_timeout(90)
                 current=inspect_products_layout()
                 assert current['count']==layout1440['count'] and current['sorted'],(test_width,current)
-                assert current['columns']==14 and current['allCellsLabeled'],(test_width,current)
+                assert current['columns']==13 and current['allCellsLabeled'],(test_width,current)
+                assert current['headers']==13 and current['removedPurchaseValue'],(test_width,current)
+                assert current['tableMode']=='table' and current['rowMode']=='table-row',(test_width,current)
+                assert current['headerMode']=='table-header-group',(test_width,current)
                 assert not current['boxScrollHorizontal'] and current['tableFits'],(test_width,current)
             page.set_viewport_size({'width':1440,'height':1000})
             assert page.evaluate("""() => Array.from(document.querySelectorAll(
@@ -428,7 +440,7 @@ with sync_playwright() as p:
                   Array.isArray(JSON.parse(el.dataset.dbmxWithdrawn)))""")
             brand_rows=page.evaluate("""() => Array.from(document.querySelectorAll(
                 '#db-stock-maximum tbody tr')).map(el=>getComputedStyle(el).backgroundColor)""")
-            assert all(x in ('rgba(0, 0, 0, 0)','rgb(247, 250, 248)','rgb(255, 255, 255)') for x in brand_rows),brand_rows
+            assert all(x in ('rgba(0, 0, 0, 0)','rgb(247, 250, 248)','rgb(243, 249, 245)','rgb(255, 255, 255)') for x in brand_rows),brand_rows
             assert panel.locator('.dbmx-state-summary').count()==0
             assert panel.locator('.dbmx-status').count()>0
             statuses=page.evaluate("""() => Array.from(document.querySelectorAll('#db-stock-maximum tbody tr'))
@@ -446,8 +458,10 @@ with sync_playwright() as p:
             assert panel.locator('.dbmx-detail').count()==1
             panel.locator('.dbmx-group').first.click()
             for header in ['Mínimo (2 meses)','Máximo (4 meses)','Saldo atual','Qtd. a repor',
-                           'Valor a comprar','Qtd. excedente','Valor excedente','Custo unit. ERP']:
+                           'Qtd. excedente','Valor excedente','Custo unit. ERP']:
                 assert panel.get_by_text(header, exact=True).count()>0, header
+            assert panel.locator('.dbmx-scroll th').count()==13
+            assert panel.locator('.dbmx-scroll th', has_text='Valor a comprar').count()==0
             assert page.evaluate("window.STOCK_MINIMUM_MONTHS") == 2
             assert page.evaluate("window.DB_MINIMUM_LOCALS_COVERAGE_META.totalLocals") == 10
             panel.locator('#dbmx-year').select_option('2025')
