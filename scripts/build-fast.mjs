@@ -56,7 +56,7 @@ function minimumBaseRows(){
   const allowCdi=(!f.local||f.local===CDI_CHUA_LOCAL_VIEW||f.local===CDI_CHUA_NETWORK_VIEW)&&(!f.empresa||norm(CDI_CHUA_MIN_COMPANY).includes(norm(f.empresa)));
   const cdi=allowCdi?cdiNetworkAllRows().map(x=>({...x,local:CDI_CHUA_NETWORK_VIEW,network_scope:true}))
     .filter(x=>(!f.grupo||x.grupo===f.grupo)&&(!f.un||x.un===f.un)&&(!f.q||norm(x.produto).includes(f.q)||String(x.codigo).includes(f.q)||norm(x.grupo).includes(f.q))):[];
-  return regular.concat(cdi);
+  return regular.concat(cdi).filter(x => !(typeof window.DB_MINIMUM_EXCLUDED === 'function' && window.DB_MINIMUM_EXCLUDED(x)));
 }
 `);
 // Annual CDI demand must be selected by its scope flag, never by the physical
