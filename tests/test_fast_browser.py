@@ -278,87 +278,76 @@ with sync_playwright() as p:
                 page.wait_for_timeout(120)
                 assert page.locator('#view-' + view).evaluate("el=>el.classList.contains('active')"), view
 
-            # Todos os nove saldos ERP e o CDI virtual devem aparecer, inclusive seis sem reposicao.
+            # Analise unica: preserva o minimo, adiciona o maximo e elimina a duplicacao visual.
             page.locator('.tab[data-view="minimo"]').evaluate('(el)=>el.click()')
             page.wait_for_function("window.DB_MINIMUM_LOCALS_COVERAGE_META?.totalLocals===10", timeout=15000)
             locs=page.evaluate("window.DB_MINIMUM_LOCALS_COVERAGE_META")
             assert locs['needLocals']==4 and locs['noNeedLocals']==6, locs
             assert locs['below']==1075 and abs(locs['amount']-119999.63)<0.02, locs
-
             assert locs['nativeReady'] is True and locs['duplicated'] is False, locs
-            assert locs['chartRows']==10 and locs['grouped'] and locs['estimatedByItem'], locs
-            assert locs['above']>0 and locs['attention']>=0 and locs['unknown']>=0, locs
-            assert sum(x['items'] for x in locs['items'])==locs['above']+locs['below']+locs['unknown'], locs
+            # Graficos antigos permanecem no DOM para os renderizadores legados, mas invisiveis.
             assert page.locator('#view-minimo .db-min-top-chart').count()==2
-            assert page.locator('#view-minimo .db-min-top-chart[data-db-min-chart="value"] .db-min-top-row').count()==10
-            assert page.locator('#view-minimo .db-min-top-chart[data-db-min-chart="count"] .db-min-top-row').count()==10
-            # Os titulos originais continuam no DOM, mas ficam ocultos para compatibilidade.
-            assert page.locator('#view-minimo .db-min-top-chart').get_by_text('Necessidade de reposição por local', exact=True).count()==1
-            assert page.locator('#view-minimo .db-min-top-chart').get_by_text('Itens abaixo do mínimo por local', exact=True).count()==1
-            assert page.locator('#view-minimo [data-db-min-top-card="value"] > .db-min-top-host').count()==1
-            assert page.locator('#view-minimo [data-db-min-top-card="count"] > .db-min-top-host').count()==1
+            assert page.locator('#view-minimo .db-min-top-chart').first.is_hidden()
             assert page.locator('#db-minimum-all-locals').is_hidden()
-            assert page.locator('#db-minimum-all-locals .dl-chart').count()==0
-            c=page.locator('#view-minimo .db-min-top-chart[data-db-min-chart="value"] .db-min-top-row')
-            assert 'CDI DE PECAS CHUA' in c.first.inner_text()
-            assert 'R$' in c.first.inner_text()
-            assert 'R$ 0,00' in c.last.inner_text().replace('\u00a0',' ').replace('\u202f',' ')
-            c.first.click()
-            assert page.locator('#db-minimum-all-locals').is_visible()
-            assert page.locator('#db-minimum-all-locals .dl-group').count()>0
-            assert page.locator('#db-minimum-all-locals .dl-detail tbody tr').count()>0
-            assert page.locator('#db-minimum-all-locals th').get_by_text('Total estimado da compra').count()>0
-            assert page.locator('#db-minimum-all-locals .dl-detail').get_by_text('Custo unit. ERP').count()>0
-            page.locator('#db-minimum-all-locals button[data-minimum-close]').click()
-            assert page.locator('#db-minimum-all-locals').is_hidden()
-            page.locator('#view-minimo .db-min-top-chart[data-db-min-chart="count"] .db-min-top-row').last.click()
-            assert page.locator('#db-minimum-all-locals').is_visible()
-            assert 'R$ 0,00' in page.locator('#db-minimum-all-locals .dl-selected-head').inner_text().replace('\u00a0',' ').replace('\u202f',' ')
-            page.locator('#db-minimum-all-locals button[data-minimum-close]').click()
-            assert page.locator('#db-minimum-all-locals').is_hidden()
-            # Estoque maximo: mesma base ERP, 2 meses de minimo e teto regulavel em 3/4/6.
-            page.wait_for_function("window.DB_STOCK_MAXIMUM?.meta?.months===4", timeout=15000)
-            meta4=page.evaluate("window.DB_STOCK_MAXIMUM.meta")
+            page.wait_for_function("window.DB_STOCK_UNIFIED?.meta?.integrated===true", timeout=15000)
+            meta4=page.evaluate("window.DB_STOCK_UNIFIED.meta")
             assert meta4['warehouseCount']==10 and meta4['networkExcludedFromTotals'], meta4
             assert meta4['stockDate']=='03/11/2026 15:58:21', meta4
+            assert meta4['minimumMonths']==2 and meta4['months']==4, meta4
+            assert meta4['physicalNeedItems']>0 and meta4['physicalNeedValue']>0, meta4
             assert meta4['physicalExcessItems']>=0 and meta4['physicalExcessValue']>=0, meta4
             assert meta4['insufficientHistoryItems']>=0, meta4
             assert any(x['virtual'] for x in meta4['locations']), meta4
             assert len(meta4['locations'])==10
             panel=page.locator('#db-stock-maximum')
-            assert panel.get_by_text('Controle de estoque máximo', exact=True).count()==1
+            assert panel.is_visible(), 'Unified dashboard should be the only visible stock analysis'
+            assert panel.get_by_text('Análise integrada de estoque · Mínimo e Máximo', exact=True).count()==1
+            assert panel.locator('.dbmx-kpi').count()==6
             assert panel.locator('#dbmx-months').input_value()=='4'
             assert panel.locator('#dbmx-year').input_value()==''
+            assert panel.locator('#dbmx-mode').input_value()=='all'
             assert panel.locator('.dbmx-local').count()==10
+            assert all(x['needItems']>=0 and x['excessItems']>=0 for x in meta4['locations'])
+            assert abs(sum(x['needValue'] for x in meta4['locations'] if not x['virtual']) -
+                       meta4['physicalNeedValue'])<0.02, meta4
+            assert abs(sum(x['amount'] for x in meta4['locations'] if not x['virtual']) -
+                       meta4['physicalExcessValue'])<0.02, meta4
             panel.locator('#dbmx-months').select_option('3')
-            assert page.wait_for_function("window.DB_STOCK_MAXIMUM.meta.months===3")
-            meta3=page.evaluate("window.DB_STOCK_MAXIMUM.meta")
+            page.wait_for_function("window.DB_STOCK_UNIFIED.meta.months===3")
+            meta3=page.evaluate("window.DB_STOCK_UNIFIED.meta")
             panel.locator('#dbmx-months').select_option('6')
-            assert page.wait_for_function("window.DB_STOCK_MAXIMUM.meta.months===6")
-            meta6=page.evaluate("window.DB_STOCK_MAXIMUM.meta")
+            page.wait_for_function("window.DB_STOCK_UNIFIED.meta.months===6")
+            meta6=page.evaluate("window.DB_STOCK_UNIFIED.meta")
             assert meta3['physicalExcessItems']>=meta4['physicalExcessItems']>=meta6['physicalExcessItems'], (meta3,meta4,meta6)
             assert meta3['physicalExcessValue']+0.05>=meta4['physicalExcessValue']>=meta6['physicalExcessValue']-0.05, (meta3,meta4,meta6)
+            assert abs(meta3['physicalNeedValue']-meta6['physicalNeedValue'])<0.01
             panel.locator('#dbmx-months').select_option('4')
-            page.wait_for_function("window.DB_STOCK_MAXIMUM.meta.months===4")
+            page.wait_for_function("window.DB_STOCK_UNIFIED.meta.months===4")
             panel.locator('#dbmx-mode').select_option('all')
             panel.locator('.dbmx-local').first.click()
             assert panel.locator('.dbmx-detail').count()==1
             assert panel.locator('.dbmx-group').count()>0
             panel.locator('.dbmx-group').first.click()
             assert panel.locator('.dbmx-scroll table').count()==1
-            assert panel.get_by_text('Custo unit. ERP', exact=True).count()>0
-            assert panel.get_by_text('Qtd. excedente', exact=True).count()>0
+            for header in ['Mínimo (2 meses)','Máximo (4 meses)','Saldo atual','Qtd. a repor',
+                           'Valor a comprar','Qtd. excedente','Valor excedente','Custo unit. ERP']:
+                assert panel.get_by_text(header, exact=True).count()>0, header
             assert page.evaluate("window.STOCK_MINIMUM_MONTHS") == 2
             assert page.evaluate("window.DB_MINIMUM_LOCALS_COVERAGE_META.totalLocals") == 10
             panel.locator('#dbmx-year').select_option('2025')
-            page.wait_for_function("window.DB_STOCK_MAXIMUM.meta.year==='2025'")
+            page.wait_for_function("window.DB_STOCK_UNIFIED.meta.year==='2025'")
             panel.locator('#dbmx-year').select_option('2026')
-            page.wait_for_function("window.DB_STOCK_MAXIMUM.meta.year==='2026'")
+            page.wait_for_function("window.DB_STOCK_UNIFIED.meta.year==='2026'")
             panel.locator('#dbmx-year').select_option('')
-            page.wait_for_function("window.DB_STOCK_MAXIMUM.meta.year==='2025+2026'")
+            page.wait_for_function("window.DB_STOCK_UNIFIED.meta.year==='2025+2026'")
             panel.locator('#dbmx-mode').select_option('unknown')
-            assert panel.get_by_text('Sem histórico confiável', exact=True).count()>=1
+            assert panel.get_by_text('Revisar histórico', exact=True).count()>=1
+            panel.locator('#dbmx-mode').select_option('need')
+            assert panel.get_by_text('Precisa repor', exact=True).count()>=1
             panel.locator('#dbmx-mode').select_option('excess')
+            assert panel.get_by_text('Acima do máximo', exact=True).count()>=1
+            panel.locator('#dbmx-mode').select_option('all')
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.integrated") is True
 
             # A aba e criada dinamicamente antes do layout e usa o historico reconciliado.
             assert page.locator('.clean-sub-btn[data-view="sem-baixas"]').count() >= 0
