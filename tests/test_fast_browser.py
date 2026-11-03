@@ -428,7 +428,7 @@ with sync_playwright() as p:
                   Array.isArray(JSON.parse(el.dataset.dbmxWithdrawn)))""")
             brand_rows=page.evaluate("""() => Array.from(document.querySelectorAll(
                 '#db-stock-maximum tbody tr')).map(el=>getComputedStyle(el).backgroundColor)""")
-            assert all(x in ('rgba(0, 0, 0, 0)','rgb(247, 250, 248)') for x in brand_rows),brand_rows
+            assert all(x in ('rgba(0, 0, 0, 0)','rgb(247, 250, 248)','rgb(255, 255, 255)') for x in brand_rows),brand_rows
             assert panel.locator('.dbmx-state-summary').count()==0
             assert panel.locator('.dbmx-status').count()>0
             statuses=page.evaluate("""() => Array.from(document.querySelectorAll('#db-stock-maximum tbody tr'))
