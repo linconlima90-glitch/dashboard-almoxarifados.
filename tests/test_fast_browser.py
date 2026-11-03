@@ -285,12 +285,19 @@ with sync_playwright() as p:
             assert locs['needLocals']==4 and locs['noNeedLocals']==6, locs
             assert locs['below']==1075 and abs(locs['amount']-119999.63)<0.02, locs
             assert page.locator('#db-minimum-all-locals .dl-row').count()==10
+            assert locs['chartRows']==10 and locs['grouped'] and locs['estimatedByItem'], locs
+            assert page.locator('#db-minimum-all-locals .dl-chart').count()==2
+            assert page.locator('#db-minimum-all-locals .dl-chart:first-child .dl-chart-row').count()==10
+            assert page.locator('#db-minimum-all-locals .dl-chart:nth-child(2) .dl-chart-row').count()==10
 
             assert locs['above']>0 and locs['attention']>=0 and locs['unknown']>=0, locs
             assert sum(x['items'] for x in locs['items'])==locs['above']+locs['below']+locs['unknown'], locs
             assert page.locator('#db-minimum-all-locals').get_by_text('No mínimo ou acima').count()>=1
             page.locator('#db-minimum-all-locals button[data-minimum-local]').first.click()
             assert page.locator('#db-minimum-all-locals .dl-detail tbody tr').count()>0
+            assert page.locator('#db-minimum-all-locals .dl-group').count()>0
+            assert page.locator('#db-minimum-all-locals th').get_by_text('Total estimado da compra').count()>0
+            assert page.locator('#db-minimum-all-locals .dl-detail').get_by_text('Custo unit. ERP').count()>0
             page.locator('#db-minimum-all-locals button[data-minimum-local]').first.click()
             assert page.locator('#db-minimum-all-locals .dl-detail').count()==0
             # A aba e criada dinamicamente antes do layout e usa o historico reconciliado.
