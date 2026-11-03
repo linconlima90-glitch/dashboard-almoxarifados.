@@ -2,7 +2,7 @@
 (function(){
   'use strict';
   if(window.DB_STOCK_UNIFIED)return;
-  const config={months:4,year:'',mode:'all',local:'',group:'',query:''};
+  const config={months:4,year:'',mode:'all',local:'',group:'',query:'',tableStatus:'all'};
   const n=v=>Number(v)||0;
   const str=v=>String(v??'');
   const norm=v=>str(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
@@ -256,12 +256,18 @@
     const cell=(label,html,classes='',attr='')=>
       '<td data-label="'+esc(label)+'" class="'+esc(classes)+'"'+attr+'>'+html+'</td>';
     return '<div class="dbmx-order-note">Produtos ordenados pela <strong>quantidade baixada: maior → menor</strong> · '+
-      'período selecionado. Valores por unidade de medida.</div>'+
+      'período selecionado. Valores por unidade de medida. '+
+      '<span class="dbmx-filter-count" aria-live="polite"></span></div>'+
       '<div class="dbmx-scroll"><table>'+colgroup+'<thead><tr>'+
       '<th>Código</th><th>Produto</th><th>UN</th><th>Qtd. baixada no período</th><th>Média/mês</th>'+
       '<th>Mínimo (2 meses)</th><th>Saldo atual</th><th>Máximo ('+config.months+' meses)</th>'+
       '<th>Qtd. a repor</th><th>Custo unit. ERP</th>'+
-      '<th>Qtd. excedente</th><th>Valor excedente</th><th>Situação / possíveis transferências</th>'+
+      '<th>Qtd. excedente</th><th>Valor excedente</th>'+
+      '<th class="dbmx-status-filter-th">Situação / possíveis transferências'+
+      '<select id="dbmx-table-status" aria-label="Filtrar por situação: Todos, Repor ou Excedente">'+
+      [['all','Todos'],['need','Repor'],['excess','Excedente']].map(([value,label])=>
+        '<option value="'+value+'"'+(config.tableStatus===value?' selected':'')+'>'+label+'</option>').join('')+
+      '</select></th>'+
       '</tr></thead><tbody>'+sorted.map(x=>{
         const note=x.transfer.length?' · Possível transferência para '+x.transfer
           .map(o=>o.local+' ('+qty(o.qty)+' '+x.un+')').join('; '):'';
@@ -290,7 +296,24 @@
             '<strong class="dbmx-status dbmx-status--'+kind+'">'+esc(statusLabel(x))+'</strong>'+
             (warning||explanation||note?'<small class="dbmx-status-help">'+esc(warning+explanation+note.trim())+'</small>':''),'dbmx-status-cell')+
           '</tr>';
-      }).join('')+'</tbody></table></div>';
+      }).join('')+'</tbody></table></div>'+
+      '<p class="dbmx-filter-empty" hidden>Nenhum produto nesta situação neste grupo.</p>';
+  }
+
+  // Filtro somente na tabela aberta. Nao muda totais, calculos nem filtros gerais.
+  function filterProductRows(panel){
+    const rows=[...panel.querySelectorAll('.dbmx-products .dbmx-scroll tbody tr[data-dbmx-color]')];
+    if(!rows.length)return;
+    let visible=0;
+    for(const row of rows){
+      const show=config.tableStatus==='all'||row.dataset.dbmxColor===config.tableStatus;
+      row.hidden=!show;
+      if(show)visible++;
+    }
+    const count=panel.querySelector('.dbmx-filter-count');
+    if(count)count.textContent='Mostrando '+int(visible)+' de '+int(rows.length)+' produtos';
+    const empty=panel.querySelector('.dbmx-filter-empty');
+    if(empty)empty.hidden=visible!==0;
   }
 
   function ensurePanel(){
@@ -312,11 +335,16 @@
       panel.dataset.dbmxEvents='1';
       panel.addEventListener('change',e=>{
         const target=e.target;
+        if(target.id==='dbmx-table-status'){
+          config.tableStatus=['all','need','excess'].includes(target.value)?target.value:'all';
+          filterProductRows(panel);
+          return;
+        }
         if(target.id==='dbmx-months')config.months=[3,4,6].includes(Number(target.value))?Number(target.value):4;
         else if(target.id==='dbmx-year')config.year=['2025','2026'].includes(target.value)?target.value:'';
         else if(target.id==='dbmx-mode')config.mode=['all','actions','need','excess','unknown'].includes(target.value)?target.value:'all';
         else return;
-        config.group='';render();
+        config.group='';config.tableStatus='all';render();
       });
       panel.addEventListener('input',e=>{
         if(e.target.id!=='dbmx-search')return;
@@ -325,9 +353,9 @@
       });
       panel.addEventListener('click',e=>{
         const local=e.target.closest('button[data-dbmx-local]');
-        if(local){config.local=config.local===local.dataset.dbmxLocal?'':local.dataset.dbmxLocal;config.group='';render();return;}
+        if(local){config.local=config.local===local.dataset.dbmxLocal?'':local.dataset.dbmxLocal;config.group='';config.tableStatus='all';render();return;}
         const group=e.target.closest('button[data-dbmx-group]');
-        if(group){config.group=config.group===group.dataset.dbmxGroup?'':group.dataset.dbmxGroup;render();return;}
+        if(group){config.group=config.group===group.dataset.dbmxGroup?'':group.dataset.dbmxGroup;config.tableStatus='all';render();return;}
       });
     }
     if(!document.getElementById('db-stock-unified-css')){
@@ -473,6 +501,12 @@
         '#db-stock-maximum .dbmx-scroll th{padding:8px 4px;background:var(--db-green-deep,#0d4726);color:#fff}',
         '#db-stock-maximum .dbmx-scroll tbody tr:nth-child(2n){background:var(--db-green-pale,#f3f9f5)!important}',
         '#db-stock-maximum .dbmx-scroll tbody tr:nth-child(2n+1){background:#fff!important}',
+        '#db-stock-maximum .dbmx-scroll tbody tr[hidden]{display:none!important}',
+        '#db-stock-maximum .dbmx-scroll th.dbmx-status-filter-th{vertical-align:middle}',
+        '#db-stock-maximum .dbmx-scroll th #dbmx-table-status{box-sizing:border-box;display:block;min-width:0;width:100%;max-width:100%;min-height:25px!important;margin:6px 0 0;padding:2px 3px!important;border-radius:5px;border:1px solid #a7cfb6;background:#fff;color:var(--db-green-deep,#0d4726);font-size:10px;font-weight:750;line-height:1.3;cursor:pointer}',
+        '#db-stock-maximum .dbmx-scroll th #dbmx-table-status:focus-visible{outline:2px solid var(--db-yellow,#faca04);outline-offset:1px}',
+        '#db-stock-maximum .dbmx-filter-count{font-weight:700;color:var(--db-green-dark,#125c31)}',
+        '#db-stock-maximum .dbmx-filter-empty{margin:9px 0 0;padding:9px 10px;border:1px solid var(--db-line,#d8e4dc);background:#fff;font-size:11px;color:var(--db-muted,#67716b)}',
         '@media(max-width:1320px){#db-stock-maximum .dbmx-scroll th{font-size:9px;padding:6px 2px}#db-stock-maximum .dbmx-scroll td{font-size:10px;padding:6px 2px}}',
         '@media(max-width:920px){#db-stock-maximum .dbmx-scroll th{font-size:8px;padding:5px 1px}#db-stock-maximum .dbmx-scroll td{font-size:9px;padding:5px 1px}#db-stock-maximum .dbmx-scroll .dbmx-status{padding:2px 3px;font-size:8px}}',
         '@media(max-width:900px){#db-stock-maximum .dbmx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#db-stock-maximum .dbmx-local,#db-stock-maximum .dbmx-group{min-width:640px}#db-stock-maximum .dbmx-list,#db-stock-maximum .dbmx-detail{overflow-x:auto}}',
@@ -604,6 +638,7 @@
       input?.focus();
       try{input?.setSelectionRange(caret,caret);}catch(e){}
     }
+    filterProductRows(panel);
     const meta={
       months:config.months,year:config.year||'2025+2026',stockDate:window.CURRENT_STOCK_META?.emissao||'',
       warehouseCount:locals.length,networkExcludedFromTotals:true,
@@ -613,6 +648,7 @@
       insufficientHistoryItems:manual.length,missingCostItems:missingExcess,
       minimumMonths:2,integrated:true,inlineCascade:true,colorCoding:true,brandPalette:'DB verde/amarelo',
       compactSummary:true,withdrawalDetailOnly:true,sortedByWithdrawalsDesc:true,fullWidthProducts:true,
+      columnStatusFilter:true,columnStatusOptions:['all','need','excess'],
       screenshotCardLayout:true,tabLabel:'Estoque mínimo / Estoque máximo',
       allProductColumnsHorizontal:true,purchaseValueColumnHidden:true,
       withdrawalsFrom:'ERP_MOVEMENTS_YEARLY',withdrawalPeriodMonths:config.year==='2025'?12:config.year==='2026'?10:22,
@@ -628,7 +664,7 @@
   }
 
   function schedule(){clearTimeout(timer);timer=setTimeout(render,90);}
-  const api={render,refresh:schedule,meta:null,version:'20261103-reference-layout-v7'};
+  const api={render,refresh:schedule,meta:null,version:'20261103-status-column-filter-v8'};
   window.DB_STOCK_UNIFIED=api;
   window.DB_STOCK_MAXIMUM=api; // Retem os pontos de observacao da versao anterior.
   window.addEventListener('movements-updated',schedule);
