@@ -416,6 +416,16 @@
         '#db-stock-maximum .dbmx-withdrawals b{font-weight:800}',
         '#db-stock-maximum .dbmx-period-withdrawals{line-height:1.6;color:var(--db-green-dark,#125c31);font-weight:600}',
         '#db-stock-maximum .dbmx-withdrawn-cell{font-weight:750;color:var(--db-green-dark,#125c31);white-space:normal;min-width:110px}',
+        '#db-stock-maximum .dbmx-local,#db-stock-maximum .dbmx-group{grid-template-columns:minmax(210px,2fr) minmax(160px,1fr) minmax(160px,1fr);gap:12px;padding:10px 12px}',
+        '#db-stock-maximum .dbmx-local .dbmx-name,#db-stock-maximum .dbmx-group .dbmx-name{font-size:12px;color:var(--db-green-deep,#0d4726)}',
+        '#db-stock-maximum .dbmx-metric{display:flex;gap:3px;flex-direction:column;border-left:3px solid;padding:5px 11px;border-radius:3px;font-size:10px;line-height:1.4}',
+        '#db-stock-maximum .dbmx-metric strong{font-size:13px;font-weight:850}',
+        '#db-stock-maximum .dbmx-metric--need{background:var(--db-yellow-soft,#fff6c7);border-color:var(--db-yellow,#faca04);color:#6e5706}',
+        '#db-stock-maximum .dbmx-metric--need strong{color:#6e5706}',
+        '#db-stock-maximum .dbmx-metric--excess{background:var(--db-green-soft,#e6f3eb);border-color:var(--db-green-dark,#125c31);color:var(--db-green-deep,#0d4726)}',
+        '#db-stock-maximum .dbmx-metric--excess strong{color:var(--db-green-deep,#0d4726)}',
+        '#db-stock-maximum .dbmx-local-block>.dbmx-detail{margin:0 4px 12px 18px;padding:6px 12px}',
+        '#db-stock-maximum .dbmx-legend{margin-bottom:12px}',
         '@media(max-width:900px){#db-stock-maximum .dbmx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#db-stock-maximum .dbmx-local,#db-stock-maximum .dbmx-group{min-width:640px}#db-stock-maximum .dbmx-list,#db-stock-maximum .dbmx-detail{overflow-x:auto}}',
         '@media(max-width:560px){#db-stock-maximum .dbmx-kpis{grid-template-columns:1fr}#db-stock-maximum .dbmx-filters{flex-direction:column;align-items:stretch}#db-stock-maximum label{min-width:0;width:100%}}'
       ].join('\n');
@@ -444,7 +454,6 @@
     const included=found?groups(found.rows):[];
     if(config.group&&!included.some(x=>x.name===config.group))config.group='';
     const selected=included.find(x=>x.name===config.group);
-    const maxNeed=Math.max(1,...locals.map(x=>x.needValue)),maxExcess=Math.max(1,...locals.map(x=>x.excessValue));
     const period=config.year==='2025'?'2025 · 12 meses completos':
       config.year==='2026'?'2026 · 10 meses completos até outubro':
       '2025 e 2026 · 22 meses completos até outubro/2026';
@@ -475,47 +484,33 @@
       '<div class="dbmx-kpi"><span>Itens com saldo que exigem revisão do histórico</span><strong>'+int(manual.length)+'</strong></div>'+
       '</div><div class="dbmx-list"><h3>Almoxarifados · reposição e excedente na mesma análise</h3>'+
       '<div class="dbmx-legend">'+
-      '<span><b class="dbmx-legend--need"></b>Amarelo: precisa repor</span>'+
-      '<span><b class="dbmx-legend--excess"></b>Verde escuro: excedente disponível</span>'+
-      '<span><b class="dbmx-legend--ok"></b>Verde claro: estoque adequado / atenção</span>'+
-      '<span><b class="dbmx-legend--history"></b>Cinza: sem baixas / histórico insuficiente</span></div>'+
+      '<span><b class="dbmx-legend--need"></b>Amarelo: Repor</span>'+
+      '<span><b class="dbmx-legend--excess"></b>Verde: Excedente</span></div>'+
       locals.map(loc=>{
         const opened=loc.local===config.local;
-        const needWidth=Math.max(0,100*loc.needValue/maxNeed).toFixed(2);
-        const excessWidth=Math.max(0,100*loc.excessValue/maxExcess).toFixed(2);
         const row='<div class="dbmx-local-block"><button type="button" class="dbmx-local" data-dbmx-local="'+
           esc(loc.local)+'" aria-expanded="'+opened+'"><span class="dbmx-name">'+
           '<span class="dbmx-arrow" aria-hidden="true">'+(opened?'▾':'▸')+'</span>'+esc(loc.local)+
-          (loc.network?' · rede (não somar ao físico)':'')+
-          withdrawalSummary(loc.rows,loc.network?'Baixas da rede':'Qtd. baixada')+
-          statusSummary(loc.rows)+'</span>'+
-          '<span class="dbmx-metric"><span>Repor: '+int(loc.needCount)+' produtos · <strong>'+
-          brl(loc.needValue)+'</strong></span><span class="dbmx-track"><span class="dbmx-bar dbmx-bar--need" style="width:'+
-          needWidth+'%"></span></span></span>'+
-          '<span class="dbmx-metric"><span>Excedente: '+int(loc.excessCount)+' produtos · <strong>'+
-          brl(loc.excessValue)+'</strong></span><span class="dbmx-track"><span class="dbmx-bar dbmx-bar--excess" style="width:'+
-          excessWidth+'%"></span></span></span></button>';
+          (loc.network?' · rede (não somar ao físico)':'')+'</span>'+
+          '<span class="dbmx-metric dbmx-metric--need"><span>Repor · '+int(loc.needCount)+
+          ' produtos</span><strong>'+brl(loc.needValue)+'</strong></span>'+
+          '<span class="dbmx-metric dbmx-metric--excess"><span>Excedente · '+int(loc.excessCount)+
+          ' produtos</span><strong>'+brl(loc.excessValue)+'</strong></span></button>';
         if(!opened)return row+'</div>';
         const expandedGroups=included.length?included.map(g=>{
           const groupOpen=config.group===g.name;
-          const groupsRow='<div class="dbmx-group-wrap"><button type="button" class="dbmx-group" data-dbmx-group="'+
+          const groupRow='<div class="dbmx-group-wrap"><button type="button" class="dbmx-group" data-dbmx-group="'+
             esc(g.name)+'" aria-expanded="'+groupOpen+'"><span class="dbmx-name">'+
             '<span class="dbmx-arrow" aria-hidden="true">'+(groupOpen?'▾':'▸')+'</span>'+
-            esc(g.name)+' · '+int(g.rows.length)+' produtos'+
-            withdrawalSummary(g.rows,'Qtd. baixada')+statusSummary(g.rows)+'</span>'+
-            '<span class="dbmx-metric">A repor: '+int(g.needCount)+' · <strong>'+brl(g.needValue)+'</strong></span>'+
-            '<span class="dbmx-metric">Em excesso: '+int(g.excessCount)+' · <strong>'+brl(g.excessValue)+
-            '</strong></span></button>';
-          return groupsRow+(groupOpen?'<div class="dbmx-products" data-dbmx-products-for="'+esc(g.name)+
+            esc(g.name)+'</span>'+
+            '<span class="dbmx-metric dbmx-metric--need"><span>Repor · '+int(g.needCount)+
+            ' produtos</span><strong>'+brl(g.needValue)+'</strong></span>'+
+            '<span class="dbmx-metric dbmx-metric--excess"><span>Excedente · '+int(g.excessCount)+
+            ' produtos</span><strong>'+brl(g.excessValue)+'</strong></span></button>';
+          return groupRow+(groupOpen?'<div class="dbmx-products" data-dbmx-products-for="'+esc(g.name)+
             '"><h3>Produtos · '+esc(g.name)+'</h3>'+itemTable(g.rows)+'</div>':'')+'</div>';
         }).join(''):'<p>Nenhum produto neste filtro.</p>';
         return row+'<div class="dbmx-detail" data-dbmx-detail-for="'+esc(loc.local)+'">'+
-          '<h3>'+esc(loc.local)+' · '+int(loc.needCount)+' produtos para repor ('+
-          brl(loc.needValue)+') · '+int(loc.excessCount)+' acima do máximo ('+
-          brl(loc.excessValue)+')</h3>'+
-          '<p class="dbmx-period-withdrawals">Total baixado neste almoxarifado: '+
-          esc(withdrawalText(withdrawalsByUnit(loc.rows)))+
-          '. Selecione um grupo para abrir os produtos logo abaixo.</p>'+
           expandedGroups+'</div></div>';
       }).join('')+'</div>'+
       '<div class="dbmx-note"><b>Critérios:</b> mínimo = média das baixas × 2 meses; máximo = média × '+
@@ -544,6 +539,7 @@
       warehousesWithExcess:locals.filter(x=>!x.network&&x.excessCount>0).length,
       insufficientHistoryItems:manual.length,missingCostItems:missingExcess,
       minimumMonths:2,integrated:true,inlineCascade:true,colorCoding:true,brandPalette:'DB verde/amarelo',
+      compactSummary:true,withdrawalDetailOnly:true,
       withdrawalsFrom:'ERP_MOVEMENTS_YEARLY',withdrawalPeriodMonths:config.year==='2025'?12:config.year==='2026'?10:22,
       withdrawalTotalsPhysical:withdrawalsByUnit(physical),
       statusColors:{need:'db-yellow',excess:'db-green-dark',ok:'db-green-soft',history:'db-muted'},
@@ -557,7 +553,7 @@
   }
 
   function schedule(){clearTimeout(timer);timer=setTimeout(render,90);}
-  const api={render,refresh:schedule,meta:null,version:'20261103-db-baixas-v3'};
+  const api={render,refresh:schedule,meta:null,version:'20261103-compact-v4'};
   window.DB_STOCK_UNIFIED=api;
   window.DB_STOCK_MAXIMUM=api; // Retem os pontos de observacao da versao anterior.
   window.addEventListener('movements-updated',schedule);
