@@ -31,18 +31,18 @@
         typeof minimumBaseRows !== 'function' ||
         typeof minimumRowsForYear !== 'function' ||
         window.STOCK_MINIMUM_MONTHS !== MONTHS ||
-        window.MOVEMENTS_REVISED_META?.records !== 19465 ||
+        window.MOVEMENTS_REVISED_META?.forMinimum?.months !== 22 ||
         !window.CURRENT_STOCK_META) return null;
 
     // Sempre partir da mesma base de minimo exibida no gestor principal. Para o
     // CDI Chua, o proprio gestor calcula demanda consolidada de toda a rede.
-    const managerBase = minimumBaseRows().filter(x => sameLocal(x,code,local));
+    const managerBase = minimumBaseRows().filter(x => sameLocal(x,code,local) && !window.DB_MINIMUM_EXCLUDED?.(x));
     const selected = minimumRowsForYear(managerBase,year);
     const visibleYearKeys = new Set(selected.map(key));
     const managerKeys = new Set(managerBase.map(key));
     const stockByItem = new Map();
     for (const s of STOCK) {
-      if (!sameLocal(s,code,local)) continue;
+      if (!sameLocal(s,code,local) || window.DB_MINIMUM_EXCLUDED?.(s)) continue;
       const k = key(s), current = stockByItem.get(k) || {
         codigo:String(s.codigo), produto:String(s.produto || ''),
         grupo:String(s.grupo || ''), empresa:String(s.empresa || ''),
