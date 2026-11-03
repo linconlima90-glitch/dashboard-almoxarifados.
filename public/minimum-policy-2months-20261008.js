@@ -11,11 +11,11 @@
   const br=x=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(num(x));
   const n0=x=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(num(x));
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const norm=x=>String(x??'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase();
+  const norm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
   const excludedFromMinimum=x=>{
     const group=norm(x?.grupo),item=norm(x?.produto);
-    return /\\bPNEUS?\\b|\\bCAMARAS?\\b/.test(group)||
-      /\\b(?:PNEUS?|CAMARAS?|CIMENTOS?)\\b/.test(item);
+    return /\bPNEUS?\b|\bCAMARAS?\b/.test(group)||
+      /\b(?:PNEUS?|CAMARAS?|CIMENTOS?)\b/.test(item);
   };
   window.DB_MINIMUM_EXCLUDED=excludedFromMinimum;
   const exclusion=x=>typeof window.EXECUTIVE_PRODUCT_EXCLUDED==='function'&&window.EXECUTIVE_PRODUCT_EXCLUDED(x);
