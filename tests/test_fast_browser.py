@@ -299,7 +299,7 @@ with sync_playwright() as p:
             c=page.locator('#view-minimo .db-min-top-chart[data-db-min-chart="value"] .db-min-top-row')
             assert 'CDI DE PECAS CHUA' in c.first.inner_text()
             assert 'R$' in c.first.inner_text()
-            assert 'R$ 0,00' in c.last.inner_text()
+            assert 'R$ 0,00' in c.last.inner_text().replace('\u00a0',' ').replace('\u202f',' ')
             c.first.click()
             assert page.locator('#db-minimum-all-locals').is_visible()
             assert page.locator('#db-minimum-all-locals .dl-group').count()>0
@@ -310,7 +310,7 @@ with sync_playwright() as p:
             assert page.locator('#db-minimum-all-locals').is_hidden()
             page.locator('#view-minimo .db-min-top-chart[data-db-min-chart="count"] .db-min-top-row').last.click()
             assert page.locator('#db-minimum-all-locals').is_visible()
-            assert 'R$ 0,00' in page.locator('#db-minimum-all-locals .dl-selected-head').inner_text()
+            assert 'R$ 0,00' in page.locator('#db-minimum-all-locals .dl-selected-head').inner_text().replace('\u00a0',' ').replace('\u202f',' ')
             page.locator('#db-minimum-all-locals button[data-minimum-close]').click()
             assert page.locator('#db-minimum-all-locals').is_hidden()
             # A aba e criada dinamicamente antes do layout e usa o historico reconciliado.
