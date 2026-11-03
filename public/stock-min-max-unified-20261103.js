@@ -251,7 +251,7 @@
       withdrawalSortQuantity(b)-withdrawalSortQuantity(a)||
       a.produto.localeCompare(b.produto,'pt-BR')||
       a.codigo.localeCompare(b.codigo,'pt-BR'));
-    const columns=[6,15,3,9,5,5,5,6,5,7,8,5,8,13];
+    const columns=[6,18,3,10,6,6,5,6,6,8,6,8,12];
     const colgroup='<colgroup>'+columns.map(width=>'<col style="width:'+width+'%">').join('')+'</colgroup>';
     const cell=(label,html,classes='',attr='')=>
       '<td data-label="'+esc(label)+'" class="'+esc(classes)+'"'+attr+'>'+html+'</td>';
@@ -260,7 +260,7 @@
       '<div class="dbmx-scroll"><table>'+colgroup+'<thead><tr>'+
       '<th>Código</th><th>Produto</th><th>UN</th><th>Qtd. baixada no período</th><th>Média/mês</th>'+
       '<th>Mínimo (2 meses)</th><th>Saldo atual</th><th>Máximo ('+config.months+' meses)</th>'+
-      '<th>Qtd. a repor</th><th>Custo unit. ERP</th><th>Valor a comprar</th>'+
+      '<th>Qtd. a repor</th><th>Custo unit. ERP</th>'+
       '<th>Qtd. excedente</th><th>Valor excedente</th><th>Situação / possíveis transferências</th>'+
       '</tr></thead><tbody>'+sorted.map(x=>{
         const note=x.transfer.length?' · Possível transferência para '+x.transfer
@@ -284,7 +284,6 @@
           cell('Máximo ('+config.months+' meses)',x.maximum===null?'—':qty(x.maximum),'num')+
           cell('Qtd. a repor',qty(x.need),'num'+(x.need>0?' dbmx-need':''))+
           cell('Custo unit. ERP',x.hasCost?brl(x.cost):'Não informado','num')+
-          cell('Valor a comprar',x.need>0&&!x.hasCost?'Sem custo':brl(x.purchaseValue),'num dbmx-need')+
           cell('Qtd. excedente',qty(x.excess),'num'+(x.excess>0?' dbmx-warn':''))+
           cell('Valor excedente',x.excess>0&&!x.hasCost?'Sem custo':brl(x.excessValue),'num dbmx-warn')+
           cell('Situação / possíveis transferências',
@@ -456,9 +455,19 @@
         '#db-stock-maximum .dbmx-scroll td.dbmx-status-cell{text-align:left}',
         '#db-stock-maximum .dbmx-scroll .dbmx-status{max-width:100%;overflow-wrap:anywhere}',
         '#db-stock-maximum .dbmx-order-note{padding:7px 10px;background:var(--db-green-pale,#f3f9f5);color:var(--db-green-dark,#125c31);font-size:10px;line-height:1.5;border:1px solid var(--db-line,#d8e4dc);border-bottom:0}',
-        // Telas menores: reorganiza os mesmos 14 campos em cartoes de varias linhas, nunca esconde excedentes.
-        '@container dbmx-itemspace (max-width:1380px){#db-stock-maximum .dbmx-scroll table,#db-stock-maximum .dbmx-scroll tbody{display:block;width:100%!important;max-width:100%}#db-stock-maximum .dbmx-scroll colgroup,#db-stock-maximum .dbmx-scroll thead{display:none}#db-stock-maximum .dbmx-scroll tbody{padding:8px}#db-stock-maximum .dbmx-scroll tbody tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border:1px solid var(--db-line,#d8e4dc);border-radius:8px;overflow:hidden;margin:0 0 9px;background:#fff!important}#db-stock-maximum .dbmx-scroll tbody td{display:block;width:auto;min-width:0;min-height:54px;white-space:normal!important;text-align:left!important;padding:8px 10px;border-right:1px solid #e9efea;border-bottom:1px solid #e9efea;overflow-wrap:anywhere}#db-stock-maximum .dbmx-scroll tbody td::before{content:attr(data-label);display:block;font-size:9px;font-weight:800;color:var(--db-muted,#67716b);margin-bottom:4px;line-height:1.2}#db-stock-maximum .dbmx-scroll tbody td:nth-child(2){grid-column:span 3}#db-stock-maximum .dbmx-scroll tbody td:last-child{grid-column:span 4;min-height:0}#db-stock-maximum .dbmx-scroll tbody td.num{text-align:left!important}}',
-        '@container dbmx-itemspace (max-width:680px){#db-stock-maximum .dbmx-scroll tbody tr{grid-template-columns:repeat(2,minmax(0,1fr))}#db-stock-maximum .dbmx-scroll tbody td:nth-child(2){grid-column:span 1}#db-stock-maximum .dbmx-scroll tbody td:last-child{grid-column:span 2}}',
+        // A tabela de produtos permanece na horizontal, com colunas proporcionais ao espaço.
+        '#db-stock-maximum .dbmx-scroll table{display:table!important;table-layout:fixed;min-width:0!important;width:100%!important;max-width:100%}',
+        '#db-stock-maximum .dbmx-scroll thead{display:table-header-group!important}',
+        '#db-stock-maximum .dbmx-scroll tbody{display:table-row-group!important}',
+        '#db-stock-maximum .dbmx-scroll colgroup{display:table-column-group!important}',
+        '#db-stock-maximum .dbmx-scroll tbody tr{display:table-row!important;background:transparent;border:0;margin:0}',
+        '#db-stock-maximum .dbmx-scroll tbody td{display:table-cell!important;width:auto;min-height:0;vertical-align:middle}',
+        '#db-stock-maximum .dbmx-scroll tbody td::before{content:none!important}',
+        '#db-stock-maximum .dbmx-scroll th{padding:8px 4px;background:var(--db-green-deep,#0d4726);color:#fff}',
+        '#db-stock-maximum .dbmx-scroll tbody tr:nth-child(2n){background:var(--db-green-pale,#f3f9f5)!important}',
+        '#db-stock-maximum .dbmx-scroll tbody tr:nth-child(2n+1){background:#fff!important}',
+        '@media(max-width:1320px){#db-stock-maximum .dbmx-scroll th{font-size:9px;padding:6px 2px}#db-stock-maximum .dbmx-scroll td{font-size:10px;padding:6px 2px}}',
+        '@media(max-width:920px){#db-stock-maximum .dbmx-scroll th{font-size:8px;padding:5px 1px}#db-stock-maximum .dbmx-scroll td{font-size:9px;padding:5px 1px}#db-stock-maximum .dbmx-scroll .dbmx-status{padding:2px 3px;font-size:8px}}',
         '@media(max-width:900px){#db-stock-maximum .dbmx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#db-stock-maximum .dbmx-local,#db-stock-maximum .dbmx-group{min-width:640px}#db-stock-maximum .dbmx-list,#db-stock-maximum .dbmx-detail{overflow-x:auto}}',
         '@media(max-width:560px){#db-stock-maximum .dbmx-kpis{grid-template-columns:1fr}#db-stock-maximum .dbmx-filters{flex-direction:column;align-items:stretch}#db-stock-maximum label{min-width:0;width:100%}}'
       ].join('\n');
@@ -569,6 +578,7 @@
       insufficientHistoryItems:manual.length,missingCostItems:missingExcess,
       minimumMonths:2,integrated:true,inlineCascade:true,colorCoding:true,brandPalette:'DB verde/amarelo',
       compactSummary:true,withdrawalDetailOnly:true,sortedByWithdrawalsDesc:true,fullWidthProducts:true,
+      allProductColumnsHorizontal:true,purchaseValueColumnHidden:true,
       withdrawalsFrom:'ERP_MOVEMENTS_YEARLY',withdrawalPeriodMonths:config.year==='2025'?12:config.year==='2026'?10:22,
       withdrawalTotalsPhysical:withdrawalsByUnit(physical),
       statusColors:{need:'db-yellow',excess:'db-green-dark',ok:'db-green-soft',history:'db-muted'},
@@ -582,7 +592,7 @@
   }
 
   function schedule(){clearTimeout(timer);timer=setTimeout(render,90);}
-  const api={render,refresh:schedule,meta:null,version:'20261103-fullwidth-qtysort-v5'};
+  const api={render,refresh:schedule,meta:null,version:'20261103-horizontal-table-v6'};
   window.DB_STOCK_UNIFIED=api;
   window.DB_STOCK_MAXIMUM=api; // Retem os pontos de observacao da versao anterior.
   window.addEventListener('movements-updated',schedule);
