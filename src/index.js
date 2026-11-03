@@ -147,7 +147,8 @@ class DashboardInjector {
       '<script src="/movement-full-04-20261103.js?v=20261103-1525"></script>' +
       '<script src="/movement-reconcile-full-20261103.js?v=20261103-1525"></script>' +
       (this.pilot ? '' : '<script src="/movement-history-ui-20261103.js?v=20261103-1525"></script>' +
-        '<script src="/baixas-consolidadas-20261103.js?v=20261103-1"></script>'),
+        '<script src="/baixas-consolidadas-20261103.js?v=20261103-1"></script>' +
+        '<script src="/stock-maximum-20261103.js?v=20261103-v1"></script>'),
       { html: true }
     );
   }

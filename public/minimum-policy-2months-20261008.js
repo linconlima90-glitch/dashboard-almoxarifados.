@@ -159,6 +159,8 @@
       const walker=document.createTreeWalker(area,NodeFilter.SHOW_TEXT);
       let node;
       while((node=walker.nextNode())){
+        // O modulo de maximo tem prazo proprio; nunca reescrever 4 meses nele.
+        if(node.parentElement?.closest('#db-stock-maximum'))continue;
         if(!node.nodeValue||!/(\b4\s*meses\b|\bquatro\s+meses\b)/i.test(node.nodeValue))continue;
         node.nodeValue=node.nodeValue.replace(/\b(?:4|quatro)\s+meses\b/gi,'2 meses');
       }
