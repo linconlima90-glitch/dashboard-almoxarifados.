@@ -1,4 +1,4 @@
-// Fotografia conciliada de baixas de 01/07 a 28/10/2026 (fora de transferencias).
+// Fotografia conciliada de baixas de 01/07 a 03/11/2026 (fora de transferencias).
 // Nunca somar complementos anteriores de setembro/outubro a esta fotografia.
 // Dados sem atribuicao confiavel de ano permanecem no historico legado, fora do periodo certificado.
 (function(){
@@ -48,6 +48,26 @@
   }
   if(day30Count!==39||Math.abs(day30Cost-2806.63)>.02)throw Error('Soma 30/10 divergente');
 
+  // 31/10, 02/11 e 03/11: arquivo complementar sem datas ja integradas.
+  const extension=window.MOVEMENTS_AFTER_20261030;
+  if(!extension||!Array.isArray(extension.rows)||extension.rows.length!==60||extension.records!==70||
+     Math.abs(extension.value-2637.02)>.02||extension.from!=='31/10/2026'||extension.to!=='03/11/2026')
+    throw Error('Novo complemento de baixas ausente ou inconsistente');
+  const addedMonths={'2026-10':{records:0,valor:0},'2026-11':{records:0,valor:0}};
+  const included=new Set();
+  for(const [mes,codigo_local,codigo,un,local,produto,grupo,qtd,valor,records] of extension.rows){
+    const k=[mes,codigo_local,codigo,un].join('|');
+    if(!addedMonths[mes]||included.has(k)||!(Number(qtd)>0)||!(Number(records)>0)||
+       !Number.isFinite(Number(valor))||Number(valor)<0||!codigo_local||!codigo||!local||!un)
+      throw Error('Linha ou chave duplicada no novo complemento');
+    included.add(k);addedMonths[mes].records+=Number(records);addedMonths[mes].valor+=Number(valor);
+    rev.push({mes,codigo_local,codigo,un,local,produto,grupo,qtd:Number(qtd),valor:Number(valor),records:Number(records)});
+  }
+  if(addedMonths['2026-10'].records!==29||Math.abs(addedMonths['2026-10'].valor-1013.03)>.02||
+     addedMonths['2026-11'].records!==41||Math.abs(addedMonths['2026-11'].valor-1623.99)>.02)
+    throw Error('Resumo por mes do novo complemento divergente');
+
+
 
 
   const preferredUnit=new Map();
@@ -56,7 +76,7 @@
   const mapRev=new Map();
   const mixedUnits=[]; // Mesmo codigo com unidades KG/SC: nao somar quantidades incompatíveis.
   const recKeys=new Set();
-  const recByMonth={'2026-07':{records:0,valor:0},'2026-08':{records:0,valor:0},'2026-09':{records:0,valor:0},'2026-10':{records:0,valor:0}};
+  const recByMonth={'2026-07':{records:0,valor:0},'2026-08':{records:0,valor:0},'2026-09':{records:0,valor:0},'2026-10':{records:0,valor:0},'2026-11':{records:0,valor:0}};
   for(const r of rev){
     if(!recByMonth[r.mes])throw Error('Mês inesperado na fotografia '+r.mes);
     const k=monthKey(r), unit=String(r.un||'');
@@ -77,13 +97,13 @@
     recByMonth[r.mes].records+=n(r.records);recByMonth[r.mes].valor+=n(r.valor);
   }
   if(recByMonth['2026-07'].records!==1245||recByMonth['2026-08'].records!==1309||
-     recByMonth['2026-09'].records!==1115||recByMonth['2026-10'].records!==1201||
+     recByMonth['2026-09'].records!==1115||recByMonth['2026-10'].records!==1230||recByMonth['2026-11'].records!==41||
      Math.abs(recByMonth['2026-07'].valor-157871.53)>.02||
      Math.abs(recByMonth['2026-08'].valor-108549.97)>.02||
      Math.abs(recByMonth['2026-09'].valor-101468.51)>.02||
-     Math.abs(recByMonth['2026-10'].valor-98330.24)>.02||
-     Object.values(recByMonth).reduce((sum,v)=>sum+v.records,0)!==4870||
-     Math.abs(Object.values(recByMonth).reduce((sum,v)=>sum+v.valor,0)-466220.25)>.02){
+     Math.abs(recByMonth['2026-10'].valor-99343.27)>.02||Math.abs(recByMonth['2026-11'].valor-1623.99)>.02||
+     Object.values(recByMonth).reduce((sum,v)=>sum+v.records,0)!==4940||
+     Math.abs(Object.values(recByMonth).reduce((sum,v)=>sum+v.valor,0)-468857.27)>.02){
     throw Error('Totais das baixas nao conferem; atualizacao cancelada');
   }
   const pending=new Set((typeof MOVEMENT_YEAR_PENDING==='undefined'?[]:MOVEMENT_YEAR_PENDING).map(rowKey));
@@ -92,14 +112,14 @@
   const yearly=new Map((typeof MOVEMENTS_YEARLY==='undefined'?[]:MOVEMENTS_YEARLY).map(x=>[x.year+'|'+rowKey(x),x]));
   const movement=new Map(MOVEMENTS.map(x=>[rowKey(x),x]));
   window.__MOVEMENT_REVISED_20261015_APPLIED=true;
-  // Atualizar anos por (codigo_local,codigo). Outubro/2026 e parcial e NAO entra na media.
+  // Atualizar anos por (codigo_local,codigo). Outubro encerrado entra na media; novembro parcial nao.
   // Criar linhas anuais para codigos novos, sem atribuir o passado sem ano conhecido.
   for(const k of recKeys){
     const sample=rev.find(r=>rowKey(r)===k);
     let m=movement.get(k);
     if(!m){
       const s=stock.get(k)||{};
-      m={empresa:s.empresa||'',codigo_local:String(sample.codigo_local),local:sample.local||s.local||'',grupo:sample.grupo||s.grupo||'',codigo:sample.codigo,produto:sample.produto||s.produto||'',un:sample.un||s.un||'',months:Array(12).fill(0),total:0,complete_total:0,complete_months:21,avg:0,minimum:0,stock:n(s.estoque),cost:n(s.custo_estoque),stock_value:n(s.valor_estoque),coverage:null,need:0,need_value:0,excess:0,active_month_buckets:0,consumption_value:0,status:'HISTÓRICO PARCIAL',source:'BAIXAS ERP · 01/07 A 30/10/2026',unit_source:'ESTOQUE ATUAL',cost_source:'CUSTO MEDIO DO ESTOQUE LOCAL'};
+      m={empresa:s.empresa||'',codigo_local:String(sample.codigo_local),local:sample.local||s.local||'',grupo:sample.grupo||s.grupo||'',codigo:sample.codigo,produto:sample.produto||s.produto||'',un:sample.un||s.un||'',months:Array(12).fill(0),total:0,complete_total:0,complete_months:22,avg:0,minimum:0,stock:n(s.estoque),cost:n(s.custo_estoque),stock_value:n(s.valor_estoque),coverage:null,need:0,need_value:0,excess:0,active_month_buckets:0,consumption_value:0,status:'HISTÓRICO PARCIAL',source:'BAIXAS ERP · 01/07 A 03/11/2026',unit_source:'ESTOQUE ATUAL',cost_source:'CUSTO MEDIO DO ESTOQUE LOCAL'};
       MOVEMENTS.push(m);movement.set(k,m);
     }
     const ky='2026|'+k;
@@ -112,8 +132,8 @@
   for(const [k,y] of yearly){
     if(!k.startsWith('2026|'))continue;
     const codeKey=k.slice(5),sample=movement.get(codeKey);
-    // Substituir integralmente 2026-07 a 2026-10, inclusive registros removidos/corrigidos.
-    for(let i=6;i<=9;i++){const r=mapRev.get('2026-'+String(i+1).padStart(2,'0')+'|'+codeKey);y.months[i]=n(r?.qtd)}
+    // Substituir integralmente 2026-07 a 2026-11, inclusive registros removidos/corrigidos.
+    for(let i=6;i<=10;i++{const r=mapRev.get('2026-'+String(i+1).padStart(2,'0')+'|'+codeKey);y.months[i]=n(r?.qtd)}
     y.total=y.months.reduce((a,v)=>a+n(v),0);y.active_months=y.months.filter(x=>n(x)>0).length;
     if(sample)y.cost=n(sample.cost);
   }
@@ -123,7 +143,7 @@
     const k=rowKey(m),y25=yearly.get('2025|'+k),y26=yearly.get('2026|'+k);
     if(!Array.isArray(m.months)||m.months.length!==12)m.months=Array(12).fill(0);
     const flagged=pending.has(k);
-    for(let i=6;i<=9;i++){
+    for(let i=6;i<=10;i++{
       const legacy25=flagged?0:n(y25?.months?.[i]);
       m.months[i]=legacy25+n(y26?.months?.[i]);
     }
@@ -132,9 +152,9 @@
     m.active_month_buckets=m.months.filter(v=>n(v)>0).length;
     if(!flagged){
       const a25=y25?.months||Array(12).fill(0),a26=y26?.months||Array(12).fill(0);
-      m.complete_total=a25.reduce((a,v)=>a+n(v),0)+a26.slice(0,9).reduce((a,v)=>a+n(v),0);
-      m.complete_months=21;
-      m.avg=m.complete_total/21;
+      m.complete_total=a25.reduce((a,v)=>a+n(v),0)+a26.slice(0,10).reduce((a,v)=>a+n(v),0);
+      m.complete_months=22;
+      m.avg=m.complete_total/22;
     }else{
       // 2025/2026 da fonte antiga continuam pendentes: nao fabricar nova media historica.
       pendingAffected++;
@@ -153,7 +173,7 @@
       const expected=preferredUnit.get(rowKey(r));
       if(expected&&String(r.un||'')!==expected)continue;
       const code=String(r.codigo),i=Number(r.mes.slice(-2))-1;
-      let a=byCode.get(code);if(!a){a={months:[0,0,0,0],info:r};byCode.set(code,a)}a.months[i-6]+=n(r.qtd);
+      let a=byCode.get(code);if(!a){a={months:[0,0,0,0,0],info:r};byCode.set(code,a)}a.months[i-6]+=n(r.qtd);
     }
     const netYears=new Map(CDI_NETWORK_YEARLY.filter(x=>x.year==='2026').map(x=>[String(x.k),x]));
     for(const [code,v] of byCode){
@@ -163,9 +183,9 @@
     }
     for(const [code,a] of netYears){
       const v=byCode.get(code);
-      for(let i=6;i<=9;i++)a.months[i]=n(v?.months[i-6]);
+      for(let i=6;i<=10;i++a.months[i]=n(v?.months[i-6]);
       a.total=a.months.reduce((sum,q)=>sum+n(q),0);
-      a.legacy_complete_total=a.months.slice(0,9).reduce((sum,q)=>sum+n(q),0);
+      a.legacy_complete_total=a.months.slice(0,10).reduce((sum,q)=>sum+n(q),0);
     }
     CDI_NETWORK_ALL_MAP.clear();
     for(const y of CDI_NETWORK_YEARLY){
@@ -176,10 +196,11 @@
     }
   }
   // Dados exatos da fotografia, independentemente de custos medios estimados para o legado.
-  window.MOVEMENTS_OCTOBER_META={from:'01/10/2026',to:'30/10/2026',records:recByMonth['2026-10'].records,value:Math.round(recByMonth['2026-10'].valor*100)/100};
-  window.MOVEMENTS_REVISED_META={from:'01/07/2026',to:'30/10/2026',records:4870,value:466220.25,
-    months:recByMonth,monthlyRows:rev.length,pendencias:287,octoberSnapshotRecords:1080,sourceFileRecords:1080,
-    replacedOldOctober:true,changeFromPriorRecords:156,pendingHistoricalKeys:pendingAffected,
+  window.MOVEMENTS_OCTOBER_META={from:'01/10/2026',to:'31/10/2026',records:recByMonth['2026-10'].records,value:Math.round(recByMonth['2026-10'].valor*100)/100};
+  window.MOVEMENTS_NOVEMBER_META={from:'01/11/2026',to:'03/11/2026',records:recByMonth['2026-11'].records,value:Math.round(recByMonth['2026-11'].valor*100)/100,partial:true};
+  window.MOVEMENTS_REVISED_META={from:'01/07/2026',to:'03/11/2026',records:4940,value:468857.27,
+    months:recByMonth,monthlyRows:rev.length,pendencias:287,octoberSnapshotRecords:1080,sourceFileRecords:70,novemberRecords:41,completedThrough:'31/10/2026',openMonth:'2026-11',
+    replacedOldOctober:true,changeFromPriorRecords:70,pendingHistoricalKeys:pendingAffected,
     reconciliation:'FOTOGRAFIA SUBSTITUTIVA',snapshot:true,mixedUnits};
   if(typeof STOCK!=='undefined'){
     const by=new Map(MOVEMENTS.map(x=>[rowKey(x),x]));
@@ -189,11 +210,11 @@
   }
   // Evidenciar no painel a janela exata do ERP, distinta do historico legado.
   const summary=document.querySelector('#view-baixas');
-  if(summary&&!document.getElementById('baixas-snapshot-20261028')){
-    const box=document.createElement('div');box.id='baixas-snapshot-20261028';
+  if(summary&&!document.getElementById('baixas-snapshot-20261103')){
+    const box=document.createElement('div');box.id='baixas-snapshot-20261103';
     box.style.cssText='background:#f5f9f6;border:1px solid #cfe3d3;border-left:4px solid #1e8747;padding:11px 15px;border-radius:10px;color:#214e32;font-size:12px;margin:10px 0 14px;line-height:1.65';
-    box.innerHTML='<b>Baixas conferidas do ERP (sem transferencias): 01/07 a 30/10/2026</b> · 4.870 lancamentos · <b>R$ 466.220,25</b>.'+
-      '<div style="color:#657366;font-size:11px">Outubro parcial (01 a 30/10): 1.201 lancamentos, R$ 98.330,24, substituindo integralmente os lotes anteriores sem duplicar. Outubro nao entra na media do minimo de dois meses. O saldo permanece a posicao ERP de 30/10 as 15:17:37; nao subtrair baixas novamente. 287 chaves historicas continuam em conciliacao; unidades divergentes nao sao misturadas.</div>';
+    box.innerHTML='<b>Baixas conferidas do ERP (sem transferencias): 01/07 a 03/11/2026</b> · 4.940 lancamentos · <b>R$ 468.857,27</b>.'+
+      '<div style="color:#657366;font-size:11px">Outubro fechado com 1.230 lancamentos e R$ 99.343,27. Novembro parcial ate 03/11: 41 lancamentos e R$ 1.623,99. O complemento de 70 registros foi somado sem duplicar datas anteriores. Para o estoque minimo de dois meses, outubro entra como mes completo, e novembro fica fora ate o fechamento. O saldo do ERP permanece a posicao de 30/10 as 15:17:37; estas baixas nao sao subtraidas novamente. 287 chaves do historico antigo continuam em conciliacao.</div>';
     summary.prepend(box);
   }
   // Nao manter em memoria uma segunda copia da fotografia de julho-outubro.
@@ -203,6 +224,7 @@
   delete window.MOVEMENTS_OCTOBER_20261028;
   delete window.MOVEMENTS_DAY_20261029;
   delete window.MOVEMENTS_DAY_20261030;
+  delete window.MOVEMENTS_AFTER_20261030;
   try{if(typeof render==='function')render()}catch(e){console.warn('Baixas revistas: render',e)}
   window.dispatchEvent(new CustomEvent('movements-updated',{detail:window.MOVEMENTS_REVISED_META}));
   return true;

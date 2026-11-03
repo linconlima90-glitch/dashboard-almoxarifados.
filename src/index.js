@@ -142,7 +142,8 @@ class DashboardInjector {
       '<script src="/movement-october-20261028.js?v=20261028-0834"></script>' +
       '<script src="/movement-day-20261029.js?v=20261030-0832"></script>' +
       '<script src="/movement-day-20261030.js?v=20261030-1519"></script>' +
-      '<script src="/movement-reconcile-20261015.js?v=20261030-1519"></script>',
+      '<script src="/movement-after-20261030-20261103.js?v=20261103-0952"></script>' +
+      '<script src="/movement-reconcile-20261015.js?v=20261103-0952"></script>',
       { html: true }
     );
   }
