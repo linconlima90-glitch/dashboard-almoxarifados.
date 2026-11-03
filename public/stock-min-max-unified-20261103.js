@@ -27,8 +27,10 @@
 
   function activeMonths(){
     const locals=new Map(),network=new Map();
+    // Quantidades de baixa por codigo/unidade, sem misturar medidas diferentes.
+    const localQty=new Map(),networkQty=new Map();
     const mix=new Set((window.MOVEMENTS_REVISED_META?.mixedUnits||[]).map(key));
-    function scan(list,dest,isNetwork){
+    function scan(list,dest,amounts,isNetwork){
       if(!Array.isArray(list))return;
       for(const x of list){
         const year=str(x.year);
@@ -37,13 +39,25 @@
         if(!k||k==='undefined|undefined')continue;
         const seen=dest.get(k)||new Set();
         const end=year==='2026'?10:12;
-        for(let i=0;i<end;i++)if(n(x.months?.[i])>0)seen.add(year+'-'+i);
+        let withdrawn=0;
+        for(let i=0;i<end;i++){
+          const value=n(x.months?.[i]);
+          withdrawn+=value;
+          if(value>0)seen.add(year+'-'+i);
+        }
         dest.set(k,seen);
+        // Deduplicacao de unidade: mesmo codigo pode ter registros em UN, KG, LT etc.
+        if(withdrawn){
+          const un=norm(x.un)||'UN NÃO INFORMADA';
+          const byUnit=amounts.get(k)||new Map();
+          byUnit.set(un,(byUnit.get(un)||0)+withdrawn);
+          amounts.set(k,byUnit);
+        }
       }
     }
-    scan(typeof MOVEMENTS_YEARLY==='undefined'?[]:MOVEMENTS_YEARLY,locals,false);
-    scan(typeof CDI_NETWORK_YEARLY==='undefined'?[]:CDI_NETWORK_YEARLY,network,true);
-    return {locals,network,mix};
+    scan(typeof MOVEMENTS_YEARLY==='undefined'?[]:MOVEMENTS_YEARLY,locals,localQty,false);
+    scan(typeof CDI_NETWORK_YEARLY==='undefined'?[]:CDI_NETWORK_YEARLY,network,networkQty,true);
+    return {locals,network,mix,localQty,networkQty};
   }
 
   function stockPositions(){
@@ -81,6 +95,8 @@
       const cost=vk?n(x.cost):(stock?.cost||Math.max(0,n(x.cost)));
       const need=ceil(Math.max(0,minimum-balance),x.un);
       const months=vk?activity.network.get(str(x.codigo)):activity.locals.get(key(x));
+      const perUnit=vk?activity.networkQty.get(str(x.codigo)):activity.localQty.get(key(x));
+      const withdrawals=perUnit?[...perUnit.entries()].map(([un,value])=>({un,value})).filter(x=>Math.abs(x.value)>1e-9):[];
       const count=months?.size??Math.max(0,n(x.active_month_buckets));
       const mixed=!vk&&activity.mix.has(key(x));
       // Um item com poucas baixas ou unidade divergente nao gera alerta automatico de maximo.
@@ -95,7 +111,7 @@
         codigo:str(x.codigo),produto:str(x.produto),un:str(x.un),
         avg,minimum,stock:balance,maximum,need,excess,cost,
         purchaseValue:need*cost,excessValue:excess*cost,condition,reliable,
-        active:count,hasCost:cost>0,network:vk,mixed,transfer:[]
+        active:count,withdrawals,hasCost:cost>0,network:vk,mixed,transfer:[]
       };
       result.set(k,item);
     }
@@ -186,6 +202,26 @@
     for(const row of rows)c[statusKind(row)]++;
     return c;
   }
+  function withdrawalsByUnit(rows){
+    const sums=new Map();
+    for(const row of rows)for(const x of row.withdrawals||[]){
+      if(!x.value)continue;
+      const un=norm(x.un)||'UN NÃO INFORMADA';
+      sums.set(un,(sums.get(un)||0)+n(x.value));
+    }
+    return [...sums.entries()].filter(([,v])=>Math.abs(v)>1e-9)
+      .sort((a,b)=>a[0].localeCompare(b[0],'pt-BR'))
+      .map(([un,value])=>({un,value}));
+  }
+  function withdrawalText(values){
+    return values.length?values.map(x=>qty(x.value)+' '+x.un).join(' · '):'0 (sem baixa)';
+  }
+  function withdrawalSummary(rows,label){
+    const data=withdrawalsByUnit(rows);
+    return '<span class="dbmx-withdrawals" data-dbmx-withdrawals="'+esc(JSON.stringify(data))+
+      '" title="'+esc(withdrawalText(data))+'"><b>'+esc(label||'Baixas')+':</b> '+
+      esc(withdrawalText(data))+'</span>';
+  }
   function statusSummary(rows){
     const c=statusCounts(rows);
     return '<span class="dbmx-state-summary">'+
@@ -202,7 +238,7 @@
       ((a.need>0?a.purchaseValue:0)+(a.excess>0?a.excessValue:0))||
       a.produto.localeCompare(b.produto,'pt-BR'));
     return '<div class="dbmx-scroll"><table><thead><tr>'+
-      '<th>Código</th><th>Produto</th><th>UN</th><th>Média/mês</th>'+
+      '<th>Código</th><th>Produto</th><th>UN</th><th>Qtd. baixada no período</th><th>Média/mês</th>'+
       '<th>Mínimo (2 meses)</th><th>Saldo atual</th><th>Máximo ('+config.months+' meses)</th>'+
       '<th>Qtd. a repor</th><th>Custo unit. ERP</th><th>Valor a comprar</th>'+
       '<th>Qtd. excedente</th><th>Valor excedente</th><th>Situação / possíveis transferências</th>'+
@@ -218,6 +254,8 @@
         return '<tr class="dbmx-state-'+kind+'" data-dbmx-situation="'+esc(x.condition)+
           '" data-dbmx-color="'+kind+'"><td>'+esc(x.codigo)+'</td>'+
           '<td>'+esc(x.produto)+'</td><td>'+esc(x.un)+'</td>'+
+          '<td class="num dbmx-withdrawn-cell" data-dbmx-withdrawn="'+
+          esc(JSON.stringify(x.withdrawals))+'">'+esc(withdrawalText(x.withdrawals))+'</td>'+
           '<td class="num">'+(x.avg>0?qty(x.avg):'—')+'</td>'+
           '<td class="num">'+(x.avg>0?qty(x.minimum):'—')+'</td>'+
           '<td class="num">'+qty(x.stock)+'</td>'+
@@ -296,7 +334,7 @@
         '#db-stock-maximum .dbmx-detail h3{font-size:14px;margin:0 0 11px;color:#235738}',
         '#db-stock-maximum .dbmx-group{grid-template-columns:minmax(175px,2fr) minmax(135px,3fr) minmax(135px,3fr);font-size:11px}',
         '#db-stock-maximum .dbmx-scroll{max-height:460px;overflow:auto;background:#fff;border:1px solid #dfe9e2;border-radius:5px}',
-        '#db-stock-maximum table{border-collapse:collapse;min-width:1490px;width:100%;font-size:10px}',
+        '#db-stock-maximum table{border-collapse:collapse;min-width:1620px;width:100%;font-size:10px}',
         '#db-stock-maximum th,#db-stock-maximum td{padding:9px;border-bottom:1px solid #e7eeea;text-align:left}',
         '#db-stock-maximum th{position:sticky;top:0;background:#eaf5ec;color:#325a3d;z-index:1}',
         '#db-stock-maximum td.num{text-align:right;white-space:nowrap}',
@@ -334,6 +372,44 @@
         '#db-stock-maximum .dbmx-status--history{color:#68439b}',
         '#db-stock-maximum .dbmx-status-help{display:block;margin-top:4px;color:#52675c;line-height:1.45}',
         '#db-stock-maximum .dbmx-note{padding:12px 22px;border-top:1px solid #dfe9e2;color:#5c7262;line-height:1.6;font-size:11px}',
+        // A identidade DB usa verde institucional e amarelo: sem pintar linhas inteiras de quatro cores.
+        '#db-stock-maximum{border-color:var(--db-line,#d8e4dc);background:var(--db-surface,#fff);color:var(--db-ink,#2a2a29)}',
+        '#db-stock-maximum .dbmx-head{background:linear-gradient(110deg,var(--db-green-deep,#0d4726),var(--db-green-strong,#16733b));border-bottom:4px solid var(--db-yellow,#faca04)}',
+        '#db-stock-maximum .dbmx-head h2{color:#fff}',
+        '#db-stock-maximum .dbmx-head .dbmx-sub{color:#e4f4e8}',
+        '#db-stock-maximum .dbmx-filters{background:var(--db-green-pale,#f3f9f5);border-bottom:1px solid var(--db-line,#d8e4dc)}',
+        '#db-stock-maximum select:focus,#db-stock-maximum input:focus{border-color:var(--db-green,#1e8747);outline:2px solid #c5e9d0}',
+        '#db-stock-maximum .dbmx-kpi{background:#fff;border-color:var(--db-line,#d8e4dc);border-top:3px solid var(--db-green,#1e8747)}',
+        '#db-stock-maximum .dbmx-kpi:nth-child(2n){border-top-color:var(--db-yellow,#faca04)}',
+        '#db-stock-maximum .dbmx-kpi strong{color:var(--db-green-dark,#125c31)}',
+        '#db-stock-maximum .dbmx-kpi.need strong,#db-stock-maximum .dbmx-kpi.excess strong{color:var(--db-green-dark,#125c31)}',
+        '#db-stock-maximum .dbmx-local:hover,#db-stock-maximum .dbmx-group:hover,#db-stock-maximum button[aria-expanded="true"]{background:var(--db-green-pale,#f3f9f5)}',
+        '#db-stock-maximum .dbmx-local[aria-expanded="true"]{border-left:3px solid var(--db-yellow,#faca04)}',
+        '#db-stock-maximum .dbmx-bar--need{background:var(--db-yellow-strong,#e9b900)}',
+        '#db-stock-maximum .dbmx-bar--excess{background:var(--db-green,#1e8747)}',
+        '#db-stock-maximum .dbmx-summary-need{color:#85640b}',
+        '#db-stock-maximum .dbmx-summary-excess{color:var(--db-green-deep,#0d4726)}',
+        '#db-stock-maximum .dbmx-summary-ok{color:var(--db-green-strong,#16733b)}',
+        '#db-stock-maximum .dbmx-summary-history{color:var(--db-muted,#67716b)}',
+        '#db-stock-maximum .dbmx-legend--need{background:var(--db-yellow,#faca04)}',
+        '#db-stock-maximum .dbmx-legend--excess{background:var(--db-green-dark,#125c31)}',
+        '#db-stock-maximum .dbmx-legend--ok{background:#add6b8}',
+        '#db-stock-maximum .dbmx-legend--history{background:#9ba69f}',
+        '#db-stock-maximum tr.dbmx-state-need,#db-stock-maximum tr.dbmx-state-excess,#db-stock-maximum tr.dbmx-state-ok,#db-stock-maximum tr.dbmx-state-history{background:transparent}',
+        '#db-stock-maximum table tbody tr:nth-child(2n){background:#f7faf8!important}',
+        '#db-stock-maximum tr.dbmx-state-need td:first-child,#db-stock-maximum tr.dbmx-state-excess td:first-child,#db-stock-maximum tr.dbmx-state-ok td:first-child,#db-stock-maximum tr.dbmx-state-history td:first-child{border-left:0}',
+        '#db-stock-maximum .dbmx-status{display:inline-block;white-space:normal;padding:4px 7px;border-radius:5px;font-size:10px;border:1px solid var(--db-line,#d8e4dc)}',
+        '#db-stock-maximum .dbmx-status--need{background:var(--db-yellow-soft,#fff6c7);border-color:#f1d95f;color:#775703}',
+        '#db-stock-maximum .dbmx-status--excess{background:var(--db-green-soft,#e6f3eb);color:var(--db-green-deep,#0d4726)}',
+        '#db-stock-maximum .dbmx-status--ok{background:#f1f8f3;color:var(--db-green-dark,#125c31)}',
+        '#db-stock-maximum .dbmx-status--history{background:#f4f6f4;color:var(--db-muted,#67716b)}',
+        '#db-stock-maximum .dbmx-need{color:#86620a}',
+        '#db-stock-maximum .dbmx-warn{color:var(--db-green-dark,#125c31)}',
+        '#db-stock-maximum .dbmx-detail,#db-stock-maximum .dbmx-products{background:var(--db-green-pale,#f3f9f5)}',
+        '#db-stock-maximum .dbmx-withdrawals{display:block;margin-top:7px;font-size:10px;font-weight:500;line-height:1.5;color:var(--db-green-deep,#0d4726);max-width:100%;overflow-wrap:anywhere}',
+        '#db-stock-maximum .dbmx-withdrawals b{font-weight:800}',
+        '#db-stock-maximum .dbmx-period-withdrawals{line-height:1.6;color:var(--db-green-dark,#125c31);font-weight:600}',
+        '#db-stock-maximum .dbmx-withdrawn-cell{font-weight:750;color:var(--db-green-dark,#125c31);white-space:normal;min-width:110px}',
         '@media(max-width:900px){#db-stock-maximum .dbmx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#db-stock-maximum .dbmx-local,#db-stock-maximum .dbmx-group{min-width:640px}#db-stock-maximum .dbmx-list,#db-stock-maximum .dbmx-detail{overflow-x:auto}}',
         '@media(max-width:560px){#db-stock-maximum .dbmx-kpis{grid-template-columns:1fr}#db-stock-maximum .dbmx-filters{flex-direction:column;align-items:stretch}#db-stock-maximum label{min-width:0;width:100%}}'
       ].join('\n');
@@ -370,7 +446,8 @@
     const caret=searchActive?document.activeElement.selectionStart:0;
     panel.innerHTML='<div class="dbmx-head"><h2>Análise integrada de estoque · Mínimo e Máximo</h2>'+
       '<div class="dbmx-sub">Um único comparativo entre o saldo atual, o mínimo de 2 meses, o máximo de '+config.months+
-      ' meses e as ações de compra ou redistribuição. '+esc(period)+'.</div></div>'+
+      ' meses, as baixas realizadas e as ações de compra ou redistribuição. '+esc(period)+
+      '. Quantidades baixadas apuradas por unidade de medida, sem somar UN com KG ou LT.</div></div>'+
       '<div class="dbmx-filters"><label>Estoque máximo<select id="dbmx-months">'+
       [3,4,6].map(v=>'<option value="'+v+'"'+(v===config.months?' selected':'')+'>'+v+' meses</option>').join('')+
       '</select></label><label>Período das baixas<select id="dbmx-year">'+
@@ -392,10 +469,10 @@
       '<div class="dbmx-kpi"><span>Itens com saldo que exigem revisão do histórico</span><strong>'+int(manual.length)+'</strong></div>'+
       '</div><div class="dbmx-list"><h3>Almoxarifados · reposição e excedente na mesma análise</h3>'+
       '<div class="dbmx-legend">'+
-      '<span><b class="dbmx-legend--need"></b>Vermelho: repor</span>'+
-      '<span><b class="dbmx-legend--excess"></b>Azul: excedente disponível</span>'+
-      '<span><b class="dbmx-legend--ok"></b>Verde: estoque adequado / atenção</span>'+
-      '<span><b class="dbmx-legend--history"></b>Roxo: sem baixas / histórico insuficiente</span></div>'+
+      '<span><b class="dbmx-legend--need"></b>Amarelo: precisa repor</span>'+
+      '<span><b class="dbmx-legend--excess"></b>Verde escuro: excedente disponível</span>'+
+      '<span><b class="dbmx-legend--ok"></b>Verde claro: estoque adequado / atenção</span>'+
+      '<span><b class="dbmx-legend--history"></b>Cinza: sem baixas / histórico insuficiente</span></div>'+
       locals.map(loc=>{
         const opened=loc.local===config.local;
         const needWidth=Math.max(0,100*loc.needValue/maxNeed).toFixed(2);
@@ -403,7 +480,9 @@
         const row='<div class="dbmx-local-block"><button type="button" class="dbmx-local" data-dbmx-local="'+
           esc(loc.local)+'" aria-expanded="'+opened+'"><span class="dbmx-name">'+
           '<span class="dbmx-arrow" aria-hidden="true">'+(opened?'▾':'▸')+'</span>'+esc(loc.local)+
-          (loc.network?' · rede (não somar ao físico)':'')+statusSummary(loc.rows)+'</span>'+
+          (loc.network?' · rede (não somar ao físico)':'')+
+          withdrawalSummary(loc.rows,loc.network?'Baixas da rede':'Qtd. baixada')+
+          statusSummary(loc.rows)+'</span>'+
           '<span class="dbmx-metric"><span>Repor: '+int(loc.needCount)+' produtos · <strong>'+
           brl(loc.needValue)+'</strong></span><span class="dbmx-track"><span class="dbmx-bar dbmx-bar--need" style="width:'+
           needWidth+'%"></span></span></span>'+
@@ -416,7 +495,8 @@
           const groupsRow='<div class="dbmx-group-wrap"><button type="button" class="dbmx-group" data-dbmx-group="'+
             esc(g.name)+'" aria-expanded="'+groupOpen+'"><span class="dbmx-name">'+
             '<span class="dbmx-arrow" aria-hidden="true">'+(groupOpen?'▾':'▸')+'</span>'+
-            esc(g.name)+' · '+int(g.rows.length)+' produtos'+statusSummary(g.rows)+'</span>'+
+            esc(g.name)+' · '+int(g.rows.length)+' produtos'+
+            withdrawalSummary(g.rows,'Qtd. baixada')+statusSummary(g.rows)+'</span>'+
             '<span class="dbmx-metric">A repor: '+int(g.needCount)+' · <strong>'+brl(g.needValue)+'</strong></span>'+
             '<span class="dbmx-metric">Em excesso: '+int(g.excessCount)+' · <strong>'+brl(g.excessValue)+
             '</strong></span></button>';
@@ -427,7 +507,9 @@
           '<h3>'+esc(loc.local)+' · '+int(loc.needCount)+' produtos para repor ('+
           brl(loc.needValue)+') · '+int(loc.excessCount)+' acima do máximo ('+
           brl(loc.excessValue)+')</h3>'+
-          '<p>Selecione um grupo para abrir os produtos logo abaixo.</p>'+
+          '<p class="dbmx-period-withdrawals">Total baixado neste almoxarifado: '+
+          esc(withdrawalText(withdrawalsByUnit(loc.rows)))+
+          '. Selecione um grupo para abrir os produtos logo abaixo.</p>'+
           expandedGroups+'</div></div>';
       }).join('')+'</div>'+
       '<div class="dbmx-note"><b>Critérios:</b> mínimo = média das baixas × 2 meses; máximo = média × '+
@@ -438,7 +520,8 @@
       'continuam excluídos. 2024 e novembro/2026 (parcial) não entram nas médias. '+
       'CDI de Peças Chuá usa demanda consolidada da rede e não integra os totais físicos, evitando dupla contagem. '+
       'Possíveis transferências são sugestões sujeitas a conferência de unidade, empresa fiscal e disponibilidade. '+
-      'Cores da análise: vermelho = precisa repor; azul = excedente disponível; verde = estoque adequado ou em atenção; roxo = sem baixas ou histórico insuficiente. '+
+      'Identidade visual DB: verde e amarelo; alertas apresentados por etiquetas discretas. '+
+      'A quantidade baixada considera somente os meses completos do período selecionado, separada por unidade, e não inclui transferências. '+
       'Posição do estoque: '+esc(window.CURRENT_STOCK_META?.emissao||'não informada')+'. '+
       ((missingNeed||missingExcess)?'Sem custo ERP estimável: '+int(missingNeed)+' a repor e '+int(missingExcess)+
         ' em excesso (não incluídos nos valores).':'')+'</div>';
@@ -454,18 +537,21 @@
       physicalExcessItems:high.length,physicalExcessValue:excessValue,
       warehousesWithExcess:locals.filter(x=>!x.network&&x.excessCount>0).length,
       insufficientHistoryItems:manual.length,missingCostItems:missingExcess,
-      minimumMonths:2,integrated:true,inlineCascade:true,colorCoding:true,
-      statusColors:{need:'red',excess:'blue',ok:'green',history:'purple'},
+      minimumMonths:2,integrated:true,inlineCascade:true,colorCoding:true,brandPalette:'DB verde/amarelo',
+      withdrawalsFrom:'ERP_MOVEMENTS_YEARLY',withdrawalPeriodMonths:config.year==='2025'?12:config.year==='2026'?10:22,
+      withdrawalTotalsPhysical:withdrawalsByUnit(physical),
+      statusColors:{need:'db-yellow',excess:'db-green-dark',ok:'db-green-soft',history:'db-muted'},
       selectedLocal:config.local,selectedGroup:config.group,
       locations:locals.map(x=>({local:x.local,needItems:x.needCount,needValue:x.needValue,
-        excessItems:x.excessCount,amount:x.excessValue,virtual:x.network}))
+        excessItems:x.excessCount,amount:x.excessValue,virtual:x.network,
+        withdrawalTotals:withdrawalsByUnit(x.rows)}))
     };
     window.DB_STOCK_UNIFIED.meta=meta;
     window.DB_STOCK_MAXIMUM.meta=meta;
   }
 
   function schedule(){clearTimeout(timer);timer=setTimeout(render,90);}
-  const api={render,refresh:schedule,meta:null,version:'20261103-unified-cascade-v2'};
+  const api={render,refresh:schedule,meta:null,version:'20261103-db-baixas-v3'};
   window.DB_STOCK_UNIFIED=api;
   window.DB_STOCK_MAXIMUM=api; // Retem os pontos de observacao da versao anterior.
   window.addEventListener('movements-updated',schedule);
