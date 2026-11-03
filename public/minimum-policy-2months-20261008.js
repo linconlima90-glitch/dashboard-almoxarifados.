@@ -345,7 +345,7 @@
       '<strong>'+n0(positive.length)+' com reposição · '+n0(entries.length-positive.length)+' sem reposição</strong></div>'+
       charts+
       '<div class="dl-columns"><span>Almoxarifado / grupos</span><span>Abaixo / sem estoque</span>'+
-      '<span>Saldo suficiente</span><span>Sem histórico</span><span>Valor para repor</span></div>'+
+      '<span>No mínimo ou acima</span><span>Sem histórico</span><span>Valor para repor</span></div>'+
       entries.map(d=>'<div class="dl-row" data-minimum-row="'+esc(d.local)+'"><div><b>'+esc(d.local)+'</b><small>'+
         n0(d.items)+' produtos · '+n0(d.need)+' a repor'+
         (d.local==='CDI DE PECAS CHUA'?' · visão consolidada da rede':'')+'</small>'+
