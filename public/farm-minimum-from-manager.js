@@ -108,7 +108,7 @@
       code:String(code),local,year,rows,
       pendingAnnual:year ? managerBase.length-selected.length : 0,
       managerBaseCount:managerBase.length,
-      stockDate:String(window.CURRENT_STOCK_META.emissao || '30/10/2026'),
+      stockDate:String(window.CURRENT_STOCK_META.emissao || '03/11/2026'),
       usesNetwork:rows.some(x=>x.network_scope) || (String(code)==='30115' && managerBaseCountHasData(managerBase))
     };
   }
