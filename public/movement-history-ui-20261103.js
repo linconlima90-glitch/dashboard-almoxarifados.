@@ -15,12 +15,12 @@
   const rowsByYear=new Map();let active=[],loading=false,visibleCount=160;
   const yearSet=['2024','2025','2026'];
   const panel=document.createElement('details');panel.id='full-movement-history';panel.className='erp-historical';
-  panel.innerHTML=`<summary><span><b>Histórico detalhado das baixas · 2024 a 2026</b><small>Local · grupo · produto · dia | Clique para consultar</small></span><b>19.465 lançamentos</b></summary>
+  panel.innerHTML=`<summary><span><b>Histórico detalhado das baixas · 2024 a 2026</b><small>Local · grupo · produto · dia | Clique para consultar</small></span><b>19.387 lançamentos</b></summary>
     <div class="erp-h-content">
       <p class="erp-h-warning"><b>Regra do estoque mínimo:</b> 2024 é somente para consulta. A média de reposição utiliza <b>2025 e 2026</b>, de janeiro/2025 a outubro/2026 (22 meses completos). Novembro está parcial.</p>
-      <div class="erp-h-years"><div><small>2024 · consulta</small><b>2.350</b><span>R$ 158.911,16</span></div>
-        <div><small>2025 · considerado no mínimo</small><b>6.253</b><span>R$ 560.484,33</span></div>
-        <div><small>2026 · considerado no mínimo</small><b>10.862</b><span>R$ 1.079.816,82</span></div></div>
+      <div class="erp-h-years"><div><small>2024 · consulta</small><b>2.298</b><span>R$ 151.077,95</span></div>
+        <div><small>2025 · considerado no mínimo</small><b>6.220</b><span>R$ 552.015,35</span></div>
+        <div><small>2026 · considerado no mínimo</small><b>10.869</b><span>R$ 1.077.223,73</span></div></div>
       <div class="erp-h-filters">
         <label>Ano<select id="erp-h-year"><option value="2024">2024 · somente consulta</option><option value="2025">2025</option><option value="2026">2026</option></select></label>
         <label>Mês<select id="erp-h-month"><option value="">Todos os meses</option></select></label>
@@ -29,7 +29,7 @@
         <label>Produto ou código<input type="search" id="erp-h-search" placeholder="Pesquisar produto..."></label>
         <button type="button" id="erp-h-export">Exportar CSV</button>
       </div>
-      <p class="erp-h-note">Registros agregados por <b>dia, almoxarifado, empresa fiscal, produto e unidade</b>, preservando a quantidade de lançamentos originais. Custos pelo campo <b>Custo_Total</b> do ERP; sem transferências. A primeira baixa do arquivo é de 14/03/2024.</p>
+      <p class="erp-h-note">Registros agregados por <b>dia, almoxarifado, empresa fiscal, produto e unidade</b>, preservando a quantidade de lançamentos originais. Custos pelo campo <b>Custo_Total</b> do ERP; sem transferências. O arquivo recebido não informa a situação da conferência. A primeira baixa do arquivo é de 14/03/2024.</p>
       <div class="erp-h-result"><b id="erp-h-stat">Selecione um ano para consultar</b><span id="erp-h-value"></span></div>
       <div class="erp-h-wrap"><table><thead><tr><th>Data</th><th>Almoxarifado</th><th>Grupo</th><th>Código / produto</th><th>UN</th><th class="num">Quantidade</th><th class="num">Custo (R$)</th><th class="num">Baixas</th><th>Situação custo</th></tr></thead><tbody id="erp-h-body"></tbody></table></div>
       <div class="erp-h-footer"><span id="erp-h-page-note"></span><button type="button" id="erp-h-more">Mostrar mais</button></div>
@@ -91,7 +91,7 @@
     $('#erp-h-stat').textContent=integer(count)+' baixas · '+integer(rows.length)+' registros agrupados';
     $('#erp-h-value').textContent=money(totalCents/100);
     const show=rows.slice(0,visibleCount);
-    $('#erp-h-body').innerHTML=show.map(r=>'<tr><td>'+esc(r.date.slice(8)+'/'+r.date.slice(5,7)+'/'+r.date.slice(0,4))+'</td><td>'+esc(r.local)+'</td><td>'+esc(r.grupo)+'</td><td><b>'+esc(r.codigo)+'</b> · '+esc(r.produto)+'</td><td>'+esc(r.un)+'</td><td class="num">'+qty(r.quantity)+'</td><td class="num">'+money(r.cents/100)+'</td><td class="num">'+integer(r.count)+'</td><td>'+(r.diff?'<span class="erp-h-check">'+r.diff+' DIFERENTE</span>':'IGUAL')+'</td></tr>').join('');
+    $('#erp-h-body').innerHTML=show.map(r=>'<tr><td>'+esc(r.date.slice(8)+'/'+r.date.slice(5,7)+'/'+r.date.slice(0,4))+'</td><td>'+esc(r.local)+'</td><td>'+esc(r.grupo)+'</td><td><b>'+esc(r.codigo)+'</b> · '+esc(r.produto)+'</td><td>'+esc(r.un)+'</td><td class="num">'+qty(r.quantity)+'</td><td class="num">'+money(r.cents/100)+'</td><td class="num">'+integer(r.count)+'</td><td>'+(r.diff?'<span class="erp-h-check">'+r.diff+' DIFERENTE</span>':'NÃO INFORMADO')+'</td></tr>').join('');
     $('#erp-h-page-note').textContent='Exibindo '+show.length+' de '+rows.length+' linhas';
     $('#erp-h-more').hidden=show.length>=rows.length;
   }
@@ -102,7 +102,7 @@
     $('#erp-h-body').innerHTML='';visibleCount=160;
     try{
       if(!rowsByYear.has(year)){
-        const res=await fetch('/baixas-detalhe-'+year+'.json.gz?v=20261103',{cache:'force-cache'});
+        const res=await fetch('/baixas-detalhe-'+year+'.json.gz?v=20261103-1525',{cache:'force-cache'});
         if(!res.ok)throw Error('O arquivo do ano '+year+' não está disponível');
         const file=typeof DecompressionStream!=='undefined'
           ? await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).json()

@@ -13,14 +13,14 @@
     const key=x=>String(x.codigo_local)+'|'+String(x.codigo);
     const meta=P.meta||{},D=P.dict;
     const completeMonths=22, minMonths=2;
-    if(meta.records!==19465||Math.abs(meta.value-1799212.31)>.01||
-       meta.sha256!=='107014104a760b924b20ceadfc8a06b3e8c4df130d6d35375381d0038bedf193'||
-       P.rows.length!==8350||D.month.length!==33||D.product.length!==1447)
+    if(meta.records!==19387||Math.abs(meta.value-1780317.03)>.01||
+       meta.sha256!=='e2a6605e7856dcfd558b2222cf1f55c52e54073a886457b97702e6a32f78455f'||
+       P.rows.length!==8331||D.month.length!==33||D.product.length!==1447)
       throw Error('Baixas ERP 2024-2026: fonte nao confere');
 
     const annualActual={'2024':{records:0,cents:0},'2025':{records:0,cents:0},'2026':{records:0,cents:0}};
     const monthActual=new Map(),decoded=[];
-    const expectedByYear={'2024':[2350,15891116],'2025':[6253,56048433],'2026':[10862,107981682]};
+    const expectedByYear={'2024':[2298,15107795],'2025':[6220,55201535],'2026':[10869,107722373]};
     const preferredUnit=new Map();
     for(const s of STOCK)if(!preferredUnit.has(key(s)))preferredUnit.set(key(s),String(s.un||''));
     for(const m of MOVEMENTS)if(!preferredUnit.has(key(m)))preferredUnit.set(key(m),String(m.un||''));
@@ -67,8 +67,8 @@
       if(actual.records!==expect[0]||actual.cents!==expect[1])
         throw Error('Divergencia no ano '+year+' na fonte ERP');
     }
-    if(monthActual.get('2026-10')?.records!==1381||monthActual.get('2026-10')?.cents!==11420952||
-       monthActual.get('2026-11')?.records!==43||monthActual.get('2026-11')?.cents!==181377||
+    if(monthActual.get('2026-10')?.records!==1376||monthActual.get('2026-10')?.cents!==11276930||
+       monthActual.get('2026-11')?.records!==63||monthActual.get('2026-11')?.cents!==323789||
        monthActual.get('2025-01')?.records!==336)
       throw Error('Baixas mensais do ERP inconsistentes');
 
@@ -174,16 +174,16 @@
         t.total+=n(y.total);t.complete_total+=n(y.legacy_complete_total);
       }
     }
-    window.MOVEMENTS_OCTOBER_META={from:'01/10/2026',to:'31/10/2026',records:1381,value:114209.52};
-    window.MOVEMENTS_NOVEMBER_META={from:'01/11/2026',to:'03/11/2026',records:43,value:1813.77,partial:true};
-    window.MOVEMENTS_2024_META={from:'14/03/2024',to:'31/12/2024',records:2350,value:158911.16,forMinimum:false};
+    window.MOVEMENTS_OCTOBER_META={from:'01/10/2026',to:'31/10/2026',records:1376,value:112769.30};
+    window.MOVEMENTS_NOVEMBER_META={from:'01/11/2026',to:'03/11/2026',records:63,value:3237.89,partial:true};
+    window.MOVEMENTS_2024_META={from:'14/03/2024',to:'31/12/2024',records:2298,value:151077.95,forMinimum:false};
     window.MOVEMENTS_REVISED_META={from:meta.from,to:meta.to,records:meta.records,value:meta.value,
       years:meta.years,months:meta.months,monthlyRows:P.rows.length,sourceFile:meta.sourceFile,sourceSHA256:meta.sha256,
       costField:meta.costField,forMinimum:{from:'01/01/2025',years:[2025,2026],through:'31/10/2026',
-        months:22,partialMonthExcluded:'2026-11',minMonths:2,records:17115},
+        months:22,partialMonthExcluded:'2026-11',minMonths:2,records:17026},
       excludedMinimumYear:2024,completedThrough:'31/10/2026',openMonth:'2026-11',
       replacedOldOctober:true,reconciliation:'ERP INTEGRAL 2024-2026 · SUBSTITUI HISTORICO ANTERIOR',
-      snapshot:true,mixedUnits,pendingHistoricalKeys:0,statusDifferent:meta.status.DIFERENTE};
+      snapshot:true,mixedUnits,pendingHistoricalKeys:0,statusDifferent:(meta.status?.DIFERENTE??null)};
     for(const s of STOCK){const m=movement.get(key(s));
       s.qtd_baixada=n(m?.total);s.media_mensal=n(m?.avg);s.cobertura=s.media_mensal>0?n(s.estoque)/s.media_mensal:null;
       s.status_consumo=s.qtd_baixada>0?'COM BAIXA NO PERIODO':'SEM BAIXA EM 2025/2026';
@@ -193,8 +193,8 @@
     if(summary&&!document.getElementById('baixas-snapshot-2024-2026')){
       const box=document.createElement('div');box.id='baixas-snapshot-2024-2026';
       box.style.cssText='background:#f5f9f6;border:1px solid #cfe3d3;border-left:4px solid #1e8747;padding:12px 15px;border-radius:10px;color:#214e32;font-size:12px;margin:10px 0 14px;line-height:1.65';
-      box.innerHTML='<b>Baixas ERP detalhadas: 14/03/2024 a 03/11/2026</b> · 19.465 lancamentos · <b>R$ 1.799.212,31</b>.'+
-        '<div style="color:#657366;font-size:11px">2024: 2.350 lancamentos, R$ 158.911,16 (apenas consulta; nao entra na media). 2025: 6.253, R$ 560.484,33. 2026 ate 03/11: 10.862, R$ 1.079.816,82. Consumo para minimo de 2 meses: janeiro/2025 a outubro/2026, 22 meses completos; novembro parcial nao entra na media. Dados do ERP substituem as fotografias anteriores sem duplicacao. Estoque fisico permanece em 03/11/2026 09:54:21.</div>';
+      box.innerHTML='<b>Baixas ERP detalhadas: 14/03/2024 a 03/11/2026</b> · 19.387 lancamentos · <b>R$ 1.780.317,03</b>.'+
+        '<div style="color:#657366;font-size:11px">2024: 2.298 lancamentos, R$ 151.077,95 (apenas consulta; nao entra na media). 2025: 6.220, R$ 552.015,35. 2026 ate 03/11: 10.869, R$ 1.077.223,73. Consumo para minimo de 2 meses: janeiro/2025 a outubro/2026, 22 meses completos; novembro parcial nao entra na media. Dados do ERP substituem as fotografias anteriores sem duplicacao. Estoque fisico atualizado em 03/11/2026 15:58:21.</div>';
       summary.prepend(box);
     }
     try{if(typeof render==='function')render()}catch(e){console.warn('Histórico ERP: render',e)}

@@ -1,4 +1,4 @@
-// Carrega a posição atualizada de estoque de 03/11/2026 09:54:21 e aplica ao dashboard.
+// Carrega a posição atualizada de estoque de 03/11/2026 15:58:21 e aplica ao dashboard.
 (async function(){
   if(window.__CURRENT_STOCK_20260911_LOADING)return;
   window.__CURRENT_STOCK_20260911_LOADING=true;
@@ -27,7 +27,7 @@
     delete window.STOCK_REVISED_MONTHLY_20261015;
     window.CURRENT_STOCK_GZ='';
     const script=document.createElement('script');
-    script.src='/current-stock-apply-20260911.js?v=20261103-0954';
+    script.src='/current-stock-apply-20260911.js?v=20261103-1558';
     script.async=false;
     document.head.appendChild(script);
   }catch(err){console.error('Falha ao carregar estoque de 03/11/2026',err)}

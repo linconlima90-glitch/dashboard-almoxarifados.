@@ -122,31 +122,31 @@ class DashboardInjector {
       '<script src="/cdi-minimum-layout.js?v=20261103-full-history"></script>' +
       '<script src="/minimum-policy-2months-20261008.js?v=20261008-1"></script>' +
       '<script src="/stock-current-b64-init.js?v=20261008-1"></script>' +
-      '<script src="/stock-current-20261103-0954-01.js?v=20261103-0954"></script>' +
-      '<script src="/stock-current-20261103-0954-02.js?v=20261103-0954"></script>' +
-      '<script src="/stock-current-20261103-0954-03.js?v=20261103-0954"></script>' +
-      '<script src="/stock-current-20261103-0954-04.js?v=20261103-0954"></script>' +
-      '<script src="/stock-current-20261103-0954-05.js?v=20261103-0954"></script>' +
-      '<script src="/stock-current-20261103-0954-06.js?v=20261103-0954"></script>' +
-      '<script src="/stock-current-20261103-0954-07.js?v=20261103-0954"></script>' +
-      '<script src="/stock-current-20261103-0954-08.js?v=20261103-0954"></script>' +
-      '<script src="/stock-current-20261103-0954-09.js?v=20261103-0954"></script>' +
-      '<script src="/stock-current-20261103-0954-10.js?v=20261103-0954"></script>' +
-      '<script src="/stock-current-20261103-0954-11.js?v=20261103-0954"></script>' +
-      '<script src="/stock-current-20261103-0954-12.js?v=20261103-0954"></script>' +
+      '<script src="/stock-current-20261103-1558-01.js?v=20261103-1558"></script>' +
+      '<script src="/stock-current-20261103-1558-02.js?v=20261103-1558"></script>' +
+      '<script src="/stock-current-20261103-1558-03.js?v=20261103-1558"></script>' +
+      '<script src="/stock-current-20261103-1558-04.js?v=20261103-1558"></script>' +
+      '<script src="/stock-current-20261103-1558-05.js?v=20261103-1558"></script>' +
+      '<script src="/stock-current-20261103-1558-06.js?v=20261103-1558"></script>' +
+      '<script src="/stock-current-20261103-1558-07.js?v=20261103-1558"></script>' +
+      '<script src="/stock-current-20261103-1558-08.js?v=20261103-1558"></script>' +
+      '<script src="/stock-current-20261103-1558-09.js?v=20261103-1558"></script>' +
+      '<script src="/stock-current-20261103-1558-10.js?v=20261103-1558"></script>' +
+      '<script src="/stock-current-20261103-1558-11.js?v=20261103-1558"></script>' +
+      '<script src="/stock-current-20261103-1558-12.js?v=20261103-1558"></script>' +
 
 
 
 
 
-      '<script src="/current-stock-loader-20260911.js?v=20261103-0954"></script>' +
-      '<script src="/movement-full-base-20261103.js?v=20261103-1032"></script>' +
-      '<script src="/movement-full-01-20261103.js?v=20261103-1032"></script>' +
-      '<script src="/movement-full-02-20261103.js?v=20261103-1032"></script>' +
-      '<script src="/movement-full-03-20261103.js?v=20261103-1032"></script>' +
-      '<script src="/movement-full-04-20261103.js?v=20261103-1032"></script>' +
-      '<script src="/movement-reconcile-full-20261103.js?v=20261103-1032"></script>' +
-      (this.pilot ? '' : '<script src="/movement-history-ui-20261103.js?v=20261103-1032"></script>' +
+      '<script src="/current-stock-loader-20260911.js?v=20261103-1558"></script>' +
+      '<script src="/movement-full-base-20261103.js?v=20261103-1525"></script>' +
+      '<script src="/movement-full-01-20261103.js?v=20261103-1525"></script>' +
+      '<script src="/movement-full-02-20261103.js?v=20261103-1525"></script>' +
+      '<script src="/movement-full-03-20261103.js?v=20261103-1525"></script>' +
+      '<script src="/movement-full-04-20261103.js?v=20261103-1525"></script>' +
+      '<script src="/movement-reconcile-full-20261103.js?v=20261103-1525"></script>' +
+      (this.pilot ? '' : '<script src="/movement-history-ui-20261103.js?v=20261103-1525"></script>' +
         '<script src="/baixas-consolidadas-20261103.js?v=20261103-1"></script>'),
       { html: true }
     );

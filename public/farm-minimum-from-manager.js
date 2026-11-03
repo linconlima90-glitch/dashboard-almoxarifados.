@@ -193,7 +193,7 @@
     };
     return '<section class="sj-section active fm-root" id="farm-minimum-view">'+
       '<div class="sj-hero"><h2>Estoque mínimo — '+esc(farm)+'</h2>'+
-      '<p>Mesma base e lógica do Estoque Mínimo no gestor principal, restrita a este almoxarifado. Cobertura padrão de <b>2 meses</b> para todos os produtos com consumo conhecido, inclusive pneus e câmaras. Itens sem baixas aparecem como sem histórico, sem demanda presumida.</p></div>'+
+      '<p>Mesma base e lógica do Estoque Mínimo no gestor principal, restrita a este almoxarifado. Cobertura padrão de <b>2 meses</b> para todos os produtos com consumo conhecido, exceto pneus, câmaras e cimento. Itens sem baixas aparecem como sem histórico, sem demanda presumida.</p></div>'+
       '<div class="fm-kpis">'+
       '<div class="sj-kpi"><div class="k">Produtos avaliados</div><div class="v">'+integer(rows.length)+'</div></div>'+
       '<div class="sj-kpi risk"><div class="k">Abaixo do mínimo</div><div class="v">'+integer(below.length)+'</div></div>'+

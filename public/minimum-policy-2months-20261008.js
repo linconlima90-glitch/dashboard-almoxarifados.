@@ -14,7 +14,7 @@
   const norm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
   const excludedFromMinimum=x=>{
     const group=norm(x?.grupo),item=norm(x?.produto);
-    return /\bPNEUS?\b|\bCAMARAS?\b/.test(group)||
+    return /\bPNEUS?\b|\bCAMARAS?\b|\bCIMENTOS?\b/.test(group)||
       /\b(?:PNEUS?|CAMARAS?|CIMENTOS?)\b/.test(item);
   };
   window.DB_MINIMUM_EXCLUDED=excludedFromMinimum;
