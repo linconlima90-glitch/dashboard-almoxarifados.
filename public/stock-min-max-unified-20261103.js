@@ -85,10 +85,12 @@
     const base=(Array.isArray(raw)?raw:[]).filter(x=>!exclude(x));
     const chosen=config.year&&typeof minimumRowsForYear==='function'
       ?minimumRowsForYear(base,config.year):base;
-    const result=new Map();
+    const result=new Map(),assignedWithdrawals=new Set();
     function push(x){
       if(!x||!str(x.codigo)||!str(x.local))return;
       const vk=virtual(x),k=rowKey(x),stock=snapshots.get(k);
+      if(result.has(k))return;
+      const sourceKey=(vk?'REDE|':'LOCAL|')+(vk?str(x.codigo):key(x));
       const avg=Math.max(0,n(x.avg));
       const minimum=Math.max(0,n(x.minimum)||ceil(avg*2,x.un));
       const balance=vk?n(x.stock):(stock?stock.stock:n(x.stock));
@@ -96,7 +98,11 @@
       const need=ceil(Math.max(0,minimum-balance),x.un);
       const months=vk?activity.network.get(str(x.codigo)):activity.locals.get(key(x));
       const perUnit=vk?activity.networkQty.get(str(x.codigo)):activity.localQty.get(key(x));
-      const withdrawals=perUnit?[...perUnit.entries()].map(([un,value])=>({un,value})).filter(x=>Math.abs(x.value)>1e-9):[];
+      const withdrawals=!assignedWithdrawals.has(sourceKey)&&perUnit?
+        [...perUnit.entries()].map(([un,value])=>({un,value})).filter(x=>Math.abs(x.value)>1e-9):[];
+      // Se o ERP listar o mesmo codigo/local em mais de uma unidade, mostrar as
+      // quantidades por unidade em uma unica linha para nao duplicar o total.
+      if(withdrawals.length)assignedWithdrawals.add(sourceKey);
       const count=months?.size??Math.max(0,n(x.active_month_buckets));
       const mixed=!vk&&activity.mix.has(key(x));
       // Um item com poucas baixas ou unidade divergente nao gera alerta automatico de maximo.
@@ -521,7 +527,7 @@
       'CDI de Peças Chuá usa demanda consolidada da rede e não integra os totais físicos, evitando dupla contagem. '+
       'Possíveis transferências são sugestões sujeitas a conferência de unidade, empresa fiscal e disponibilidade. '+
       'Identidade visual DB: verde e amarelo; alertas apresentados por etiquetas discretas. '+
-      'A quantidade baixada considera somente os meses completos do período selecionado, separada por unidade, e não inclui transferências. '+
+      'A quantidade baixada considera somente os meses completos do período selecionado, separada por unidade, e não inclui transferências. Códigos com unidades diferentes são consolidados uma única vez. '+
       'Posição do estoque: '+esc(window.CURRENT_STOCK_META?.emissao||'não informada')+'. '+
       ((missingNeed||missingExcess)?'Sem custo ERP estimável: '+int(missingNeed)+' a repor e '+int(missingExcess)+
         ' em excesso (não incluídos nos valores).':'')+'</div>';
