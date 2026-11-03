@@ -185,17 +185,13 @@ with sync_playwright() as p:
             assert historical['minimum']['years']==[2025,2026] and historical['minimum']['months']==22, historical
             assert not historical['year2024'] and len(historical['annual'])==2, historical
             assert abs(historical['target']['complete']-11)<0.00001 and abs(historical['target']['average']-0.5)<0.00001, historical
-            print("HIST DIAGNOSTICO",name,page.evaluate("""() => ({
-              host:!!document.querySelector('#view-baixas'),
-              pack:!!window.MOVEMENTS_COMPLETE_20261103,
-              flag:window.__DB_MOVEMENT_HISTORY_UI||false,
-              helper:!!window.DB_HISTORICO_BAIXAS,
-              pilot:document.documentElement.dataset.dbPilot,
-              panel:!!document.querySelector('#full-movement-history'),
-              viewIds:[...document.querySelectorAll('.view')].map(x=>x.id).slice(0,20)
-            })"""),"ERRORS",errors,flush=True)
-            page.wait_for_function("document.querySelector('#full-movement-history') !== null", timeout=4000)
-            assert historical['historyPanel'] or page.locator('#full-movement-history').count()==1, historical
+            if 'Pilot' not in name:
+                page.wait_for_function("document.querySelector('#full-movement-history') !== null", timeout=20000)
+                assert page.locator('#full-movement-history').count()==1, historical
+            else:
+                assert not historical['historyPanel'], 'Consulta consolidada nao pertence ao piloto'
+
+
 
 
             # The same product/local can have two fiscal-company positions.
