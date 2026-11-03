@@ -26,36 +26,40 @@
     '.ps-kpi-action{cursor:pointer!important;position:relative;transition:box-shadow .16s ease,transform .16s ease}',
     '.ps-kpi-action:hover,.ps-kpi-action:focus-visible{box-shadow:0 8px 24px rgba(20,92,49,.17)!important;transform:translateY(-2px);outline:2px solid #1b7840;outline-offset:2px}',
     '.ps-kpi-action:after{content:"Clique para ver os produtos";display:block;margin-top:5px;font-size:9px;font-weight:800;color:#177342}',
-    '.ps-layer{position:fixed;inset:0;z-index:2147483645;background:rgba(9,31,20,.55);display:none;align-items:center;justify-content:center;padding:17px;box-sizing:border-box}',
+    '.ps-layer{position:fixed;inset:0;z-index:2147483645;background:rgba(9,31,20,.55);display:none;align-items:center;justify-content:center;padding:8px;box-sizing:border-box}',
     '.ps-layer.ps-open{display:flex}',
-    '.ps-modal{background:#f6f9f6;border-radius:17px;width:min(1320px,100%);max-height:95vh;display:flex;flex-direction:column;box-shadow:0 25px 75px rgba(0,0,0,.30);overflow:hidden;color:#1f3327}',
+    '.ps-modal{background:#f6f9f6;border-radius:12px;width:100%;height:100%;max-width:none;max-height:none;min-width:0;min-height:0;display:flex;flex-direction:column;box-shadow:0 25px 75px rgba(0,0,0,.30);overflow:hidden;color:#1f3327}',
     '.ps-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;background:#0e512d;color:white;padding:17px 20px;border-bottom:4px solid #e8c400}',
     '.ps-head h2{font-size:19px;margin:0 0 5px;color:white}.ps-head p{font-size:11px;line-height:1.5;margin:0;color:#e2f0e7}',
     '.ps-close{background:white;color:#0e512d;border:0;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:850;cursor:pointer;flex:none}',
-    '.ps-content{overflow:auto;padding:14px 17px 18px;min-height:0}',
-    '.ps-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-bottom:12px}',
+    '.ps-content{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:13px 16px 11px;min-height:0;min-width:0}',
+    '.ps-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-bottom:12px;flex-shrink:0}',
     '.ps-metric{border:1px solid #d5e5d9;border-radius:11px;padding:11px;background:white}',
     '.ps-metric small{display:block;font-size:9px;font-weight:800;color:#617467;text-transform:uppercase}',
     '.ps-metric strong{display:block;margin-top:5px;font-size:19px;color:#116037}',
     '.ps-metric span{display:block;font-size:10px;color:#6e7b72;margin-top:4px}',
-    '.ps-controls{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap;margin-bottom:11px}',
+    '.ps-controls{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap;margin-bottom:11px;flex-shrink:0}',
     '.ps-controls label{font-size:10px;font-weight:850;display:flex;flex-direction:column;gap:4px;color:#4e6555;flex:1;min-width:145px}',
     '.ps-controls input,.ps-controls select{border:1px solid #cbdccc;border-radius:8px;background:white;color:#213a2b;font-size:12px;padding:9px;min-width:0;width:100%;box-sizing:border-box}',
     '.ps-controls .ps-search{flex:1.7;min-width:230px}',
     '.ps-export{border:1px solid #11713e;background:#fff;color:#13653a;border-radius:8px;padding:9px 12px;font-size:11px;font-weight:850;cursor:pointer}',
-    '.ps-table-wrap{border:1px solid #d5e5d9;border-radius:10px;overflow:auto;background:white}',
-    '.ps-table{width:100%;border-collapse:collapse;min-width:1120px;font-size:10px}',
-    '.ps-table thead th{position:sticky;top:0;z-index:1;background:#e7f2e9;color:#154b2d;text-align:left;font-size:9px;text-transform:uppercase;padding:10px 8px;white-space:nowrap}',
-    '.ps-table td{padding:9px 8px;border-top:1px solid #e7eee8;vertical-align:top}',
+    '.ps-table-wrap{flex:1;min-height:0;min-width:0;border:1px solid #d5e5d9;border-radius:10px;overflow:auto;background:white;overscroll-behavior:contain}',
+    '.ps-table{width:100%;border-collapse:separate;border-spacing:0;min-width:1300px;table-layout:fixed;font-size:10.5px}',
+    '.ps-table>thead>tr>th{position:sticky;top:0;z-index:3;background:#e7f2e9;color:#154b2d;text-align:left;font-size:9px;text-transform:uppercase;padding:10px 7px;white-space:normal;overflow-wrap:anywhere;line-height:1.3}',
+    '.ps-table>tbody>tr.ps-item-row>td{padding:9px 7px;border-top:1px solid #e7eee8;vertical-align:top;overflow-wrap:anywhere;line-height:1.45}',
     '.ps-table .ps-num{text-align:right;white-space:nowrap}.ps-table .ps-saving{font-weight:900;color:#116b39}',
+    '.ps-table>thead>tr>th:nth-child(1){width:2.2%}.ps-table>thead>tr>th:nth-child(2){width:11%}.ps-table>thead>tr>th:nth-child(3){width:5.3%}.ps-table>thead>tr>th:nth-child(4){width:18%}.ps-table>thead>tr>th:nth-child(5){width:10%}.ps-table>thead>tr>th:nth-child(6){width:3.2%}.ps-table>thead>tr>th:nth-child(7){width:7.7%}.ps-table>thead>tr>th:nth-child(8){width:8.1%}.ps-table>thead>tr>th:nth-child(9){width:7.9%}.ps-table>thead>tr>th:nth-child(10){width:16.1%}.ps-table>thead>tr>th:nth-child(11){width:10.5%}',
+    '.ps-table>thead>tr>th:last-child{right:0;z-index:6;background:#dff0e3;box-shadow:-3px 0 7px rgba(24,70,39,.10)}',
+    '.ps-table>tbody>tr.ps-item-row>td:last-child{position:sticky;right:0;z-index:2;background:white;box-shadow:-3px 0 7px rgba(24,70,39,.08)}',
+    '.ps-table>tbody>tr.ps-item-row:hover>td:last-child{background:#f0f8f2}',
     '.ps-item-row{cursor:pointer}.ps-item-row:hover{background:#f0f8f2}.ps-item-row:focus-visible{outline:2px solid #116b39;outline-offset:-2px}',
-    '.ps-item-name{max-width:260px;min-width:150px;font-weight:700;white-space:normal}.ps-small{font-size:9px;color:#6a7f70}',
+    '.ps-item-name{font-weight:700;white-space:normal;overflow-wrap:anywhere}.ps-small{font-size:9px;color:#6a7f70;overflow-wrap:anywhere}',
     '.ps-detail td{background:#f7faf7;padding:12px 14px}.ps-detail-grid{overflow-x:auto}',
     '.ps-detail-grid table{width:100%;border-collapse:collapse;font-size:10px;min-width:720px}.ps-detail-grid th{position:static!important;background:#edf3ed!important}.ps-detail-grid td{background:transparent!important}',
-    '.ps-table-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 3px;font-size:11px;color:#506a57}',
-    '.ps-more{border:1px solid #b4d1bc;border-radius:8px;background:#fff;color:#155e35;padding:8px 11px;font-weight:850;cursor:pointer}',
-    '.ps-note{font-size:10px;line-height:1.55;color:#5b715f;margin:10px 2px 0}',
-    '@media(max-width:780px){.ps-layer{padding:0}.ps-modal{height:100%;max-height:100%;border-radius:0}.ps-head{padding:13px}.ps-head h2{font-size:16px}.ps-content{padding:11px}.ps-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.ps-metric strong{font-size:16px}.ps-controls .ps-search{min-width:100%}}'
+    '.ps-table-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 3px;font-size:11px;color:#506a57;flex-shrink:0}',
+    '.ps-table>tbody>tr.ps-detail>td{overflow-wrap:anywhere}',
+    '.ps-note{font-size:10px;line-height:1.5;color:#5b715f;margin:8px 2px 0;flex-shrink:0}',
+    '@media(max-width:780px){.ps-layer{padding:0}.ps-modal{height:100%;max-height:none;border-radius:0}.ps-head{padding:13px}.ps-head h2{font-size:16px}.ps-content{padding:11px}.ps-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.ps-metric{padding:8px}.ps-metric strong{font-size:16px}.ps-controls{gap:6px}.ps-controls .ps-search{min-width:100%}}'
   ].join('');
   document.head.appendChild(style);
 
@@ -86,8 +90,8 @@
           '<th class="ps-num">Menor preço</th><th>Fornecedor / data do menor</th>',
           '<th class="ps-num">Economia possível</th></tr></thead>',
           '<tbody id="ps-rows"></tbody></table></div>',
-        '<div class="ps-table-foot"><span id="ps-showing"></span><button type="button" class="ps-more" hidden>Mostrar mais produtos</button></div>',
-        '<p class="ps-note">Clique em um produto para conferir cada compra com valor acima do menor preço histórico. ',
+        '<div class="ps-table-foot"><span id="ps-showing"></span></div>',
+        '<p class="ps-note">Todos os registros do filtro aparecem na tabela. Clique em um produto para conferir as compras; em telas menores, deslize lateralmente (a coluna de economia permanece visível). ',
         'A economia é teórica e depende de disponibilidade, marca, especificação, frete, impostos e condições comerciais. ',
         'Pneus e câmaras de ar não entram nesta comparação, mas continuam nas compras por mês.</p>',
       '</div>',
@@ -96,8 +100,8 @@
   document.body.appendChild(layer);
 
   const $=selector=>layer.querySelector(selector);
-  const search=$('#ps-search'), local=$('#ps-local'), group=$('#ps-group'), body=$('#ps-rows'), more=$('.ps-more');
-  let data={rows:[],eligibleValue:0,savings:0,lines:0}, filtered=[], visibleCount=100, expandedKey='';
+  const search=$('#ps-search'), local=$('#ps-local'), group=$('#ps-group'), body=$('#ps-rows');
+  let data={rows:[],eligibleValue:0,savings:0,lines:0}, filtered=[];
   const focusBefore=()=>document.activeElement;
 
   function buildData(){
@@ -157,7 +161,6 @@
     data=buildData();
     updateSelect(local,data.rows.map(r=>r.local),'Todos os locais');
     updateSelect(group,data.rows.map(r=>r.grupo),'Todos os grupos');
-    visibleCount=100;expandedKey='';
     render();
   }
   function visibleRows(){
@@ -172,7 +175,7 @@
     $('#ps-rate').textContent=percent.format(data.eligibleValue>0?savings/data.eligibleValue:0);
     $('#ps-products').textContent=integer.format(new Set(filtered.map(r=>productKey(r))).size);
     $('#ps-lines').textContent=integer.format(filtered.reduce((a,x)=>a+x.count,0));
-    const visible=filtered.slice(0,visibleCount);
+    const visible=filtered;
     body.innerHTML=visible.length?visible.map((r,i)=>[
       '<tr class="ps-item-row" tabindex="0" role="button" aria-expanded="false" data-idx="',i,'">',
         '<td>',i+1,'</td><td>',esc(r.local),'</td><td>',esc(r.codigo),'</td>',
@@ -183,8 +186,7 @@
         '<td class="ps-num ps-saving">',money.format(r.save),' <span aria-hidden="true">▾</span></td>',
       '</tr>'
     ].join('')).join(''):'<tr><td colspan="11" style="padding:23px;text-align:center">Nenhuma oportunidade encontrada para os filtros aplicados.</td></tr>';
-    $('#ps-showing').textContent=integer.format(visible.length)+' de '+integer.format(filtered.length)+' registros por produto e local · '+money.format(savings)+' no filtro';
-    more.hidden=filtered.length<=visible.length;
+    $('#ps-showing').textContent='Todos os '+integer.format(filtered.length)+' registros por produto e local · '+money.format(savings)+' de economia potencial no filtro';
   }
 
   function openDetail(index){
@@ -252,8 +254,7 @@
   $('.ps-close').addEventListener('click',close);
   layer.addEventListener('click',event=>{if(event.target===layer)close()});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&layer.classList.contains('ps-open'))close()});
-  for(const control of [search,local,group])control.addEventListener(control===search?'input':'change',()=>{visibleCount=100;render()});
-  more.addEventListener('click',()=>{visibleCount+=100;render()});
+  for(const control of [search,local,group])control.addEventListener(control===search?'input':'change',render);
   body.addEventListener('click',event=>{const row=event.target.closest('.ps-item-row');if(row)openDetail(Number(row.dataset.idx))});
   body.addEventListener('keydown',event=>{if(event.key!=='Enter'&&event.key!==' ')return;const row=event.target.closest('.ps-item-row');if(row){event.preventDefault();openDetail(Number(row.dataset.idx))}});
   $('.ps-export').addEventListener('click',exportCsv);
