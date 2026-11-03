@@ -133,7 +133,7 @@
     if(!k.startsWith('2026|'))continue;
     const codeKey=k.slice(5),sample=movement.get(codeKey);
     // Substituir integralmente 2026-07 a 2026-11, inclusive registros removidos/corrigidos.
-    for(let i=6;i<=10;i++{const r=mapRev.get('2026-'+String(i+1).padStart(2,'0')+'|'+codeKey);y.months[i]=n(r?.qtd)}
+    for(let i=6;i<=10;i++){const r=mapRev.get('2026-'+String(i+1).padStart(2,'0')+'|'+codeKey);y.months[i]=n(r?.qtd)}
     y.total=y.months.reduce((a,v)=>a+n(v),0);y.active_months=y.months.filter(x=>n(x)>0).length;
     if(sample)y.cost=n(sample.cost);
   }
@@ -143,7 +143,7 @@
     const k=rowKey(m),y25=yearly.get('2025|'+k),y26=yearly.get('2026|'+k);
     if(!Array.isArray(m.months)||m.months.length!==12)m.months=Array(12).fill(0);
     const flagged=pending.has(k);
-    for(let i=6;i<=10;i++{
+    for(let i=6;i<=10;i++){
       const legacy25=flagged?0:n(y25?.months?.[i]);
       m.months[i]=legacy25+n(y26?.months?.[i]);
     }
@@ -183,7 +183,7 @@
     }
     for(const [code,a] of netYears){
       const v=byCode.get(code);
-      for(let i=6;i<=10;i++a.months[i]=n(v?.months[i-6]);
+      for(let i=6;i<=10;i++)a.months[i]=n(v?.months[i-6]);
       a.total=a.months.reduce((sum,q)=>sum+n(q),0);
       a.legacy_complete_total=a.months.slice(0,10).reduce((sum,q)=>sum+n(q),0);
     }
