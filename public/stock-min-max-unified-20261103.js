@@ -238,12 +238,26 @@
       '</span>';
   }
 
+  // Baixas determinam a ordem da lista, independentemente do valor do estoque.
+  // Com unidades divergentes, priorizar a unidade do item; nunca somar PC com KG/LT.
+  function withdrawalSortQuantity(row){
+    const records=Array.isArray(row.withdrawals)?row.withdrawals:[];
+    const sameUnit=records.find(x=>norm(x.un)===norm(row.un));
+    if(sameUnit)return Math.max(0,n(sameUnit.value));
+    return Math.max(0,...records.map(x=>n(x.value)));
+  }
   function itemTable(rows){
     const sorted=rows.slice().sort((a,b)=>
-      (b.need>0?b.purchaseValue:0)+(b.excess>0?b.excessValue:0)-
-      ((a.need>0?a.purchaseValue:0)+(a.excess>0?a.excessValue:0))||
-      a.produto.localeCompare(b.produto,'pt-BR'));
-    return '<div class="dbmx-scroll"><table><thead><tr>'+
+      withdrawalSortQuantity(b)-withdrawalSortQuantity(a)||
+      a.produto.localeCompare(b.produto,'pt-BR')||
+      a.codigo.localeCompare(b.codigo,'pt-BR'));
+    const columns=[6,15,3,9,5,5,5,6,5,7,8,5,8,13];
+    const colgroup='<colgroup>'+columns.map(width=>'<col style="width:'+width+'%">').join('')+'</colgroup>';
+    const cell=(label,html,classes='',attr='')=>
+      '<td data-label="'+esc(label)+'" class="'+esc(classes)+'"'+attr+'>'+html+'</td>';
+    return '<div class="dbmx-order-note">Produtos ordenados pela <strong>quantidade baixada: maior → menor</strong> · '+
+      'período selecionado. Valores por unidade de medida.</div>'+
+      '<div class="dbmx-scroll"><table>'+colgroup+'<thead><tr>'+
       '<th>Código</th><th>Produto</th><th>UN</th><th>Qtd. baixada no período</th><th>Média/mês</th>'+
       '<th>Mínimo (2 meses)</th><th>Saldo atual</th><th>Máximo ('+config.months+' meses)</th>'+
       '<th>Qtd. a repor</th><th>Custo unit. ERP</th><th>Valor a comprar</th>'+
@@ -258,21 +272,25 @@
           'Próximo do mínimo, mas sem compra necessária. ':(
             kind==='history'?'Não gerar alerta automático de máximo sem consumo suficiente. ':'');
         return '<tr class="dbmx-state-'+kind+'" data-dbmx-situation="'+esc(x.condition)+
-          '" data-dbmx-color="'+kind+'"><td>'+esc(x.codigo)+'</td>'+
-          '<td>'+esc(x.produto)+'</td><td>'+esc(x.un)+'</td>'+
-          '<td class="num dbmx-withdrawn-cell" data-dbmx-withdrawn="'+
-          esc(JSON.stringify(x.withdrawals))+'">'+esc(withdrawalText(x.withdrawals))+'</td>'+
-          '<td class="num">'+(x.avg>0?qty(x.avg):'—')+'</td>'+
-          '<td class="num">'+(x.avg>0?qty(x.minimum):'—')+'</td>'+
-          '<td class="num">'+qty(x.stock)+'</td>'+
-          '<td class="num">'+(x.maximum===null?'—':qty(x.maximum))+'</td>'+
-          '<td class="num '+(x.need>0?'dbmx-need':'')+'">'+qty(x.need)+'</td>'+
-          '<td class="num">'+(x.hasCost?brl(x.cost):'Não informado')+'</td>'+
-          '<td class="num dbmx-need">'+(x.need>0&&!x.hasCost?'Sem custo':brl(x.purchaseValue))+'</td>'+
-          '<td class="num '+(x.excess>0?'dbmx-warn':'')+'">'+qty(x.excess)+'</td>'+
-          '<td class="num dbmx-warn">'+(x.excess>0&&!x.hasCost?'Sem custo':brl(x.excessValue))+'</td>'+
-          '<td><strong class="dbmx-status dbmx-status--'+kind+'">'+esc(statusLabel(x))+'</strong>'+ 
-          (warning||explanation||note?'<small class="dbmx-status-help">'+esc(warning+explanation+note.trim())+'</small>':'')+'</td></tr>';
+          '" data-dbmx-color="'+kind+'" data-dbmx-withdrawal-sort="'+withdrawalSortQuantity(x)+'">'+
+          cell('Código',esc(x.codigo),'dbmx-code')+
+          cell('Produto',esc(x.produto),'dbmx-product')+
+          cell('UN',esc(x.un))+
+          cell('Qtd. baixada no período',esc(withdrawalText(x.withdrawals)),'num dbmx-withdrawn-cell',
+            ' data-dbmx-withdrawn="'+esc(JSON.stringify(x.withdrawals))+'"')+
+          cell('Média/mês',x.avg>0?qty(x.avg):'—','num')+
+          cell('Mínimo (2 meses)',x.avg>0?qty(x.minimum):'—','num')+
+          cell('Saldo atual',qty(x.stock),'num')+
+          cell('Máximo ('+config.months+' meses)',x.maximum===null?'—':qty(x.maximum),'num')+
+          cell('Qtd. a repor',qty(x.need),'num'+(x.need>0?' dbmx-need':''))+
+          cell('Custo unit. ERP',x.hasCost?brl(x.cost):'Não informado','num')+
+          cell('Valor a comprar',x.need>0&&!x.hasCost?'Sem custo':brl(x.purchaseValue),'num dbmx-need')+
+          cell('Qtd. excedente',qty(x.excess),'num'+(x.excess>0?' dbmx-warn':''))+
+          cell('Valor excedente',x.excess>0&&!x.hasCost?'Sem custo':brl(x.excessValue),'num dbmx-warn')+
+          cell('Situação / possíveis transferências',
+            '<strong class="dbmx-status dbmx-status--'+kind+'">'+esc(statusLabel(x))+'</strong>'+
+            (warning||explanation||note?'<small class="dbmx-status-help">'+esc(warning+explanation+note.trim())+'</small>':''),'dbmx-status-cell')+
+          '</tr>';
       }).join('')+'</tbody></table></div>';
   }
 
@@ -426,6 +444,21 @@
         '#db-stock-maximum .dbmx-metric--excess strong{color:var(--db-green-deep,#0d4726)}',
         '#db-stock-maximum .dbmx-local-block>.dbmx-detail{margin:0 4px 12px 18px;padding:6px 12px}',
         '#db-stock-maximum .dbmx-legend{margin-bottom:12px}',
+        // Tabela no tamanho do painel, sem rolagem horizontal. Todas as colunas permanecem acessiveis.
+        '#db-stock-maximum .dbmx-products{box-sizing:border-box;min-width:0;max-width:100%;container-type:inline-size;container-name:dbmx-itemspace}',
+        '#db-stock-maximum .dbmx-scroll{box-sizing:border-box;max-width:100%;width:100%;min-width:0;overflow-x:hidden;overflow-y:auto}',
+        '#db-stock-maximum .dbmx-scroll table{table-layout:fixed;min-width:0!important;width:100%!important;max-width:100%;border-collapse:collapse}',
+        '#db-stock-maximum .dbmx-scroll th,#db-stock-maximum .dbmx-scroll td{box-sizing:border-box;min-width:0;max-width:none;padding:8px 4px;text-align:center;white-space:normal!important;overflow-wrap:anywhere;line-height:1.35;vertical-align:middle}',
+        '#db-stock-maximum .dbmx-scroll td.num{white-space:normal!important;text-align:center!important}',
+        '#db-stock-maximum .dbmx-scroll th{font-size:9px;letter-spacing:0;hyphens:auto}',
+        '#db-stock-maximum .dbmx-scroll td{font-size:10px}',
+        '#db-stock-maximum .dbmx-scroll td.dbmx-product,#db-stock-maximum .dbmx-scroll th:nth-child(2){text-align:left}',
+        '#db-stock-maximum .dbmx-scroll td.dbmx-status-cell{text-align:left}',
+        '#db-stock-maximum .dbmx-scroll .dbmx-status{max-width:100%;overflow-wrap:anywhere}',
+        '#db-stock-maximum .dbmx-order-note{padding:7px 10px;background:var(--db-green-pale,#f3f9f5);color:var(--db-green-dark,#125c31);font-size:10px;line-height:1.5;border:1px solid var(--db-line,#d8e4dc);border-bottom:0}',
+        // Telas menores: reorganiza os mesmos 14 campos em cartoes de varias linhas, nunca esconde excedentes.
+        '@container dbmx-itemspace (max-width:1380px){#db-stock-maximum .dbmx-scroll table,#db-stock-maximum .dbmx-scroll tbody{display:block;width:100%!important;max-width:100%}#db-stock-maximum .dbmx-scroll colgroup,#db-stock-maximum .dbmx-scroll thead{display:none}#db-stock-maximum .dbmx-scroll tbody{padding:8px}#db-stock-maximum .dbmx-scroll tbody tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border:1px solid var(--db-line,#d8e4dc);border-radius:8px;overflow:hidden;margin:0 0 9px;background:#fff!important}#db-stock-maximum .dbmx-scroll tbody td{display:block;width:auto;min-width:0;min-height:54px;white-space:normal!important;text-align:left!important;padding:8px 10px;border-right:1px solid #e9efea;border-bottom:1px solid #e9efea;overflow-wrap:anywhere}#db-stock-maximum .dbmx-scroll tbody td::before{content:attr(data-label);display:block;font-size:9px;font-weight:800;color:var(--db-muted,#67716b);margin-bottom:4px;line-height:1.2}#db-stock-maximum .dbmx-scroll tbody td:nth-child(2){grid-column:span 3}#db-stock-maximum .dbmx-scroll tbody td:last-child{grid-column:span 4;min-height:0}#db-stock-maximum .dbmx-scroll tbody td.num{text-align:left!important}}',
+        '@container dbmx-itemspace (max-width:680px){#db-stock-maximum .dbmx-scroll tbody tr{grid-template-columns:repeat(2,minmax(0,1fr))}#db-stock-maximum .dbmx-scroll tbody td:nth-child(2){grid-column:span 1}#db-stock-maximum .dbmx-scroll tbody td:last-child{grid-column:span 2}}',
         '@media(max-width:900px){#db-stock-maximum .dbmx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#db-stock-maximum .dbmx-local,#db-stock-maximum .dbmx-group{min-width:640px}#db-stock-maximum .dbmx-list,#db-stock-maximum .dbmx-detail{overflow-x:auto}}',
         '@media(max-width:560px){#db-stock-maximum .dbmx-kpis{grid-template-columns:1fr}#db-stock-maximum .dbmx-filters{flex-direction:column;align-items:stretch}#db-stock-maximum label{min-width:0;width:100%}}'
       ].join('\n');
@@ -535,7 +568,7 @@
       warehousesWithExcess:locals.filter(x=>!x.network&&x.excessCount>0).length,
       insufficientHistoryItems:manual.length,missingCostItems:missingExcess,
       minimumMonths:2,integrated:true,inlineCascade:true,colorCoding:true,brandPalette:'DB verde/amarelo',
-      compactSummary:true,withdrawalDetailOnly:true,
+      compactSummary:true,withdrawalDetailOnly:true,sortedByWithdrawalsDesc:true,fullWidthProducts:true,
       withdrawalsFrom:'ERP_MOVEMENTS_YEARLY',withdrawalPeriodMonths:config.year==='2025'?12:config.year==='2026'?10:22,
       withdrawalTotalsPhysical:withdrawalsByUnit(physical),
       statusColors:{need:'db-yellow',excess:'db-green-dark',ok:'db-green-soft',history:'db-muted'},
@@ -549,7 +582,7 @@
   }
 
   function schedule(){clearTimeout(timer);timer=setTimeout(render,90);}
-  const api={render,refresh:schedule,meta:null,version:'20261103-compact-v4'};
+  const api={render,refresh:schedule,meta:null,version:'20261103-fullwidth-qtysort-v5'};
   window.DB_STOCK_UNIFIED=api;
   window.DB_STOCK_MAXIMUM=api; // Retem os pontos de observacao da versao anterior.
   window.addEventListener('movements-updated',schedule);
