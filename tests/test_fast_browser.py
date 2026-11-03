@@ -495,6 +495,49 @@ with sync_playwright() as p:
                 assert panel.get_by_text(header, exact=True).count()>0, header
             assert panel.locator('.dbmx-scroll th').count()==13
             assert panel.locator('.dbmx-scroll th', has_text='Valor a comprar').count()==0
+            # Filtro diretamente no cabecalho Situacao / possiveis transferencias.
+            header_filter=panel.locator('.dbmx-scroll th:last-child #dbmx-table-status')
+            assert header_filter.count()==1 and header_filter.is_visible()
+            assert header_filter.input_value()=='all'
+            assert header_filter.locator('option').all_text_contents()==['Todos','Repor','Excedente']
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.columnStatusFilter") is True
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.columnStatusOptions")==['all','need','excess']
+            assert panel.locator('.dbmx-filter-count').count()==1
+            total_rows=panel.locator('.dbmx-scroll tbody tr').count()
+            initial_counts=page.evaluate("""() => {
+                const rows=[...document.querySelectorAll('#db-stock-maximum .dbmx-scroll tbody tr')];
+                return ['need','excess','ok','history'].reduce((o,k)=>
+                  (o[k]=rows.filter(r=>r.dataset.dbmxColor===k).length,o),{});
+            }""")
+            assert sum(initial_counts.values())==total_rows
+            meta_before=page.evaluate("window.DB_STOCK_UNIFIED.meta")
+            for status in ('need','excess'):
+                header_filter.select_option(status)
+                snapshot=page.evaluate("""() => {
+                    const select=document.querySelector('#dbmx-table-status');
+                    const rows=[...document.querySelectorAll('#db-stock-maximum .dbmx-scroll tbody tr')];
+                    return {
+                        selected:select.value,
+                        rows:rows.length,
+                        visible:rows.filter(r=>!r.hidden).length,
+                        correctlyFiltered:rows.every(r=>r.hidden===(r.dataset.dbmxColor!==select.value)),
+                        noneShown:document.querySelector('.dbmx-filter-empty').hidden===false,
+                        countText:document.querySelector('.dbmx-filter-count').textContent,
+                        allHiddenHaveNoDisplay:rows.filter(r=>r.hidden).every(r=>getComputedStyle(r).display==='none')
+                    };
+                }""")
+                assert snapshot['selected']==status and snapshot['rows']==total_rows,snapshot
+                assert snapshot['visible']==initial_counts[status],snapshot
+                assert snapshot['correctlyFiltered'] and snapshot['allHiddenHaveNoDisplay'],snapshot
+                assert snapshot['noneShown']==(initial_counts[status]==0),snapshot
+                assert str(total_rows) in snapshot['countText'],snapshot
+                assert panel.locator('.dbmx-products').count()==1
+                assert page.evaluate("window.DB_STOCK_UNIFIED.meta.physicalNeedValue")==meta_before['physicalNeedValue']
+                assert page.evaluate("window.DB_STOCK_UNIFIED.meta.physicalExcessValue")==meta_before['physicalExcessValue']
+            header_filter.select_option('all')
+            assert panel.locator('.dbmx-scroll tbody tr:not([hidden])').count()==total_rows
+            assert panel.locator('.dbmx-filter-empty').is_hidden()
+            assert panel.locator('.dbmx-scroll th').count()==13
             assert page.evaluate("window.STOCK_MINIMUM_MONTHS") == 2
             assert page.evaluate("window.DB_MINIMUM_LOCALS_COVERAGE_META.totalLocals") == 10
             panel.locator('#dbmx-year').select_option('2025')
