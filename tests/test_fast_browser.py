@@ -328,20 +328,51 @@ with sync_playwright() as p:
             assert panel.locator('.dbmx-legend--excess').count()==1
             assert panel.locator('.dbmx-legend--ok').count()==1
             assert panel.locator('.dbmx-legend--history').count()==1
-            assert panel.get_by_text('Roxo: sem baixas / histórico insuficiente', exact=True).count()==1
+            assert panel.get_by_text('Amarelo: precisa repor', exact=True).count()==1
+            assert panel.get_by_text('Verde escuro: excedente disponível', exact=True).count()==1
+            assert panel.get_by_text('Verde claro: estoque adequado / atenção', exact=True).count()==1
+            assert panel.get_by_text('Cinza: sem baixas / histórico insuficiente', exact=True).count()==1
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.inlineCascade") is True
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.colorCoding") is True
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.statusColors") == {
-                'need':'red','excess':'blue','ok':'green','history':'purple'}
+                'need':'db-yellow','excess':'db-green-dark','ok':'db-green-soft','history':'db-muted'}
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.brandPalette") == 'DB verde/amarelo'
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.withdrawalsFrom") == 'ERP_MOVEMENTS_YEARLY'
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.withdrawalPeriodMonths") == 22
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.withdrawalTotalsPhysical") is not None
+            assert panel.locator('.dbmx-withdrawals').count() == 10
+            assert panel.locator('.dbmx-withdrawals').first.inner_text().startswith('Baixas da rede') or (
+                panel.locator('.dbmx-withdrawals').first.inner_text().startswith('Qtd. baixada'))
+            assert all('withdrawalTotals' in x for x in
+                       page.evaluate("window.DB_STOCK_UNIFIED.meta.locations"))
+            brand_visual=page.evaluate("""() => ({
+                header:getComputedStyle(document.querySelector('#db-stock-maximum .dbmx-head')).backgroundImage,
+                yellow:getComputedStyle(document.querySelector('#db-stock-maximum .dbmx-legend--need')).backgroundColor,
+                rootYellow:getComputedStyle(document.documentElement).getPropertyValue('--db-yellow').trim()
+              })""")
+            assert 'gradient' in brand_visual['header'], brand_visual
+            assert brand_visual['yellow']=='rgb(250, 202, 4)', brand_visual
+            assert brand_visual['rootYellow']=='#faca04', brand_visual
             panel.locator('.dbmx-local').first.click()
             assert panel.locator('.dbmx-detail').count()==1
             assert panel.locator('.dbmx-group').count()>0
             assert panel.locator('.dbmx-local-block').first.locator(':scope > .dbmx-detail').count()==1
             assert panel.locator('.dbmx-local-block').first.locator(':scope > .dbmx-detail .dbmx-group').count()>0
             assert panel.locator('.dbmx-products').count()==0
+            assert panel.locator('.dbmx-withdrawals').count()>10
+            assert panel.locator('.dbmx-detail').get_by_text('Total baixado neste almoxarifado:', exact=False).count()>=1
             panel.locator('.dbmx-group').first.click()
             assert panel.locator('.dbmx-scroll table').count()==1
             assert panel.locator('.dbmx-group-wrap').first.locator(':scope > .dbmx-products').count()==1
+            assert panel.get_by_text('Qtd. baixada no período', exact=True).count()==1
+            assert panel.locator('td.dbmx-withdrawn-cell').count() > 0
+            assert panel.locator('.dbmx-status').count() > 0
+            assert page.evaluate("""() => Array.from(document.querySelectorAll(
+                '#db-stock-maximum .dbmx-withdrawn-cell')).every(el =>
+                  Array.isArray(JSON.parse(el.dataset.dbmxWithdrawn)))""")
+            brand_rows=page.evaluate("""() => Array.from(document.querySelectorAll(
+                '#db-stock-maximum tbody tr')).map(el=>getComputedStyle(el).backgroundColor)""")
+            assert all(x in ('rgba(0, 0, 0, 0)','rgb(247, 250, 248)') for x in brand_rows),brand_rows
             assert panel.locator('.dbmx-state-summary').count()>0
             assert panel.locator('.dbmx-status').count()>0
             statuses=page.evaluate("""() => Array.from(document.querySelectorAll('#db-stock-maximum tbody tr'))
@@ -365,10 +396,22 @@ with sync_playwright() as p:
             assert page.evaluate("window.DB_MINIMUM_LOCALS_COVERAGE_META.totalLocals") == 10
             panel.locator('#dbmx-year').select_option('2025')
             page.wait_for_function("window.DB_STOCK_UNIFIED.meta.year==='2025'")
+            data25=page.evaluate("window.DB_STOCK_UNIFIED.meta")
+            assert data25['withdrawalPeriodMonths']==12, data25
             panel.locator('#dbmx-year').select_option('2026')
             page.wait_for_function("window.DB_STOCK_UNIFIED.meta.year==='2026'")
+            data26=page.evaluate("window.DB_STOCK_UNIFIED.meta")
+            assert data26['withdrawalPeriodMonths']==10, data26
             panel.locator('#dbmx-year').select_option('')
             page.wait_for_function("window.DB_STOCK_UNIFIED.meta.year==='2025+2026'")
+            dataAll=page.evaluate("window.DB_STOCK_UNIFIED.meta")
+            unit_dict=lambda data: {x['un']:x['value'] for x in data['withdrawalTotalsPhysical']}
+            all_qty=unit_dict(dataAll)
+            qty25=unit_dict(data25)
+            qty26=unit_dict(data26)
+            assert all(abs(total - qty25.get(unit,0) - qty26.get(unit,0))<0.03
+                       for unit,total in all_qty.items()), (all_qty,qty25,qty26)
+            assert set(qty25).union(qty26)==set(all_qty), (all_qty,qty25,qty26)
             panel.locator('#dbmx-mode').select_option('unknown')
             assert panel.get_by_text('Revisar histórico', exact=True).count()>=1
             panel.locator('#dbmx-mode').select_option('need')
