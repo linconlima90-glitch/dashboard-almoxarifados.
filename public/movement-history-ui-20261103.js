@@ -1,10 +1,11 @@
 // Consulta detalhada por dia e produto das baixas ERP 2024-2026.
 // Carrega dados por ano somente sob demanda e nao modifica consumo/estoque minimo.
 (function(){
-  if(window.__DB_MOVEMENT_HISTORY_UI)return;
-  const pack=window.MOVEMENTS_COMPLETE_20261103,host=document.querySelector('#view-baixas');
-  if(!pack||!host||document.documentElement.dataset.dbPilot==='1')return;
-  window.__DB_MOVEMENT_HISTORY_UI=true;
+  function setup(){
+    if(window.__DB_MOVEMENT_HISTORY_UI)return true;
+    const pack=window.MOVEMENTS_COMPLETE_20261103,host=document.querySelector('#view-baixas');
+    if(!pack||!host||document.documentElement.dataset.dbPilot==='1')return false;
+    window.__DB_MOVEMENT_HISTORY_UI=true;
   const D=pack.dict,meta=pack.meta;
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&quot;'}[c]));
   const money=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v)||0);
@@ -130,4 +131,14 @@
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   });
   window.DB_HISTORICO_BAIXAS={open:()=>{panel.open=true;openYear()},getMeta:()=>meta,yearLoaded:y=>rowsByYear.has(String(y))};
+    return true;
+  }
+  // The fast dashboard creates its views after scripts have been evaluated.
+  // Wait until the Baixas container exists; avoid silently skipping this tab.
+  if(!setup()){
+    document.addEventListener('DOMContentLoaded',setup,{once:true});
+    window.addEventListener('load',setup,{once:true});
+    window.addEventListener('stock-position-updated',setup);
+    window.addEventListener('movements-updated',setup);
+  }
 })();

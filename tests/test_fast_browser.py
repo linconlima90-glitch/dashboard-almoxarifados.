@@ -185,7 +185,8 @@ with sync_playwright() as p:
             assert historical['minimum']['years']==[2025,2026] and historical['minimum']['months']==22, historical
             assert not historical['year2024'] and len(historical['annual'])==2, historical
             assert abs(historical['target']['complete']-11)<0.00001 and abs(historical['target']['average']-0.5)<0.00001, historical
-            assert historical['historyPanel'], historical
+            page.wait_for_function("document.querySelector('#full-movement-history') !== null", timeout=20000)
+            assert historical['historyPanel'] or page.locator('#full-movement-history').count()==1, historical
 
 
             # The same product/local can have two fiscal-company positions.
