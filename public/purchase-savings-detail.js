@@ -60,8 +60,8 @@
     '.ps-table-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 3px;font-size:11px;color:#506a57;flex-shrink:0}',
     '.ps-table>tbody>tr.ps-detail>td{overflow-wrap:anywhere}',
     '.ps-note{font-size:10px;line-height:1.5;color:#5b715f;margin:8px 2px 0;flex-shrink:0}',
-    '.ps-audit-warning{background:#fff7e1;border:1px solid #e9c36c;border-left:4px solid #cb900e;padding:11px 13px;color:#634b18;font-size:11px;line-height:1.55;border-radius:8px;margin:0 0 11px;flex-shrink:0}',
-    '.ps-audit-caption{display:block;color:#875b00;font-size:10px;font-weight:800;margin-top:5px;line-height:1.3}',
+    '.ps-audit-warning{background:#f0f8f2;border:1px solid #cde4d3;border-left:4px solid #21814a;padding:11px 13px;color:#254e34;font-size:11px;line-height:1.55;border-radius:8px;margin:0 0 11px;flex-shrink:0}',
+    '.ps-audit-caption{display:block;color:#227347;font-size:10px;font-weight:800;margin-top:5px;line-height:1.3}',
     '@media(max-width:780px){.ps-layer{padding:0}.ps-modal{height:100%;max-height:none;border-radius:0}.ps-head{padding:13px}.ps-head h2{font-size:16px}.ps-content{padding:11px}.ps-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.ps-metric{padding:8px}.ps-metric strong{font-size:16px}.ps-controls{gap:6px}.ps-controls .ps-search{min-width:100%}}'
   ].join('');
   document.head.appendChild(style);
@@ -72,15 +72,15 @@
     '<section class="ps-modal" role="dialog" aria-modal="true" aria-labelledby="ps-title">',
       '<header class="ps-head"><div>',
         '<h2 id="ps-title">Comparativo de oportunidades de economia</h2>',
-        '<p>Produtos adquiridos acima do menor preço histórico disponível para o mesmo código e unidade.</p>',
+        '<p>Produtos com custo unitário registrado acima do menor custo histórico disponível para o mesmo código e unidade.</p>',
       '</div><button type="button" class="ps-close" aria-label="Fechar comparativo">Fechar ✕</button></header>',
       '<div class="ps-content">',
-        '<div class="ps-audit-warning"><strong>Atenção: custos históricos ainda não auditados.</strong> Em 03/11/2026, o relatório do ERP apresentou mudanças de custo unitário para as mesmas notas fiscais já exibidas em uma extração anterior. O campo <strong>Vlr.Unit.Custo</strong> não confirma o preço negociado em cada nota; portanto os valores abaixo são <strong>simulações matemáticas, não economia comprovada</strong>. A origem da referência é o menor custo registrado para o mesmo código e unidade (inclusive de outros anos), não necessariamente a melhor cotação disponível na data da compra.</div>',
+        '<div class="ps-audit-warning"><strong>Base oficial de compras auditada e aprovada em 03/11/2026.</strong> Os preços e totais refletem o relatório do ERP enviado e validado para o histórico de 2025–2026. A diferença calculada continua sendo <strong>potencial teórico de economia</strong>, não desconto obtido ou cotação vigente: a referência é o menor custo do mesmo código e unidade no histórico, inclusive de outros anos.</div>',
         '<div class="ps-metrics">',
           '<div class="ps-metric"><small>Diferença teórica</small><strong id="ps-saving">—</strong><span>Simulação com custos do ERP</span></div>',
-          '<div class="ps-metric"><small>Diferença / valor comprado</small><strong id="ps-rate">—</strong><span>Percentual não auditado</span></div>',
+          '<div class="ps-metric"><small>Diferença / valor comprado</small><strong id="ps-rate">—</strong><span>Comparação histórica da base auditada</span></div>',
           '<div class="ps-metric"><small>Produtos com oportunidade</small><strong id="ps-products">—</strong><span>Código + unidade distintos</span></div>',
-          '<div class="ps-metric"><small>Registros acima do menor custo</small><strong id="ps-lines">—</strong><span>Diferenças somente no relatório ERP</span></div>',
+          '<div class="ps-metric"><small>Registros acima do menor custo</small><strong id="ps-lines">—</strong><span>Registros da base auditada</span></div>',
         '</div>',
         '<div class="ps-controls">',
           '<label class="ps-search">Buscar produto ou código<input id="ps-search" placeholder="Digite o código ou nome do produto" autocomplete="off"></label>',
@@ -231,7 +231,7 @@
   }
 
   function exportCsv(){
-    const headers=['Local','Codigo','Produto','Grupo','Unidade','Quantidade comprada','Custo unitario medio ERP','Menor custo ERP','Fornecedor do registro menor custo','Data registro menor custo','Diferenca teorica nao auditada'];
+    const headers=['Local','Codigo','Produto','Grupo','Unidade','Quantidade comprada','Custo unitario medio ERP','Menor custo ERP','Fornecedor do registro menor custo','Data registro menor custo','Diferenca teorica com base auditada'];
     const safe=value=>{
       let s=String(value==null?'':value);
       if(/^[=+\-@\t\r]/.test(s))s="'"+s;
@@ -267,7 +267,7 @@
     if(parent && !parent.querySelector('.ps-audit-caption')){
       const hint=document.createElement('span');
       hint.className='ps-audit-caption';
-      hint.textContent='Simulação por custo ERP · não auditada';
+      hint.textContent='Base auditada · economia estimada';
       parent.appendChild(hint);
     }
   }
