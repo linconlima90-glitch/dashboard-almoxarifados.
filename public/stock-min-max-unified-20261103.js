@@ -167,6 +167,35 @@
       b.rows.length-a.rows.length||a.name.localeCompare(b.name,'pt-BR'));
   }
 
+  // Vermelho: repor; azul: excedente; verde: estoque adequado; roxo: sem baixa/historico insuficiente.
+  function statusKind(row){
+    if(row.need>0)return 'need';
+    if(row.excess>0)return 'excess';
+    if(!row.reliable)return 'history';
+    return 'ok';
+  }
+  function statusLabel(row){
+    const kind=statusKind(row);
+    if(kind==='need')return 'REPOR';
+    if(kind==='excess')return 'EXCEDENTE DISPONÍVEL';
+    if(kind==='history')return row.active===0?'SEM BAIXAS':'HISTÓRICO INSUFICIENTE';
+    return 'ESTOQUE ADEQUADO';
+  }
+  function statusCounts(rows){
+    const c={need:0,excess:0,ok:0,history:0};
+    for(const row of rows)c[statusKind(row)]++;
+    return c;
+  }
+  function statusSummary(rows){
+    const c=statusCounts(rows);
+    return '<span class="dbmx-state-summary">'+
+      '<span class="dbmx-summary-need">Repor '+int(c.need)+'</span>'+
+      '<span class="dbmx-summary-excess">Excedente '+int(c.excess)+'</span>'+
+      '<span class="dbmx-summary-ok">Adequado '+int(c.ok)+'</span>'+
+      '<span class="dbmx-summary-history">Sem histórico '+int(c.history)+'</span>'+
+      '</span>';
+  }
+
   function itemTable(rows){
     const sorted=rows.slice().sort((a,b)=>
       (b.need>0?b.purchaseValue:0)+(b.excess>0?b.excessValue:0)-
@@ -180,9 +209,14 @@
       '</tr></thead><tbody>'+sorted.map(x=>{
         const note=x.transfer.length?' · Possível transferência para '+x.transfer
           .map(o=>o.local+' ('+qty(o.qty)+' '+x.un+')').join('; '):'';
-        const status=x.condition+(x.mixed?' · unidade divergente':'')+
-          ((!x.reliable&&x.need>0)?' · máximo sem base confiável':'')+note;
-        return '<tr data-dbmx-situation="'+esc(x.condition)+'"><td>'+esc(x.codigo)+'</td>'+
+        const kind=statusKind(x);
+        const warning=x.mixed?'Unidade de medida divergente. ':
+          (!x.reliable&&x.need>0?'Estoque máximo depende de revisão do histórico. ':'');
+        const explanation=kind==='ok'&&x.condition==='ATENÇÃO'?
+          'Próximo do mínimo, mas sem compra necessária. ':(
+            kind==='history'?'Não gerar alerta automático de máximo sem consumo suficiente. ':'');
+        return '<tr class="dbmx-state-'+kind+'" data-dbmx-situation="'+esc(x.condition)+
+          '" data-dbmx-color="'+kind+'"><td>'+esc(x.codigo)+'</td>'+
           '<td>'+esc(x.produto)+'</td><td>'+esc(x.un)+'</td>'+
           '<td class="num">'+(x.avg>0?qty(x.avg):'—')+'</td>'+
           '<td class="num">'+(x.avg>0?qty(x.minimum):'—')+'</td>'+
@@ -193,7 +227,8 @@
           '<td class="num dbmx-need">'+(x.need>0&&!x.hasCost?'Sem custo':brl(x.purchaseValue))+'</td>'+
           '<td class="num '+(x.excess>0?'dbmx-warn':'')+'">'+qty(x.excess)+'</td>'+
           '<td class="num dbmx-warn">'+(x.excess>0&&!x.hasCost?'Sem custo':brl(x.excessValue))+'</td>'+
-          '<td>'+esc(status)+'</td></tr>';
+          '<td><strong class="dbmx-status dbmx-status--'+kind+'">'+esc(statusLabel(x))+'</strong>'+ 
+          (warning||explanation||note?'<small class="dbmx-status-help">'+esc(warning+explanation+note.trim())+'</small>':'')+'</td></tr>';
       }).join('')+'</tbody></table></div>';
   }
 
@@ -265,8 +300,39 @@
         '#db-stock-maximum th,#db-stock-maximum td{padding:9px;border-bottom:1px solid #e7eeea;text-align:left}',
         '#db-stock-maximum th{position:sticky;top:0;background:#eaf5ec;color:#325a3d;z-index:1}',
         '#db-stock-maximum td.num{text-align:right;white-space:nowrap}',
-        '#db-stock-maximum .dbmx-need{color:#ae601e;font-weight:750}',
-        '#db-stock-maximum .dbmx-warn{color:#a24b29;font-weight:750}',
+        '#db-stock-maximum .dbmx-need{color:#ad3035;font-weight:750}',
+        '#db-stock-maximum .dbmx-warn{color:#1b65b5;font-weight:750}',
+        '#db-stock-maximum .dbmx-local-block>.dbmx-detail{margin:0 4px 15px 20px;padding:15px}',
+        '#db-stock-maximum .dbmx-group-wrap{border-bottom:1px solid #e2eae3}',
+        '#db-stock-maximum .dbmx-group-wrap .dbmx-group{border-bottom:0}',
+        '#db-stock-maximum .dbmx-products{margin:0 0 15px 12px;padding:12px;border-left:3px solid #cbded1;background:#fff}',
+        '#db-stock-maximum .dbmx-arrow{font-size:14px;margin-right:6px;color:#497b5a}',
+        '#db-stock-maximum .dbmx-state-summary{display:flex;gap:7px 12px;flex-wrap:wrap;margin-top:7px;font-size:10px;font-weight:650}',
+        '#db-stock-maximum .dbmx-summary-need{color:#ba2c32}',
+        '#db-stock-maximum .dbmx-summary-excess{color:#1b67bd}',
+        '#db-stock-maximum .dbmx-summary-ok{color:#16824d}',
+        '#db-stock-maximum .dbmx-summary-history{color:#7850ae}',
+        '#db-stock-maximum .dbmx-legend{align-items:center}',
+        '#db-stock-maximum .dbmx-legend span{display:inline-flex;gap:5px;align-items:center}',
+        '#db-stock-maximum .dbmx-legend b{width:9px;height:9px;border-radius:50%;display:inline-block}',
+        '#db-stock-maximum .dbmx-legend--need{background:#c4343b}',
+        '#db-stock-maximum .dbmx-legend--excess{background:#246db7}',
+        '#db-stock-maximum .dbmx-legend--ok{background:#208754}',
+        '#db-stock-maximum .dbmx-legend--history{background:#8054b8}',
+        '#db-stock-maximum tr.dbmx-state-need{background:#fff0f0}',
+        '#db-stock-maximum tr.dbmx-state-excess{background:#edf5ff}',
+        '#db-stock-maximum tr.dbmx-state-ok{background:#ecf9f0}',
+        '#db-stock-maximum tr.dbmx-state-history{background:#f5f0ff}',
+        '#db-stock-maximum tr.dbmx-state-need td:first-child{border-left:4px solid #c4343b}',
+        '#db-stock-maximum tr.dbmx-state-excess td:first-child{border-left:4px solid #246db7}',
+        '#db-stock-maximum tr.dbmx-state-ok td:first-child{border-left:4px solid #208754}',
+        '#db-stock-maximum tr.dbmx-state-history td:first-child{border-left:4px solid #8054b8}',
+        '#db-stock-maximum .dbmx-status{font-size:10px;font-weight:850;white-space:nowrap}',
+        '#db-stock-maximum .dbmx-status--need{color:#b52931}',
+        '#db-stock-maximum .dbmx-status--excess{color:#175aa9}',
+        '#db-stock-maximum .dbmx-status--ok{color:#126d42}',
+        '#db-stock-maximum .dbmx-status--history{color:#68439b}',
+        '#db-stock-maximum .dbmx-status-help{display:block;margin-top:4px;color:#52675c;line-height:1.45}',
         '#db-stock-maximum .dbmx-note{padding:12px 22px;border-top:1px solid #dfe9e2;color:#5c7262;line-height:1.6;font-size:11px}',
         '@media(max-width:900px){#db-stock-maximum .dbmx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#db-stock-maximum .dbmx-local,#db-stock-maximum .dbmx-group{min-width:640px}#db-stock-maximum .dbmx-list,#db-stock-maximum .dbmx-detail{overflow-x:auto}}',
         '@media(max-width:560px){#db-stock-maximum .dbmx-kpis{grid-template-columns:1fr}#db-stock-maximum .dbmx-filters{flex-direction:column;align-items:stretch}#db-stock-maximum label{min-width:0;width:100%}}'
@@ -325,29 +391,45 @@
       int(locals.filter(x=>!x.network&&(x.needCount>0||x.excessCount>0)).length)+'</strong></div>'+
       '<div class="dbmx-kpi"><span>Itens com saldo que exigem revisão do histórico</span><strong>'+int(manual.length)+'</strong></div>'+
       '</div><div class="dbmx-list"><h3>Almoxarifados · reposição e excedente na mesma análise</h3>'+
-      '<div class="dbmx-legend"><span>Reposição: saldo abaixo do mínimo</span><span>Excedente: saldo acima do máximo</span></div>'+
+      '<div class="dbmx-legend">'+
+      '<span><b class="dbmx-legend--need"></b>Vermelho: repor</span>'+
+      '<span><b class="dbmx-legend--excess"></b>Azul: excedente disponível</span>'+
+      '<span><b class="dbmx-legend--ok"></b>Verde: estoque adequado / atenção</span>'+
+      '<span><b class="dbmx-legend--history"></b>Roxo: sem baixas / histórico insuficiente</span></div>'+
       locals.map(loc=>{
+        const opened=loc.local===config.local;
         const needWidth=Math.max(0,100*loc.needValue/maxNeed).toFixed(2);
         const excessWidth=Math.max(0,100*loc.excessValue/maxExcess).toFixed(2);
-        return '<button type="button" class="dbmx-local" data-dbmx-local="'+esc(loc.local)+'" aria-expanded="'+
-          (loc.local===config.local)+'"><span class="dbmx-name">'+esc(loc.local)+
-          (loc.network?' · rede (não somar ao físico)':'')+'</span>'+
-          '<span class="dbmx-metric"><span>Repor: '+int(loc.needCount)+' produtos · <strong>'+brl(loc.needValue)+
-          '</strong></span><span class="dbmx-track"><span class="dbmx-bar dbmx-bar--need" style="width:'+needWidth+'%"></span></span></span>'+
-          '<span class="dbmx-metric"><span>Excedente: '+int(loc.excessCount)+' produtos · <strong>'+brl(loc.excessValue)+
-          '</strong></span><span class="dbmx-track"><span class="dbmx-bar dbmx-bar--excess" style="width:'+excessWidth+'%"></span></span></span></button>';
+        const row='<div class="dbmx-local-block"><button type="button" class="dbmx-local" data-dbmx-local="'+
+          esc(loc.local)+'" aria-expanded="'+opened+'"><span class="dbmx-name">'+
+          '<span class="dbmx-arrow" aria-hidden="true">'+(opened?'▾':'▸')+'</span>'+esc(loc.local)+
+          (loc.network?' · rede (não somar ao físico)':'')+statusSummary(loc.rows)+'</span>'+
+          '<span class="dbmx-metric"><span>Repor: '+int(loc.needCount)+' produtos · <strong>'+
+          brl(loc.needValue)+'</strong></span><span class="dbmx-track"><span class="dbmx-bar dbmx-bar--need" style="width:'+
+          needWidth+'%"></span></span></span>'+
+          '<span class="dbmx-metric"><span>Excedente: '+int(loc.excessCount)+' produtos · <strong>'+
+          brl(loc.excessValue)+'</strong></span><span class="dbmx-track"><span class="dbmx-bar dbmx-bar--excess" style="width:'+
+          excessWidth+'%"></span></span></span></button>';
+        if(!opened)return row+'</div>';
+        const expandedGroups=included.length?included.map(g=>{
+          const groupOpen=config.group===g.name;
+          const groupsRow='<div class="dbmx-group-wrap"><button type="button" class="dbmx-group" data-dbmx-group="'+
+            esc(g.name)+'" aria-expanded="'+groupOpen+'"><span class="dbmx-name">'+
+            '<span class="dbmx-arrow" aria-hidden="true">'+(groupOpen?'▾':'▸')+'</span>'+
+            esc(g.name)+' · '+int(g.rows.length)+' produtos'+statusSummary(g.rows)+'</span>'+
+            '<span class="dbmx-metric">A repor: '+int(g.needCount)+' · <strong>'+brl(g.needValue)+'</strong></span>'+
+            '<span class="dbmx-metric">Em excesso: '+int(g.excessCount)+' · <strong>'+brl(g.excessValue)+
+            '</strong></span></button>';
+          return groupsRow+(groupOpen?'<div class="dbmx-products" data-dbmx-products-for="'+esc(g.name)+
+            '"><h3>Produtos · '+esc(g.name)+'</h3>'+itemTable(g.rows)+'</div>':'')+'</div>';
+        }).join(''):'<p>Nenhum produto neste filtro.</p>';
+        return row+'<div class="dbmx-detail" data-dbmx-detail-for="'+esc(loc.local)+'">'+
+          '<h3>'+esc(loc.local)+' · '+int(loc.needCount)+' produtos para repor ('+
+          brl(loc.needValue)+') · '+int(loc.excessCount)+' acima do máximo ('+
+          brl(loc.excessValue)+')</h3>'+
+          '<p>Selecione um grupo para abrir os produtos logo abaixo.</p>'+
+          expandedGroups+'</div></div>';
       }).join('')+'</div>'+
-      (found?'<div class="dbmx-detail"><h3>'+esc(found.local)+' · '+int(found.needCount)+
-        ' produtos para repor ('+brl(found.needValue)+') · '+int(found.excessCount)+' acima do máximo ('+
-        brl(found.excessValue)+')</h3>'+
-        (included.length?included.map(g=>
-          '<button type="button" class="dbmx-group" data-dbmx-group="'+esc(g.name)+'" aria-expanded="'+
-          (g.name===config.group)+'"><span class="dbmx-name">'+esc(g.name)+' · '+int(g.rows.length)+' produtos</span>'+
-          '<span class="dbmx-metric">A repor: '+int(g.needCount)+' · <strong>'+brl(g.needValue)+'</strong></span>'+
-          '<span class="dbmx-metric">Em excesso: '+int(g.excessCount)+' · <strong>'+brl(g.excessValue)+
-          '</strong></span></button>').join(''):'<p>Nenhum produto neste filtro.</p>')+
-        (selected?'<h3 style="margin-top:17px">Produtos · '+esc(selected.name)+'</h3>'+itemTable(selected.rows):'')+
-        '</div>':'')+
       '<div class="dbmx-note"><b>Critérios:</b> mínimo = média das baixas × 2 meses; máximo = média × '+
       config.months+' meses; necessidade = máximo entre zero e (mínimo − saldo); excedente = máximo entre zero e '+
       '(saldo − máximo). Os valores são estimativas pelo custo unitário ERP, não economia já realizada. '+
@@ -356,6 +438,7 @@
       'continuam excluídos. 2024 e novembro/2026 (parcial) não entram nas médias. '+
       'CDI de Peças Chuá usa demanda consolidada da rede e não integra os totais físicos, evitando dupla contagem. '+
       'Possíveis transferências são sugestões sujeitas a conferência de unidade, empresa fiscal e disponibilidade. '+
+      'Cores da análise: vermelho = precisa repor; azul = excedente disponível; verde = estoque adequado ou em atenção; roxo = sem baixas ou histórico insuficiente. '+
       'Posição do estoque: '+esc(window.CURRENT_STOCK_META?.emissao||'não informada')+'. '+
       ((missingNeed||missingExcess)?'Sem custo ERP estimável: '+int(missingNeed)+' a repor e '+int(missingExcess)+
         ' em excesso (não incluídos nos valores).':'')+'</div>';
@@ -371,7 +454,9 @@
       physicalExcessItems:high.length,physicalExcessValue:excessValue,
       warehousesWithExcess:locals.filter(x=>!x.network&&x.excessCount>0).length,
       insufficientHistoryItems:manual.length,missingCostItems:missingExcess,
-      minimumMonths:2,integrated:true,selectedLocal:config.local,selectedGroup:config.group,
+      minimumMonths:2,integrated:true,inlineCascade:true,colorCoding:true,
+      statusColors:{need:'red',excess:'blue',ok:'green',history:'purple'},
+      selectedLocal:config.local,selectedGroup:config.group,
       locations:locals.map(x=>({local:x.local,needItems:x.needCount,needValue:x.needValue,
         excessItems:x.excessCount,amount:x.excessValue,virtual:x.network}))
     };
@@ -380,7 +465,7 @@
   }
 
   function schedule(){clearTimeout(timer);timer=setTimeout(render,90);}
-  const api={render,refresh:schedule,meta:null,version:'20261103-unified-v1'};
+  const api={render,refresh:schedule,meta:null,version:'20261103-unified-cascade-v2'};
   window.DB_STOCK_UNIFIED=api;
   window.DB_STOCK_MAXIMUM=api; // Retem os pontos de observacao da versao anterior.
   window.addEventListener('movements-updated',schedule);
