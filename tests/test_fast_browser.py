@@ -316,6 +316,50 @@ with sync_playwright() as p:
             assert 'R$ 0,00' in page.locator('#db-minimum-all-locals .dl-selected-head').inner_text().replace('\u00a0',' ').replace('\u202f',' ')
             page.locator('#db-minimum-all-locals button[data-minimum-close]').click()
             assert page.locator('#db-minimum-all-locals').is_hidden()
+            # Estoque maximo: mesma base ERP, 2 meses de minimo e teto regulavel em 3/4/6.
+            page.wait_for_function("window.DB_STOCK_MAXIMUM?.meta?.months===4", timeout=15000)
+            meta4=page.evaluate("window.DB_STOCK_MAXIMUM.meta")
+            assert meta4['warehouseCount']==10 and meta4['networkExcludedFromTotals'], meta4
+            assert meta4['stockDate']=='03/11/2026 15:58:21', meta4
+            assert meta4['physicalExcessItems']>=0 and meta4['physicalExcessValue']>=0, meta4
+            assert meta4['insufficientHistoryItems']>=0, meta4
+            assert any(x['virtual'] for x in meta4['locations']), meta4
+            assert len(meta4['locations'])==10
+            panel=page.locator('#db-stock-maximum')
+            assert panel.get_by_text('Controle de estoque máximo', exact=True).count()==1
+            assert panel.locator('#dbmx-months').input_value()=='4'
+            assert panel.locator('#dbmx-year').input_value()==''
+            assert panel.locator('.dbmx-local').count()==10
+            panel.locator('#dbmx-months').select_option('3')
+            assert page.wait_for_function("window.DB_STOCK_MAXIMUM.meta.months===3")
+            meta3=page.evaluate("window.DB_STOCK_MAXIMUM.meta")
+            panel.locator('#dbmx-months').select_option('6')
+            assert page.wait_for_function("window.DB_STOCK_MAXIMUM.meta.months===6")
+            meta6=page.evaluate("window.DB_STOCK_MAXIMUM.meta")
+            assert meta3['physicalExcessItems']>=meta4['physicalExcessItems']>=meta6['physicalExcessItems'], (meta3,meta4,meta6)
+            assert meta3['physicalExcessValue']+0.05>=meta4['physicalExcessValue']>=meta6['physicalExcessValue']-0.05, (meta3,meta4,meta6)
+            panel.locator('#dbmx-months').select_option('4')
+            page.wait_for_function("window.DB_STOCK_MAXIMUM.meta.months===4")
+            panel.locator('#dbmx-mode').select_option('all')
+            panel.locator('.dbmx-local').first.click()
+            assert panel.locator('.dbmx-detail').count()==1
+            assert panel.locator('.dbmx-group').count()>0
+            panel.locator('.dbmx-group').first.click()
+            assert panel.locator('.dbmx-scroll table').count()==1
+            assert panel.get_by_text('Custo unit. ERP', exact=True).count()>0
+            assert panel.get_by_text('Qtd. excedente', exact=True).count()>0
+            assert page.evaluate("window.STOCK_MINIMUM_MONTHS") == 2
+            assert page.evaluate("window.DB_MINIMUM_LOCALS_COVERAGE_META.totalLocals") == 10
+            panel.locator('#dbmx-year').select_option('2025')
+            page.wait_for_function("window.DB_STOCK_MAXIMUM.meta.year==='2025'")
+            panel.locator('#dbmx-year').select_option('2026')
+            page.wait_for_function("window.DB_STOCK_MAXIMUM.meta.year==='2026'")
+            panel.locator('#dbmx-year').select_option('')
+            page.wait_for_function("window.DB_STOCK_MAXIMUM.meta.year==='2025+2026'")
+            panel.locator('#dbmx-mode').select_option('unknown')
+            assert panel.get_by_text('Sem histórico confiável', exact=True).count()>=1
+            panel.locator('#dbmx-mode').select_option('excess')
+
             # A aba e criada dinamicamente antes do layout e usa o historico reconciliado.
             assert page.locator('.clean-sub-btn[data-view="sem-baixas"]').count() >= 0
             page.locator('.tab[data-view="sem-baixas"]').evaluate('(el)=>el.click()')
