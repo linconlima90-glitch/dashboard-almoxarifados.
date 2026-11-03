@@ -11,7 +11,13 @@
   const br=x=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(num(x));
   const n0=x=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(num(x));
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const isTire=x=>window.DASHBOARD_POLICY?.isTire?.(x)===true;
+  const norm=x=>String(x??'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase();
+  const excludedFromMinimum=x=>{
+    const group=norm(x?.grupo),item=norm(x?.produto);
+    return /\\bPNEUS?\\b|\\bCAMARAS?\\b/.test(group)||
+      /\\b(?:PNEUS?|CAMARAS?|CIMENTOS?)\\b/.test(item);
+  };
+  window.DB_MINIMUM_EXCLUDED=excludedFromMinimum;
   const exclusion=x=>typeof window.EXECUTIVE_PRODUCT_EXCLUDED==='function'&&window.EXECUTIVE_PRODUCT_EXCLUDED(x);
 
   function recalc(){
@@ -28,19 +34,20 @@
     for(const m of MOVEMENTS){
       const k=key(m),b=balances.get(k);
       const average=Math.max(0,num(m.avg));
-      const minimum=average*MONTHS;
+      const minimum=excludedFromMinimum(m)?0:average*MONTHS;
       const stock=b?b.q:num(m.stock);
       const cost=b&&b.cost>0?b.cost:num(m.cost);
       const total=num(m.total);
       const continuous=typeof MINIMUM_CONTINUOUS_UNITS!=='undefined'&&MINIMUM_CONTINUOUS_UNITS.has(String(m.un||'').toUpperCase());
-      const gap=Math.max(0,minimum-stock);
+      const gap=excludedFromMinimum(m)?0:Math.max(0,minimum-stock);
       const need=continuous?Math.ceil((gap-1e-10)*100)/100:Math.ceil(gap-1e-10);
       m.minimum=minimum;
       m.stock=stock;m.cost=cost;m.stock_value=stock*cost;
       m.coverage=average>0?stock/average:null;
       m.need=Math.max(0,need);m.need_value=m.need*cost;
       m.excess=Math.max(0,stock-minimum);
-      if(!(total>0))m.status='SEM DADOS DE BAIXA';
+      if(excludedFromMinimum(m))m.status='FORA DO ESCOPO';
+      else if(!(total>0))m.status='SEM DADOS DE BAIXA';
       else if(!(average>0))m.status='HISTÓRICO PARCIAL';
       else if(stock<=0)m.status='SEM ESTOQUE';
       else if(stock<minimum-1e-9)m.status='ABAIXO DO MÍNIMO';
@@ -60,7 +67,7 @@
   function rows(){
     let list=[];
     try{list=typeof window.minimumBaseRows==='function'?window.minimumBaseRows():MOVEMENTS}catch(e){list=MOVEMENTS}
-    return Array.isArray(list)?list.filter(x=>!isTire(x)):[];
+    return Array.isArray(list)?list.filter(x=>!excludedFromMinimum(x)):[];
   }
 
   function transfers(mins){
