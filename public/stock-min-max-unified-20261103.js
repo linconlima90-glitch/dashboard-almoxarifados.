@@ -296,6 +296,13 @@
   function ensurePanel(){
     const view=document.getElementById('view-minimo');
     if(!view)return null;
+    // Renomeia somente a aba de gestao. As visoes operacionais locais permanecem inalteradas.
+    const tabName='Estoque mínimo / Estoque máximo';
+    const oldTab=document.querySelector('.tabs .tab[data-view="minimo"]');
+    if(oldTab&&oldTab.textContent.trim()!==tabName)oldTab.textContent=tabName;
+    document.querySelectorAll('.clean-sub-btn[data-view="minimo"]').forEach(button=>{
+      if(button.textContent.trim()!==tabName)button.textContent=tabName;
+    });
     // Mantem o DOM da analise antiga para compatibilidade, mas a exibicao e unica.
     view.classList.add('db-unified-stock');
     let panel=document.getElementById('db-stock-maximum');
@@ -469,7 +476,32 @@
         '@media(max-width:1320px){#db-stock-maximum .dbmx-scroll th{font-size:9px;padding:6px 2px}#db-stock-maximum .dbmx-scroll td{font-size:10px;padding:6px 2px}}',
         '@media(max-width:920px){#db-stock-maximum .dbmx-scroll th{font-size:8px;padding:5px 1px}#db-stock-maximum .dbmx-scroll td{font-size:9px;padding:5px 1px}#db-stock-maximum .dbmx-scroll .dbmx-status{padding:2px 3px;font-size:8px}}',
         '@media(max-width:900px){#db-stock-maximum .dbmx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#db-stock-maximum .dbmx-local,#db-stock-maximum .dbmx-group{min-width:640px}#db-stock-maximum .dbmx-list,#db-stock-maximum .dbmx-detail{overflow-x:auto}}',
-        '@media(max-width:560px){#db-stock-maximum .dbmx-kpis{grid-template-columns:1fr}#db-stock-maximum .dbmx-filters{flex-direction:column;align-items:stretch}#db-stock-maximum label{min-width:0;width:100%}}'
+        '@media(max-width:560px){#db-stock-maximum .dbmx-kpis{grid-template-columns:1fr}#db-stock-maximum .dbmx-filters{flex-direction:column;align-items:stretch}#db-stock-maximum label{min-width:0;width:100%}}',
+        // Cartoes brancos e indicadores alinhados a direita, como o modelo CDI Chua fornecido.,
+        '#db-stock-maximum .dbmx-list{background:#f8fafb;padding:18px 20px 24px;border-top:1px solid #e0e8e3}',,
+        '#db-stock-maximum .dbmx-list-heading,#db-stock-maximum .dbmx-inner-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:4px 0 13px}',,
+        '#db-stock-maximum .dbmx-list-heading h3,#db-stock-maximum .dbmx-inner-heading h3{margin:0;font-size:14px;color:var(--db-green-deep,#0d4726);font-weight:900}',,
+        '#db-stock-maximum .dbmx-list-heading span,#db-stock-maximum .dbmx-inner-heading span{font-size:11px;color:#6d7e74}',,
+        '#db-stock-maximum .dbmx-list .dbmx-local-block{margin:0 0 9px;min-width:0}',,
+        '#db-stock-maximum .dbmx-list .dbmx-local,#db-stock-maximum .dbmx-list .dbmx-group{display:grid;grid-template-columns:minmax(240px,1fr) minmax(135px,165px) minmax(135px,165px);gap:16px;align-items:center;width:100%;box-sizing:border-box;min-width:0;min-height:62px;margin:0;padding:12px 16px;border:1px solid #d7e3e8!important;border-radius:10px;background:#fff!important;box-shadow:0 1px 3px rgba(21,61,43,.025);text-align:left}',,
+        '#db-stock-maximum .dbmx-local:hover,#db-stock-maximum .dbmx-group:hover{border-color:#a9cdb8!important;background:#fbfdfb!important}',,
+        '#db-stock-maximum .dbmx-local[aria-expanded="true"],#db-stock-maximum .dbmx-group[aria-expanded="true"]{border-color:#acd1b7!important;box-shadow:inset 3px 0 0 var(--db-yellow,#faca04)}',,
+        '#db-stock-maximum .dbmx-list .dbmx-local .dbmx-name,#db-stock-maximum .dbmx-list .dbmx-group .dbmx-name{font-size:13px;line-height:1.45;font-weight:900;color:var(--db-green-deep,#0d4726)}',,
+        '#db-stock-maximum .dbmx-arrow{color:var(--db-green,#1e8747);margin-right:9px;font-size:12px}',,
+        '#db-stock-maximum .dbmx-list .dbmx-metric{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;background:transparent!important;border:0!important;border-radius:0;padding:0!important;margin:0;min-height:35px}',,
+        '#db-stock-maximum .dbmx-list .dbmx-metric span{font-size:9px;line-height:1.2;text-transform:uppercase;font-weight:850;letter-spacing:.025em;color:#65766c}',,
+        '#db-stock-maximum .dbmx-list .dbmx-metric strong{font-size:14px;line-height:1.3;font-weight:900;color:var(--db-green-deep,#0d4726)}',,
+        '#db-stock-maximum .dbmx-list .dbmx-metric--need span{color:#997100}',,
+        '#db-stock-maximum .dbmx-list .dbmx-metric--excess span{color:var(--db-green-strong,#16733b)}',,
+        '#db-stock-maximum .dbmx-detail{background:#fff;border:1px solid #e0e9e3;border-top:0;border-radius:0 0 10px 10px}',,
+        '#db-stock-maximum .dbmx-local-block>.dbmx-detail{margin:0 3px 11px 17px;padding:12px 14px}',,
+        '#db-stock-maximum .dbmx-group-wrap{margin:0 0 8px;border-bottom:0}',,
+        '#db-stock-maximum .dbmx-group-wrap .dbmx-group{min-height:56px}',,
+        '#db-stock-maximum .dbmx-products{max-width:100%;margin:0 0 14px 10px;padding:12px;border:1px solid #e0ebe3;border-left:3px solid #c3dacb;border-radius:0 0 9px 9px;background:#fff}',,
+        '#db-stock-maximum .dbmx-legend{display:flex;gap:14px;margin:0 0 13px;font-size:10px}',,
+        '@media(max-width:950px){#db-stock-maximum .dbmx-list .dbmx-local,#db-stock-maximum .dbmx-list .dbmx-group{grid-template-columns:minmax(180px,1fr) minmax(105px,135px) minmax(105px,135px);gap:12px;padding:11px 12px;min-width:0}#db-stock-maximum .dbmx-list,#db-stock-maximum .dbmx-detail{overflow-x:visible}}',,
+        '@media(max-width:620px){#db-stock-maximum .dbmx-list .dbmx-local,#db-stock-maximum .dbmx-list .dbmx-group{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}#db-stock-maximum .dbmx-list .dbmx-name{grid-column:1/-1}#db-stock-maximum .dbmx-list .dbmx-metric{grid-row:2}#db-stock-maximum .dbmx-list{padding:12px 9px 16px}#db-stock-maximum .dbmx-local-block>.dbmx-detail{margin:0 0 9px 8px;padding:10px 7px}}',,
+        '#db-stock-maximum .dbmx-local:focus-visible,#db-stock-maximum .dbmx-group:focus-visible{outline:2px solid var(--db-yellow,#faca04);outline-offset:2px}'
       ].join('\n');
       document.head.appendChild(style);
     }
@@ -501,7 +533,7 @@
       '2025 e 2026 · 22 meses completos até outubro/2026';
     const searchActive=reason==='search'&&document.activeElement?.id==='dbmx-search';
     const caret=searchActive?document.activeElement.selectionStart:0;
-    panel.innerHTML='<div class="dbmx-head"><h2>Análise integrada de estoque · Mínimo e Máximo</h2>'+
+    panel.innerHTML='<div class="dbmx-head"><h2>Estoque mínimo / Estoque máximo</h2>'+
       '<div class="dbmx-sub">Um único comparativo entre o saldo atual, o mínimo de 2 meses, o máximo de '+config.months+
       ' meses, as baixas realizadas e as ações de compra ou redistribuição. '+esc(period)+
       '. Quantidades baixadas apuradas por unidade de medida, sem somar UN com KG ou LT.</div></div>'+
@@ -524,7 +556,8 @@
       '<div class="dbmx-kpi"><span>Almoxarifados com compra ou excedente</span><strong>'+
       int(locals.filter(x=>!x.network&&(x.needCount>0||x.excessCount>0)).length)+'</strong></div>'+
       '<div class="dbmx-kpi"><span>Itens com saldo que exigem revisão do histórico</span><strong>'+int(manual.length)+'</strong></div>'+
-      '</div><div class="dbmx-list"><h3>Almoxarifados · reposição e excedente na mesma análise</h3>'+
+      '</div><div class="dbmx-list"><div class="dbmx-list-heading"><h3>1. Almoxarifados</h3>'+
+      '<span>Clique no almoxarifado para abrir os grupos e produtos.</span></div>'+
       '<div class="dbmx-legend">'+
       '<span><b class="dbmx-legend--need"></b>Amarelo: Repor</span>'+
       '<span><b class="dbmx-legend--excess"></b>Verde: Excedente</span></div>'+
@@ -549,6 +582,8 @@
             '"><h3>Produtos · '+esc(g.name)+'</h3>'+itemTable(g.rows)+'</div>':'')+'</div>';
         }).join(''):'<p>Nenhum produto neste filtro.</p>';
         return row+'<div class="dbmx-detail" data-dbmx-detail-for="'+esc(loc.local)+'">'+
+          '<div class="dbmx-inner-heading"><h3>Grupos de produtos</h3>'+
+          '<span>Clique para abrir os itens</span></div>'+
           expandedGroups+'</div></div>';
       }).join('')+'</div>'+
       '<div class="dbmx-note"><b>Critérios:</b> mínimo = média das baixas × 2 meses; máximo = média × '+
@@ -578,6 +613,7 @@
       insufficientHistoryItems:manual.length,missingCostItems:missingExcess,
       minimumMonths:2,integrated:true,inlineCascade:true,colorCoding:true,brandPalette:'DB verde/amarelo',
       compactSummary:true,withdrawalDetailOnly:true,sortedByWithdrawalsDesc:true,fullWidthProducts:true,
+      screenshotCardLayout:true,tabLabel:'Estoque mínimo / Estoque máximo',
       allProductColumnsHorizontal:true,purchaseValueColumnHidden:true,
       withdrawalsFrom:'ERP_MOVEMENTS_YEARLY',withdrawalPeriodMonths:config.year==='2025'?12:config.year==='2026'?10:22,
       withdrawalTotalsPhysical:withdrawalsByUnit(physical),
@@ -592,7 +628,7 @@
   }
 
   function schedule(){clearTimeout(timer);timer=setTimeout(render,90);}
-  const api={render,refresh:schedule,meta:null,version:'20261103-horizontal-table-v6'};
+  const api={render,refresh:schedule,meta:null,version:'20261103-reference-layout-v7'};
   window.DB_STOCK_UNIFIED=api;
   window.DB_STOCK_MAXIMUM=api; // Retem os pontos de observacao da versao anterior.
   window.addEventListener('movements-updated',schedule);
