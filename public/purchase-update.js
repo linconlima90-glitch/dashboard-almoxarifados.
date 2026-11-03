@@ -1,23 +1,72 @@
-// Histórico de compras ERP: 30/10/2026 15:53:46; compras de outubro ate 29/10.
+// Base oficial de compras auditadas: 03/11/2026, 2873 lancamentos, 2025-2026.
 (function(){
-const P=window.LATEST_PURCHASE_PACK;if(!P||!P.L||!Array.isArray(P.R))return;const L=P.L;
-const NEW_PURCHASES=P.R.map(r=>({status:L.status[r[0]],nrounico:r[1],nota:r[2],data:L.data[r[3]],fornecedor_codigo:r[4],fornecedor:L.fornecedor[r[5]],empresa_compra:L.empresa_compra[r[6]],empresa_local:L.empresa_local[r[7]],codigo:r[8],grupo:L.grupo[r[9]],produto:L.produto[r[10]],un:L.un[r[11]],local:L.local[r[12]],qtd:r[13],preco:r[14],valor:r[15],observacao:r[16]==null?'':(L.observacao?.[r[16]]||''),seq:r[17]??null,codigo_local:r[18]??null}));
-
-if(P.meta?.rowsSinceAugust!==602||P.meta?.sourceRows!==137||NEW_PURCHASES.length!==602)
-  throw Error('Compras ERP: pacote outubro e meses anteriores nao confere');
-const octoberNew=NEW_PURCHASES.filter(x=>String(x.data||'').endsWith('/10/2026'));
-const octValue=octoberNew.reduce((s,x)=>s+(Number(x.valor)||0),0);
-const purchaseKeys=new Set(octoberNew.map(x=>[x.nrounico,x.seq,x.codigo,x.codigo_local].join('|')));
-if(octoberNew.length!==137||purchaseKeys.size!==137||Math.abs(octValue-64843.17)>.02||
-   octoberNew.some(x=>Number(String(x.data).slice(0,2))>29))
-  throw Error('Compras de outubro divergentes ou duplicadas');
+const P=window.DB_AUDITED_PURCHASE_DELTA;
+if(!P || !P.meta || !Array.isArray(P.R) || !Array.isArray(P.U) || !Array.isArray(P.D))
+  throw Error('Relatorio de compras auditado indisponivel; nao publicar dados anteriores como atualizados');
+const m=P.meta, L=P.L;
 const dk=s=>{const p=String(s||'').split('/');return p.length===3?Number(p[2])*10000+Number(p[1])*100+Number(p[0]):0};
-for(let i=PURCHASES.length-1;i>=0;i--)if(dk(PURCHASES[i].data)>=20260801)PURCHASES.splice(i,1);PURCHASES.push(...NEW_PURCHASES);PURCHASES.sort((a,b)=>dk(b.data)-dk(a.data)||Number(b.nrounico||0)-Number(a.nrounico||0));
+const originalBase=PURCHASES.filter(x=>dk(x.data)<20260801);
+if(originalBase.length!==m.oldbase || m.count!==2873 || m.recent!==564 || m.older!==2309)
+  throw Error('Fotografia anterior de compras diverge da base auditada');
+const revised=originalBase.map(x=>({...x}));
+for(const [index,fields] of P.U){
+  if(!revised[index] || !fields || !Number.isInteger(index))
+    throw Error('Atualizacao de compra auditada com indice invalido');
+  Object.assign(revised[index],fields);
+}
+for(const index of P.D.slice().sort((a,b)=>b-a)){
+  if(!revised[index])throw Error('Exclusao de compra auditada com indice invalido');
+  revised.splice(index,1);
+}
+const fields=['status','nrounico','nota','data','fornecedor_codigo','fornecedor','empresa_compra','empresa_local','codigo','grupo','produto','un','local','qtd','preco','valor','observacao','seq','codigo_local'];
+const inserted=P.R.map(r=>Object.fromEntries(fields.map((k,i)=>[k,Object.prototype.hasOwnProperty.call(L,k)?L[k][r[i]]:r[i]])));
+const NEW_PURCHASES=revised.concat(inserted);
+const costTotal=NEW_PURCHASES.reduce((a,x)=>a+(Number(x.valor)||0),0);
+const oldCount=NEW_PURCHASES.filter(x=>dk(x.data)<20260801).length;
+const uniqueAuditKeys=new Set(NEW_PURCHASES.filter(x=>dk(x.data)>=20260801).map(x=>[x.nrounico,x.seq,x.codigo,x.codigo_local].join('|')));
+if(NEW_PURCHASES.length!==2873 || oldCount!==2309 || uniqueAuditKeys.size!==564 ||
+   Math.abs(costTotal-1814454.14)>.02 || NEW_PURCHASES.some(x=>dk(x.data)<20250101||dk(x.data)>20261029))
+  throw Error('Base de compras auditada nao passou nas validacoes de quantidade, periodo e valor');
+PURCHASES.splice(0,PURCHASES.length,...NEW_PURCHASES);
+PURCHASES.sort((a,b)=>dk(b.data)-dk(a.data)||Number(b.nrounico||0)-Number(a.nrounico||0));
+// Registros de produtos que passaram a existir no novo historico, mas nao estavam
+// na tabela de produtos anterior, devem participar dos comparativos.
+const known=new Set(PRODUCTS.map(x=>String(x.codigo)+'|'+String(x.un||'')));
+for(const x of PURCHASES){
+  const key=String(x.codigo)+'|'+String(x.un||'');
+  if(known.has(key))continue;
+  known.add(key);
+  PRODUCTS.push({codigo:x.codigo,produto:x.produto,grupo:x.grupo,un:x.un,estoque:0,
+    valor_estoque:0,custo_medio_estoque:0,locais:0});
+}
+window.DB_AUDITED_PURCHASE_READY=true;
+window.DB_AUDITED_PURCHASE_META=m;
 const hist=new Map();for(const x of PURCHASES){const k=String(x.codigo)+'|'+String(x.un||'');let h=hist.get(k);if(!h){h={rows:[],pos:[],sup:new Set(),q:0,v:0};hist.set(k,h)}h.rows.push(x);h.sup.add(x.fornecedor);h.q+=Number(x.qtd)||0;h.v+=Number(x.valor)||0;if(Number(x.preco)>0)h.pos.push(x)}
 function stats(code,un){const h=hist.get(String(code)+'|'+String(un||''));if(!h)return null;let mn=null,mx=null,lt=null;for(const x of h.pos){if(!mn||x.preco<mn.preco||(x.preco===mn.preco&&dk(x.data)>dk(mn.data)))mn=x;if(!mx||x.preco>mx.preco||(x.preco===mx.preco&&dk(x.data)>dk(mx.data)))mx=x;if(!lt||dk(x.data)>=dk(lt.data))lt=x}const variation=mn&&mx&&mn.preco>0?(mx.preco-mn.preco)/mn.preco:null;let status='SEM HISTÓRICO DE COMPRA';if(h.rows.length===1)status='UMA COMPRA';else if(variation!=null)status=variation>.5?'VARIAÇÃO >50%':variation>.2?'VARIAÇÃO >20%':'HISTÓRICO ESTÁVEL';return{mn,mx,lt,variation,status,valor:h.v,qtd:h.q,avg:h.q?h.v/h.q:0,fornecedores:h.sup.size,registros:h.rows.length,lista:[...h.sup].filter(Boolean).sort((a,b)=>String(a).localeCompare(String(b),'pt-BR'))}}
-function apply(x,isProduct){const h=stats(x.codigo,x.un);if(!h)return;const mn=h.mn,mx=h.mx,lt=h.lt;x.min_preco=mn?.preco||0;x.forn_min=mn?.fornecedor||'';x.data_min=mn?.data||'';x.max_preco=mx?.preco||0;x.forn_max=mx?.fornecedor||'';x.data_max=mx?.data||'';x.ultimo_preco=lt?.preco||0;x.ultimo_forn=lt?.fornecedor||'';x.data_ultimo=lt?.data||'';x.preco_medio=h.avg;x.fornecedores=h.fornecedores;x.registros=h.registros;x.variacao=h.variation;x.fornecedores_lista=h.lista;if(isProduct){x.valor_comprado=h.valor;x.qtd_comprada=h.qtd;x.nota_min=mn?.nota??null;x.nota_max=mx?.nota??null;x.nota_ultimo=lt?.nota??null;x.status=h.status}else{x.status_preco=h.status;x.dif_estoque_min=x.min_preco>0?((Number(x.custo_estoque)||0)-x.min_preco)*(Number(x.estoque)||0):0}}
+function apply(x,isProduct){
+  const h=stats(x.codigo,x.un);
+  if(!h){
+    x.min_preco=0;x.forn_min='';x.data_min='';x.max_preco=0;x.forn_max='';
+    x.data_max='';x.ultimo_preco=0;x.ultimo_forn='';x.data_ultimo='';
+    x.preco_medio=0;x.fornecedores=0;x.registros=0;x.variacao=null;x.fornecedores_lista=[];
+    if(isProduct){x.valor_comprado=0;x.qtd_comprada=0;x.nota_min=null;
+      x.nota_max=null;x.nota_ultimo=null;x.status='SEM HISTÓRICO DE COMPRA'}
+    else{x.status_preco='SEM HISTÓRICO DE COMPRA';x.dif_estoque_min=0}
+    return;
+  }
+  const mn=h.mn,mx=h.mx,lt=h.lt;
+  x.min_preco=mn?.preco||0;x.forn_min=mn?.fornecedor||'';x.data_min=mn?.data||'';
+  x.max_preco=mx?.preco||0;x.forn_max=mx?.fornecedor||'';x.data_max=mx?.data||'';
+  x.ultimo_preco=lt?.preco||0;x.ultimo_forn=lt?.fornecedor||'';x.data_ultimo=lt?.data||'';
+  x.preco_medio=h.avg;x.fornecedores=h.fornecedores;x.registros=h.registros;
+  x.variacao=h.variation;x.fornecedores_lista=h.lista;
+  if(isProduct){x.valor_comprado=h.valor;x.qtd_comprada=h.qtd;
+    x.nota_min=mn?.nota??null;x.nota_max=mx?.nota??null;x.nota_ultimo=lt?.nota??null;x.status=h.status}
+  else{x.status_preco=h.status;
+    x.dif_estoque_min=x.min_preco>0?((Number(x.custo_estoque)||0)-x.min_preco)*(Number(x.estoque)||0):0}
+}
 for(const x of STOCK)apply(x,false);for(const x of PRODUCTS)apply(x,true);
-for(const mes of ['08/2026','09/2026','10/2026']){const a=PURCHASES.filter(x=>String(x.data||'').slice(3)===mes);let m=MONTHLY.find(x=>x.mes===mes);if(!m){m={mes,valor:0,linhas:0,fornecedores:0,produtos:0};MONTHLY.push(m)}m.valor=a.reduce((s,x)=>s+(Number(x.valor)||0),0);m.linhas=a.length;m.fornecedores=new Set(a.map(x=>x.fornecedor).filter(Boolean)).size;m.produtos=new Set(a.map(x=>String(x.codigo)+'|'+String(x.un||''))).size}MONTHLY.sort((a,b)=>{const [am,ay]=a.mes.split('/').map(Number),[bm,by]=b.mes.split('/').map(Number);return ay-by||am-bm})
+for(const mes of [...new Set(PURCHASES.map(x=>String(x.data||'').slice(3)))]){const a=PURCHASES.filter(x=>String(x.data||'').slice(3)===mes);let m=MONTHLY.find(x=>x.mes===mes);if(!m){m={mes,valor:0,linhas:0,fornecedores:0,produtos:0};MONTHLY.push(m)}m.valor=a.reduce((s,x)=>s+(Number(x.valor)||0),0);m.linhas=a.length;m.fornecedores=new Set(a.map(x=>x.fornecedor).filter(Boolean)).size;m.produtos=new Set(a.map(x=>String(x.codigo)+'|'+String(x.un||''))).size}MONTHLY.sort((a,b)=>{const [am,ay]=a.mes.split('/').map(Number),[bm,by]=b.mes.split('/').map(Number);return ay-by||am-bm})
 const total=PURCHASES.reduce((s,x)=>s+(Number(x.valor)||0),0),analysisPurchases=PURCHASES.filter(x=>!window.DB_IS_TIRE_OR_CAMERA(x)),bench=new Map();for(const x of analysisPurchases){if(!(Number(x.preco)>0))continue;const k=String(x.codigo)+'|'+String(x.un||''),b=bench.get(k);if(!b||x.preco<b.preco)bench.set(k,x)}let savings=0,atBest=0,eligible=0,above=0;const saveSup=new Map();for(const x of analysisPurchases){if(!(Number(x.preco)>0&&Number(x.qtd)>0))continue;const b=bench.get(String(x.codigo)+'|'+String(x.un||''));if(!b)continue;eligible++;const d=x.preco-b.preco;if(Math.abs(d)<.005)atBest++;else if(d>.005){above++;const v=d*x.qtd;savings+=v;saveSup.set(x.fornecedor,(saveSup.get(x.fornecedor)||0)+v)}}
 const lm=new Map();for(const x of PURCHASES){let a=lm.get(x.local);if(!a){a={v:0,n:0,p:new Set(),f:new Set(),u:''};lm.set(x.local,a)}a.v+=Number(x.valor)||0;a.n++;a.p.add(x.codigo);a.f.add(x.fornecedor);if(!a.u||dk(x.data)>dk(a.u))a.u=x.data}for(const l of LOCATIONS){const a=lm.get(l.local);l.valor_comprado=a?.v||0;l.linhas=a?.n||0;l.produtos_comprados=a?.p.size||0;l.fornecedores=a?.f.size||0;l.ultima=a?.u||''}
 const sm=new Map();for(const x of PURCHASES){let a=sm.get(x.fornecedor);if(!a){a={codigo:String(x.fornecedor_codigo||''),fornecedor:x.fornecedor,linhas:0,notas:new Set(),produtos:new Set(),locais:new Set(),empresas:new Set(),qtd:0,valor:0,primeira:x.data,ultima:x.data,lanc_receb:0,nao_lanc_receb:0};sm.set(x.fornecedor,a)}a.linhas++;a.notas.add(x.nrounico);a.produtos.add(x.codigo);a.locais.add(x.local);a.empresas.add(x.empresa_compra);a.qtd+=Number(x.qtd)||0;a.valor+=Number(x.valor)||0;if(dk(x.data)<dk(a.primeira))a.primeira=x.data;if(dk(x.data)>dk(a.ultima))a.ultima=x.data;if(x.status==='LANC.RECEB.')a.lanc_receb++;else a.nao_lanc_receb++}SUPPLIERS.splice(0,SUPPLIERS.length,...[...sm.values()].map(a=>({...a,notas:a.notas.size,produtos:a.produtos.size,locais:a.locais.size,empresas:a.empresas.size,ticket:a.linhas?a.valor/a.linhas:0,participacao:total?a.valor/total:0})).sort((a,b)=>b.valor-a.valor));
@@ -31,6 +80,6 @@ extendSelect('fLocal',PURCHASES.map(x=>x.local));
 extendSelect('fGrupo',PURCHASES.map(x=>x.grupo));
 extendSelect('fUn',PURCHASES.map(x=>x.un));
 extendSelect('fFornecedor',SUPPLIERS.map(x=>x.fornecedor));
-window.LATEST_PURCHASE_META=P.meta||{};
+window.LATEST_PURCHASE_META={...m,sourceRows:m.count,rowsSinceAugust:m.recent,fim:'29/10/2026',audited:true};
 window.dispatchEvent(new CustomEvent('purchases-updated',{detail:window.LATEST_PURCHASE_META}));
 })();
