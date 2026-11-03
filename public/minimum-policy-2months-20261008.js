@@ -166,8 +166,10 @@
   }
 
 
-  // O grafico de reposicao exibe apenas locais com necessidade positiva.
-  // Mostra tambem os demais locais avaliados, sem inventar compras.
+
+  // Volta a mostrar o comparativo de cobertura em TODOS os locais,
+  // sem reverter os saldos ERP, inventar consumo ou somar unidades diferentes.
+  let expandedMinimumLocal='';
   function patchMinimumLocations(){
     const view=document.getElementById('view-minimo');
     if(!view||!window.CURRENT_STOCK_META||!window.MOVEMENTS_REVISED_META)return;
@@ -180,64 +182,133 @@
     const statuses=[...view.querySelectorAll('input[type="checkbox"]:checked')]
       .map(input=>input.value).filter(status=>allowed.has(status));
     if(statuses.length)list=list.filter(x=>statuses.includes(x.status));
+
     const globalFiltered=['fEmpresa','fLocal','fGrupo','fUn','fBusca']
-      .some(key=>String(document.getElementById(key)?.value||'').trim());
+      .some(k=>String(document.getElementById(k)?.value||'').trim());
     const names=new Set(globalFiltered?base.map(x=>String(x.local||'')):
       (typeof STOCK==='undefined'?[]:STOCK.map(x=>String(x.local||''))));
     if(!globalFiltered&&base.some(x=>x.network_scope||x.local==='CDI DE PECAS CHUA'))
       names.add('CDI DE PECAS CHUA');
     for(const x of list)names.add(String(x.local||''));
     names.delete('');
-    const data=new Map([...names].map(local=>[local,{local,items:0,need:0,critical:0,amount:0}]));
+
+    const fresh=local=>({local,items:0,need:0,critical:0,above:0,attention:0,unknown:0,amount:0,rows:[]});
+    const data=new Map([...names].map(local=>[local,fresh(local)]));
     for(const x of list){
-      const loc=String(x.local||'');
-      if(!data.has(loc))data.set(loc,{local:loc,items:0,need:0,critical:0,amount:0});
-      const d=data.get(loc);d.items++;
+      const local=String(x.local||'');
+      if(!local)continue;
+      if(!data.has(local))data.set(local,fresh(local));
+      const d=data.get(local);d.items++;d.rows.push(x);
       if(num(x.need)>0)d.need++;
       if(x.status==='SEM ESTOQUE'||x.status==='ABAIXO DO MÍNIMO')d.critical++;
+      else if(x.status==='ATENÇÃO'){d.attention++;d.above++;}
+      else if(x.status==='OK')d.above++;
+      else d.unknown++;
       d.amount+=num(x.need_value);
     }
     const entries=[...data.values()].sort((a,b)=>b.amount-a.amount||b.critical-a.critical||a.local.localeCompare(b.local,'pt-BR'));
     const positive=entries.filter(x=>x.need>0);
+    const q=x=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2}).format(num(x));
+    const isKnown=x=>num(x.total)>0&&num(x.avg)>0;
+    const label=x=>{
+      if(x.status==='SEM ESTOQUE')return 'ABAIXO · SEM ESTOQUE';
+      if(x.status==='ABAIXO DO MÍNIMO')return 'ABAIXO DO MÍNIMO';
+      if(x.status==='ATENÇÃO')return 'NO MÍNIMO OU ACIMA · ATENÇÃO';
+      if(x.status==='OK')return 'NO MÍNIMO OU ACIMA';
+      return x.status||'SEM HISTÓRICO';
+    };
+    const detail=d=>{
+      const rank=x=>x.status==='SEM ESTOQUE'?0:x.status==='ABAIXO DO MÍNIMO'?1:
+        x.status==='ATENÇÃO'?2:x.status==='OK'?3:4;
+      const items=d.rows.slice().sort((a,b)=>rank(a)-rank(b)||
+        String(a.produto||'').localeCompare(String(b.produto||''),'pt-BR')||
+        String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR'));
+      return '<div class="dl-detail"><p><b>Produtos de '+esc(d.local)+'</b> · Saldo atual comparado ao mínimo de 2 meses. '+
+        'Diferenças em quantidade são mostradas por produto e unidade; itens sem histórico não recebem mínimo presumido.</p>'+
+        '<div class="dl-scroll"><table><thead><tr><th>Código</th><th>Produto</th><th>UN</th>'+
+        '<th>Média/mês</th><th>Mínimo 2 meses</th><th>Saldo atual</th><th>Saldo − mínimo</th>'+
+        '<th>Situação</th><th>Qtd. a repor</th></tr></thead><tbody>'+
+        items.map(x=>{
+          const known=isKnown(x);
+          const diff=known?num(x.stock)-num(x.minimum):null;
+          const css=x.status==='SEM ESTOQUE'||x.status==='ABAIXO DO MÍNIMO'?'dl-risk':
+            x.status==='ATENÇÃO'?'dl-warn':x.status==='OK'?'dl-safe':'dl-na';
+          return '<tr><td>'+esc(x.codigo)+'</td><td>'+esc(x.produto)+'</td><td>'+esc(x.un)+'</td>'+
+            '<td class="dl-num">'+(known?q(x.avg):'—')+'</td>'+
+            '<td class="dl-num">'+(known?q(x.minimum):'—')+'</td>'+
+            '<td class="dl-num">'+q(x.stock)+'</td>'+
+            '<td class="dl-num '+css+'">'+(known?(diff>0?'+':'')+q(diff):'—')+'</td>'+
+            '<td class="'+css+'">'+esc(label(x))+'</td>'+
+            '<td class="dl-num">'+q(x.need)+'</td></tr>';
+        }).join('')+
+        '</tbody></table></div></div>';
+    };
     let panel=document.getElementById('db-minimum-all-locals');
     if(!panel){
       panel=document.createElement('section');panel.id='db-minimum-all-locals';
+      panel.addEventListener('click',event=>{
+        const button=event.target.closest('button[data-minimum-local]');
+        if(!button||!panel.contains(button))return;
+        expandedMinimumLocal=expandedMinimumLocal===button.dataset.minimumLocal?'':button.dataset.minimumLocal;
+        patchMinimumLocations();
+      });
       const note=[...view.querySelectorAll('.notice')].find(x=>x.textContent.includes('Regra do estoque mínimo'));
       if(note)note.before(panel);else view.appendChild(panel);
     }
     if(!document.getElementById('db-minimum-all-locals-style')){
       const style=document.createElement('style');style.id='db-minimum-all-locals-style';
       style.textContent=[
-        '#db-minimum-all-locals{border:1px solid #d7e6db;border-radius:12px;background:white;margin:14px 0;overflow:hidden}',
+        '#db-minimum-all-locals{border:1px solid #d7e6db;border-radius:12px;background:#fff;margin:14px 0;overflow:hidden}',
         '#db-minimum-all-locals .dl-head{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;padding:14px 16px}',
         '#db-minimum-all-locals h3{color:#145b32;font-size:14px;margin:0}',
         '#db-minimum-all-locals p{font-size:11px;color:#637568;line-height:1.5;margin:4px 0 0}',
         '#db-minimum-all-locals .dl-head strong{color:#145b32;font-size:12px}',
-        '#db-minimum-all-locals .dl-columns,#db-minimum-all-locals .dl-row{display:grid;grid-template-columns:minmax(235px,3fr) minmax(95px,1fr) minmax(110px,1fr) minmax(140px,1.2fr);gap:10px;align-items:center;padding:11px 15px;font-size:11px}',
+        '#db-minimum-all-locals .dl-columns,#db-minimum-all-locals .dl-row{display:grid;grid-template-columns:minmax(230px,3fr) minmax(100px,1fr) minmax(120px,1fr) minmax(95px,1fr) minmax(145px,1.2fr);gap:10px;align-items:center;padding:11px 15px;font-size:11px}',
         '#db-minimum-all-locals .dl-columns{background:#edf6f0;font-size:10px;font-weight:bold;color:#4b7357}',
         '#db-minimum-all-locals .dl-row{border-top:1px solid #e9efeb}',
         '#db-minimum-all-locals .dl-row b{color:#26563b}',
         '#db-minimum-all-locals .dl-row small{display:block;font-size:10px;color:#607a6a;margin-top:4px}',
-        '#db-minimum-all-locals .dl-row .need{color:#925c05}',
-        '#db-minimum-all-locals .dl-row .ok{color:#257544}',
+        '#db-minimum-all-locals .dl-risk{color:#b23b33;font-weight:700}',
+        '#db-minimum-all-locals .dl-warn{color:#925c05;font-weight:700}',
+        '#db-minimum-all-locals .dl-safe{color:#257544;font-weight:700}',
+        '#db-minimum-all-locals .dl-na{color:#607a6a}',
+        '#db-minimum-all-locals .dl-open{margin-top:5px;background:#e8f4ed;color:#145b32;border:1px solid #bddbc7;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:10px}',
+        '#db-minimum-all-locals .dl-detail{padding:12px 15px 15px;border-top:1px solid #d7e6db;background:#f8fbf9}',
+        '#db-minimum-all-locals .dl-scroll{overflow-x:auto;max-height:480px;overflow-y:auto;border:1px solid #dbe8de;border-radius:8px;background:#fff}',
+        '#db-minimum-all-locals table{border-collapse:collapse;width:100%;min-width:880px;font-size:10px}',
+        '#db-minimum-all-locals th,#db-minimum-all-locals td{padding:8px 9px;border-bottom:1px solid #e9efeb;text-align:left}',
+        '#db-minimum-all-locals th{position:sticky;top:0;background:#edf6f0;color:#315e3f;z-index:1}',
+        '#db-minimum-all-locals td.dl-num{text-align:right;white-space:nowrap}',
         '#db-minimum-all-locals .dl-foot{padding:10px 15px 14px;border-top:1px solid #e5ede6}',
-        '@media(max-width:700px){#db-minimum-all-locals .dl-columns{display:none}#db-minimum-all-locals .dl-row{grid-template-columns:1fr 1fr}#db-minimum-all-locals .dl-row>div:first-child{grid-column:span 2}}'
+        '@media(max-width:760px){#db-minimum-all-locals .dl-columns{display:none}#db-minimum-all-locals .dl-row{grid-template-columns:1fr 1fr}#db-minimum-all-locals .dl-row>div:first-child{grid-column:span 2}#db-minimum-all-locals .dl-row>div:last-child{grid-column:span 2}}'
       ].join('\n');document.head.appendChild(style);
     }
-    panel.innerHTML='<div class="dl-head"><div><h3>Todos os locais analisados</h3>'+
-      '<p>Os gráficos acima mostram somente locais com reposição. Os demais também foram avaliados.</p></div>'+
+    panel.innerHTML='<div class="dl-head"><div><h3>Todos os locais · acima e abaixo do mínimo</h3>'+
+      '<p>Comparativo de saldo atual × estoque mínimo de 2 meses. Mesmo sem compra pendente, mostra os produtos com cobertura suficiente.</p></div>'+
       '<strong>'+n0(positive.length)+' com reposição · '+n0(entries.length-positive.length)+' sem reposição</strong></div>'+
-      '<div class="dl-columns"><span>Almoxarifado</span><span>Produtos a repor</span><span>Abaixo / sem estoque</span><span>Valor de reposição</span></div>'+
+      '<div class="dl-columns"><span>Almoxarifado / produtos</span><span>Abaixo / sem estoque</span>'+
+      '<span>No mínimo ou acima</span><span>Sem histórico suficiente</span><span>Valor de reposição</span></div>'+
       entries.map(d=>'<div class="dl-row"><div><b>'+esc(d.local)+'</b><small>'+
-        n0(d.items)+' produtos analisados'+(d.local==='CDI DE PECAS CHUA'?' · visão da rede':'')+'</small></div>'+
-        '<div class="'+(d.need?'need':'ok')+'">'+n0(d.need)+' · '+(d.need?'Repor':'Sem reposição')+'</div>'+
-        '<div>'+n0(d.critical)+'</div><div><b>'+br(d.amount)+'</b></div></div>').join('')+
-      '<p class="dl-foot"><b>Importante:</b> o CDI de Peças Chuá é uma análise de demanda da rede e compartilha o saldo ERP com o almoxarifado físico Chuá. '+
-      'Não somar as necessidades dos dois sem separar esse saldo.</p>';
+        n0(d.items)+' produtos com histórico avaliados · '+n0(d.need)+' a repor'+
+        (d.local==='CDI DE PECAS CHUA'?' · visão da rede':'')+'</small>'+
+        '<button type="button" class="dl-open" data-minimum-local="'+esc(d.local)+'" aria-expanded="'+(expandedMinimumLocal===d.local)+'">'+
+        (expandedMinimumLocal===d.local?'Ocultar produtos':'Ver produtos e saldos')+'</button></div>'+
+        '<div class="dl-risk">'+n0(d.critical)+'<small>Abaixo do mínimo</small></div>'+
+        '<div class="dl-safe">'+n0(d.above)+'<small>'+n0(d.attention)+' em atenção</small></div>'+
+        '<div class="dl-na">'+n0(d.unknown)+'<small>Sem comparação confiável</small></div>'+
+        '<div><b>'+br(d.amount)+'</b><small>'+(d.need?'Reposição calculada':'Sem compra sugerida')+'</small></div></div>'+
+        (expandedMinimumLocal===d.local?detail(d):'')).join('')+
+      '<p class="dl-foot"><b>Como interpretar:</b> “No mínimo ou acima” inclui itens em atenção cujo saldo ainda atende aos dois meses. '+
+      'Itens sem consumo suficiente não são classificados como saldo adequado nem geram compra estimada. '+
+      'Pneus, câmaras e cimento permanecem fora deste cálculo. '+
+      'O CDI de Peças Chuá representa demanda da rede e compartilha o saldo ERP com Chuá; não somar os dois valores como estoques independentes.</p>';
     window.DB_MINIMUM_LOCALS_COVERAGE_META={
       totalLocals:entries.length,needLocals:positive.length,noNeedLocals:entries.length-positive.length,
-      below:entries.reduce((a,x)=>a+x.critical,0),amount:entries.reduce((a,x)=>a+x.amount,0),
-      items:entries.map(x=>({local:x.local,need:x.need,below:x.critical,amount:x.amount}))
+      below:entries.reduce((a,x)=>a+x.critical,0),above:entries.reduce((a,x)=>a+x.above,0),
+      attention:entries.reduce((a,x)=>a+x.attention,0),unknown:entries.reduce((a,x)=>a+x.unknown,0),
+      amount:entries.reduce((a,x)=>a+x.amount,0),
+      items:entries.map(x=>({local:x.local,items:x.items,need:x.need,below:x.critical,above:x.above,
+        attention:x.attention,unknown:x.unknown,amount:x.amount}))
     };
   }
 

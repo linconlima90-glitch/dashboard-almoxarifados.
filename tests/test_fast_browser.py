@@ -285,6 +285,14 @@ with sync_playwright() as p:
             assert locs['needLocals']==4 and locs['noNeedLocals']==6, locs
             assert locs['below']==1075 and abs(locs['amount']-119999.63)<0.02, locs
             assert page.locator('#db-minimum-all-locals .dl-row').count()==10
+
+            assert locs['above']>0 and locs['attention']>=0 and locs['unknown']>=0, locs
+            assert sum(x['items'] for x in locs['items'])==locs['above']+locs['below']+locs['unknown'], locs
+            assert page.locator('#db-minimum-all-locals').get_by_text('No mínimo ou acima').count()>=1
+            page.locator('#db-minimum-all-locals button[data-minimum-local]').first.click()
+            assert page.locator('#db-minimum-all-locals .dl-detail tbody tr').count()>0
+            page.locator('#db-minimum-all-locals button[data-minimum-local]').first.click()
+            assert page.locator('#db-minimum-all-locals .dl-detail').count()==0
             # A aba e criada dinamicamente antes do layout e usa o historico reconciliado.
             assert page.locator('.clean-sub-btn[data-view="sem-baixas"]').count() >= 0
             page.locator('.tab[data-view="sem-baixas"]').evaluate('(el)=>el.click()')

@@ -120,7 +120,7 @@ class DashboardInjector {
       '<script src="/capital-hierarchy.js?v=20261028-capital-nav-fix"></script>' +
       '<script src="/executive-only-capital.js?v=20260911-1"></script>' +
       '<script src="/cdi-minimum-layout.js?v=20261103-full-history"></script>' +
-      '<script src="/minimum-policy-2months-20261008.js?v=20261008-1"></script>' +
+      '<script src="/minimum-policy-2months-20261008.js?v=20261103-comparativo-cobertura"></script>' +
       '<script src="/stock-current-b64-init.js?v=20261008-1"></script>' +
       '<script src="/stock-current-20261103-1558-01.js?v=20261103-1558"></script>' +
       '<script src="/stock-current-20261103-1558-02.js?v=20261103-1558"></script>' +
