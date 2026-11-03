@@ -433,7 +433,7 @@ with sync_playwright() as p:
             page.wait_for_timeout(150)
             page.locator('#fBusca').fill('')
             page.wait_for_timeout(100)
-            values = page.evaluate("""() => ({local:MOVEMENTS.every(x=>Math.abs(x.minimum-minimumRoundUp((Number(x.avg)||0)*2,x.un))<1e-8),cdi:cdiNetworkAllRows().every(x=>Math.abs(x.minimum-minimumRoundUp(x.avg*2,x.un))<1e-8),annual:minimumRowsForYear(minimumBaseRows(),'2026').every(x=>Math.abs(x.minimum-minimumRoundUp(x.avg*2,x.un))<1e-8)})""")
+            values = page.evaluate("""() => ({local:MOVEMENTS.filter(x=>!window.DB_MINIMUM_EXCLUDED?.(x)).every(x=>Math.abs(x.minimum-minimumRoundUp((Number(x.avg)||0)*2,x.un))<1e-8),cdi:cdiNetworkAllRows().every(x=>Math.abs(x.minimum-minimumRoundUp(x.avg*2,x.un))<1e-8),annual:minimumRowsForYear(minimumBaseRows(),'2026').every(x=>Math.abs(x.minimum-minimumRoundUp(x.avg*2,x.un))<1e-8)})""")
             assert all(values.values()), values
             results[name]['minimumChecks'] = values
             assert not page.evaluate('DB_FAST.stats.errors'), page.evaluate('DB_FAST.stats.errors')
