@@ -20,6 +20,7 @@
     ? window.DB_IS_TIRE_OR_CAMERA(x)
     : /(?:PNEU|CAMARA)/.test(norm(x && x.grupo));
   const productKey = x => String(x.codigo)+'|'+String(x.un||'');
+  const purchaseYear = date => (String(date||'').match(/\/(20\d{2})$/)||[])[1] || '';
 
   const style = document.createElement('style');
   style.textContent = [
@@ -41,7 +42,7 @@
     '.ps-controls{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap;margin-bottom:11px;flex-shrink:0}',
     '.ps-controls label{font-size:10px;font-weight:850;display:flex;flex-direction:column;gap:4px;color:#4e6555;flex:1;min-width:145px}',
     '.ps-controls input,.ps-controls select{border:1px solid #cbdccc;border-radius:8px;background:white;color:#213a2b;font-size:12px;padding:9px;min-width:0;width:100%;box-sizing:border-box}',
-    '.ps-controls .ps-search{flex:1.7;min-width:230px}',
+    '.ps-controls .ps-search{flex:1.7;min-width:230px}.ps-controls .ps-year{flex:.55;min-width:120px}',
     '.ps-export{border:1px solid #11713e;background:#fff;color:#13653a;border-radius:8px;padding:9px 12px;font-size:11px;font-weight:850;cursor:pointer}',
     '.ps-table-wrap{flex:1;min-height:0;min-width:0;border:1px solid #d5e5d9;border-radius:10px;overflow:auto;background:white;overscroll-behavior:contain}',
     '.ps-table{width:100%;border-collapse:separate;border-spacing:0;min-width:1300px;table-layout:fixed;font-size:10.5px}',
@@ -80,6 +81,7 @@
         '</div>',
         '<div class="ps-controls">',
           '<label class="ps-search">Buscar produto ou código<input id="ps-search" placeholder="Digite o código ou nome do produto" autocomplete="off"></label>',
+          '<label class="ps-year">Ano<select id="ps-year"><option value="">Todos os anos</option></select></label>',
           '<label>Local<select id="ps-local"><option value="">Todos os locais</option></select></label>',
           '<label>Grupo<select id="ps-group"><option value="">Todos os grupos</option></select></label>',
           '<button type="button" class="ps-export">Exportar CSV</button>',
@@ -91,7 +93,7 @@
           '<th class="ps-num">Economia possível</th></tr></thead>',
           '<tbody id="ps-rows"></tbody></table></div>',
         '<div class="ps-table-foot"><span id="ps-showing"></span></div>',
-        '<p class="ps-note">Todos os registros do filtro aparecem na tabela. Clique em um produto para conferir as compras; em telas menores, deslize lateralmente (a coluna de economia permanece visível). ',
+        '<p class="ps-note">O filtro de ano considera a data de cada compra; o menor preço de referência continua sendo o menor preço do histórico disponível, mesmo quando for de outro ano. Todos os registros do filtro aparecem na tabela. Clique em um produto para conferir as compras; em telas menores, deslize lateralmente (a coluna de economia permanece visível). ',
         'A economia é teórica e depende de disponibilidade, marca, especificação, frete, impostos e condições comerciais. ',
         'Pneus e câmaras de ar não entram nesta comparação, mas continuam nas compras por mês.</p>',
       '</div>',
@@ -100,7 +102,7 @@
   document.body.appendChild(layer);
 
   const $=selector=>layer.querySelector(selector);
-  const search=$('#ps-search'), local=$('#ps-local'), group=$('#ps-group'), body=$('#ps-rows');
+  const search=$('#ps-search'), year=$('#ps-year'), local=$('#ps-local'), group=$('#ps-group'), body=$('#ps-rows');
   let data={rows:[],eligibleValue:0,savings:0,lines:0}, filtered=[];
   const focusBefore=()=>document.activeElement;
 
@@ -108,9 +110,12 @@
     let purchases=[];
     try{purchases=typeof purchasesFiltered==='function' ? purchasesFiltered() : (typeof PURCHASES!=='undefined'?PURCHASES:[])}catch(e){purchases=[]}
     purchases=(Array.isArray(purchases)?purchases:[]).filter(x=>!excluded(x));
+    const years=[...new Set(purchases.map(x=>purchaseYear(x.data)).filter(Boolean))].sort((a,b)=>b.localeCompare(a));
     let reference=[];
     try{reference=typeof benchmarkRowsFiltered==='function' ? benchmarkRowsFiltered() : purchases}catch(e){reference=purchases}
     reference=(Array.isArray(reference)?reference:purchases).filter(x=>!excluded(x));
+    // O comparativo usa o historico completo como referencia, inclusive de outros anos.
+    if(year.value) purchases=purchases.filter(x=>purchaseYear(x.data)===year.value);
     const best=new Map();
     for(const x of reference){
       const price=number(x.preco);
@@ -146,7 +151,7 @@
     const rows=[...entries.values()].filter(x=>x.save>.005);
     for(const r of rows)r.details.sort((a,b)=>b.save-a.save);
     rows.sort((a,b)=>b.save-a.save || String(a.produto).localeCompare(String(b.produto),'pt-BR'));
-    return {rows:rows,eligibleValue:eligibleValue,savings:rows.reduce((a,x)=>a+x.save,0),lines:lines};
+    return {rows:rows,eligibleValue:eligibleValue,savings:rows.reduce((a,x)=>a+x.save,0),lines:lines,years:years,purchases:purchases};
   }
 
   function updateSelect(select,items,title){
@@ -158,7 +163,11 @@
     if([...select.options].some(o=>o.value===previous))select.value=previous;
   }
   function refresh(){
+    const previousYear=year.value;
     data=buildData();
+    updateSelect(year,data.years,'Todos os anos');
+    // Ao alterar o filtro geral, nao mantenha um ano que deixou de existir.
+    if(previousYear && !year.value) data=buildData();
     updateSelect(local,data.rows.map(r=>r.local),'Todos os locais');
     updateSelect(group,data.rows.map(r=>r.grupo),'Todos os grupos');
     render();
@@ -172,7 +181,10 @@
     filtered=visibleRows();
     const savings=filtered.reduce((a,x)=>a+x.save,0);
     $('#ps-saving').textContent=money.format(savings);
-    $('#ps-rate').textContent=percent.format(data.eligibleValue>0?savings/data.eligibleValue:0);
+    const q=norm(search.value),l=local.value,g=group.value;
+    const comparablePurchases=(data.purchases||[]).filter(x=>(!l||String(x.local)===l)&&(!g||String(x.grupo)===g)&&(!q||norm(x.codigo).includes(q)||norm(x.produto).includes(q)||norm(x.grupo).includes(q)));
+    const comparableValue=comparablePurchases.reduce((a,x)=>a+number(x.valor),0);
+    $('#ps-rate').textContent=percent.format(comparableValue>0?savings/comparableValue:0);
     $('#ps-products').textContent=integer.format(new Set(filtered.map(r=>productKey(r))).size);
     $('#ps-lines').textContent=integer.format(filtered.reduce((a,x)=>a+x.count,0));
     const visible=filtered;
@@ -242,7 +254,7 @@
   }
   function open(){
     previousFocus=focusBefore();previousOverflow=document.body.style.overflow;
-    search.value='';local.value='';group.value='';
+    search.value='';year.value='';local.value='';group.value='';
     refresh();layer.classList.add('ps-open');document.body.style.overflow='hidden';search.focus();
   }
   card.classList.add('ps-kpi-action');
@@ -255,6 +267,7 @@
   layer.addEventListener('click',event=>{if(event.target===layer)close()});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&layer.classList.contains('ps-open'))close()});
   for(const control of [search,local,group])control.addEventListener(control===search?'input':'change',render);
+  year.addEventListener('change',refresh);
   body.addEventListener('click',event=>{const row=event.target.closest('.ps-item-row');if(row)openDetail(Number(row.dataset.idx))});
   body.addEventListener('keydown',event=>{if(event.key!=='Enter'&&event.key!==' ')return;const row=event.target.closest('.ps-item-row');if(row){event.preventDefault();openDetail(Number(row.dataset.idx))}});
   $('.ps-export').addEventListener('click',exportCsv);
