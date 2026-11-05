@@ -155,8 +155,8 @@ with sync_playwright() as p:
                 preserveHistory:window.MOVEMENTS_REVISED_META?.records>19387,
                 preserveMin:window.STOCK_MINIMUM_MONTHS===2
             })""")
-            assert stockmeta['emitted']=='03/11/2026 15:58:21', stockmeta
-            assert abs(stockmeta['total']-2249087.15)<0.01 and stockmeta['warehouses']==9, stockmeta
+            assert stockmeta['emitted']=='05/11/2026 19:19:46', stockmeta
+            assert abs(stockmeta['total']-2300866.50)<0.01 and stockmeta['warehouses']==9, stockmeta
             assert stockmeta['preserveHistory'] and stockmeta['preserveMin'], stockmeta
             october=page.evaluate("""() => ({
                 month:window.MOVEMENTS_OCTOBER_META,
@@ -293,7 +293,7 @@ with sync_playwright() as p:
             page.wait_for_function("window.DB_STOCK_UNIFIED?.meta?.integrated===true", timeout=15000)
             meta4=page.evaluate("window.DB_STOCK_UNIFIED.meta")
             assert meta4['warehouseCount']==10 and meta4['networkExcludedFromTotals'], meta4
-            assert meta4['stockDate']=='03/11/2026 15:58:21', meta4
+            assert meta4['stockDate']=='05/11/2026 19:19:46', meta4
             assert meta4['minimumMonths']==2 and meta4['months']==4, meta4
             assert meta4['physicalNeedItems']>0 and meta4['physicalNeedValue']>0, meta4
             assert meta4['physicalExcessItems']>=0 and meta4['physicalExcessValue']>=0, meta4
@@ -603,7 +603,7 @@ with sync_playwright() as p:
             assert no_withdrawals['locationsSorted'] and no_withdrawals['groupsSorted'], no_withdrawals
             assert all(no_withdrawals[x] for x in ['locationCounts','groupCounts','locationValues','groupValues']), no_withdrawals
             assert no_withdrawals['filtered']==no_withdrawals['rows'] and no_withdrawals['purchaseHistoryAvailable'], no_withdrawals
-            assert no_withdrawals['position']=='03/11/2026 15:58:21', no_withdrawals
+            assert no_withdrawals['position']=='05/11/2026 19:19:46', no_withdrawals
             assert no_withdrawals['header']=='Estoque sem baixas registradas' and no_withdrawals['groupLabel'], no_withdrawals
 
             def open_no_withdrawal_group(key):
@@ -796,7 +796,7 @@ with sync_playwright() as p:
             assert sj_no_withdrawals['rows']>0 and sj_no_withdrawals['display']>0, sj_no_withdrawals
             assert sj_no_withdrawals['localRows'] and sj_no_withdrawals['valid'] and sj_no_withdrawals['ordered'], sj_no_withdrawals
             assert sj_no_withdrawals['purchaseLocal'] and sj_no_withdrawals['meta']==BAIXAS_AUDIT['revisedRecords'], sj_no_withdrawals
-            assert sj_no_withdrawals['date']=='03/11/2026 15:58:21', sj_no_withdrawals
+            assert sj_no_withdrawals['date']=='05/11/2026 19:19:46', sj_no_withdrawals
             page.locator('#sj-nw-sort').select_option('unitario')
             sorted_unit=page.evaluate("""() => [...document.querySelectorAll('#sj-nw-view tr[data-sj-nw-unit]')]
               .map(el=>Number(el.dataset.sjNwUnit)).every((x,i,a)=>!i||a[i-1]>=x)""")
@@ -897,10 +897,10 @@ with sync_playwright() as p:
             assert 'São João' not in page.locator('#sj-pilot-root').inner_text()
         results[name]['errors'] = errors.copy()
         page.close()
-    assert results['fast']['stockRows'] == 4304, 'Unexpected stock positions'
-    assert results['fastPilot']['stockRows'] == 4304, 'Unexpected Sao Joao stock positions'
-    assert results['fastChuaPilot']['stockRows'] == 4304, 'Unexpected Chua stock positions'
-    assert abs(results['fast']['stockValue'] - 2249087.15) < 0.01, 'Unexpected stock value'
+    assert results['fast']['stockRows'] == 4405, 'Unexpected stock positions'
+    assert results['fastPilot']['stockRows'] == 4405, 'Unexpected Sao Joao stock positions'
+    assert results['fastChuaPilot']['stockRows'] == 4405, 'Unexpected Chua stock positions'
+    assert abs(results['fast']['stockValue'] - 2300866.50) < 0.01, 'Unexpected stock value'
     if snapshots['legacy'] != snapshots['fast']:
         for field in snapshots['legacy']:
             left, right = snapshots['legacy'][field], snapshots['fast'][field]
