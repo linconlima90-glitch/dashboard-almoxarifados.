@@ -13,7 +13,8 @@ export function applyBaixas20261105(root,out) {
   assert.equal(patch.cents,2030672);
   assert.equal(patch.rows.length,366);
   assert.equal(sum(patch.rows,6),2030672);
-  assert.equal(patch.rows.filter(x=>patch.dict.date[x[0]]==='2026-11-04'&&patch.dict.product[x[3]][0]==='147008').length,1);
+  assert.equal(patch.correction.document,2715257);
+  assert.equal(patch.correction.cents,132);
   const ctx=vm.createContext({window:{}});
   for(const p of ['base','01','02','03','04']){
     const f=p==='base'?'public/movement-full-base-20261103.js':'public/movement-full-'+p+'-20261103.js';
