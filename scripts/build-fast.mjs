@@ -6,6 +6,7 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 import assert from 'node:assert/strict';
 import { applyPurchaseAnalyticsPolicy } from './purchase-analytics-policy.mjs';
 import { applyBaixas20261105 } from './apply-baixas-20261105.mjs';
+import { applyStock20261105 } from './apply-stock-20261105.mjs';
 
 const root = process.cwd(), input = path.join(root, 'public'), out = path.join(root, 'dist');
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
@@ -80,6 +81,8 @@ fs.rmSync(out, { recursive: true, force: true });
 fs.cpSync(input, out, { recursive: true });
 const baixasAudit=applyBaixas20261105(root,out);
 report.baixasRetificadas=baixasAudit;
+const stockAudit=applyStock20261105(root,out);
+report.estoqueAtualizado=stockAudit;
 // Monta a fotografia auditada de compras sem transportar arquivos Excel ao navegador.
 const auditedPurchaseB64=Array.from({length:4},(_,i)=>{
   const filename='public/audited-purchase-part-20261103-'+(i+1)+'.js';
@@ -115,7 +118,7 @@ function localAsset(url) {
     'movement-full-03-20261103.js','movement-full-04-20261103.js',
     'movement-reconcile-full-20261103.js','movement-history-ui-20261103.js',
     'stock-no-withdrawals-tab-20261015.js']);
-  return fs.readFileSync(revised.has(pathname.slice(1))?newPath:
+  return fs.readFileSync((revised.has(pathname.slice(1))||/^\/stock-current-20261103-1558-\d\d\.js$/.test(pathname))?newPath:
     fs.existsSync(originalPath)?originalPath:newPath,'utf8');
 }
 
