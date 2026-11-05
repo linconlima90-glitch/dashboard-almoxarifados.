@@ -349,7 +349,7 @@ with sync_playwright() as p:
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.compactSummary") is True
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.withdrawalDetailOnly") is True
             local_rows=panel.locator('.dbmx-local')
-            assert local_rows.count()==10
+            assert local_rows.count()==meta4['warehouseCount']
             assert local_rows.first.locator('.dbmx-name').count()==1
             assert local_rows.first.locator('.dbmx-metric--need').count()==1
             assert local_rows.first.locator('.dbmx-metric--excess').count()==1
