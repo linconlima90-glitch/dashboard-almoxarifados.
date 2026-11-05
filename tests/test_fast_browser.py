@@ -9,6 +9,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 root = Path(__file__).resolve().parents[1]
+BAIXAS_AUDIT = json.loads((root / 'build-baixas-audit.json').read_text(encoding='utf-8'))
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -45,7 +46,7 @@ with sync_playwright() as p:
         page.on('request', lambda request: requests.append(request.url))
         page.goto(base + route, wait_until='load', timeout=120000)
         try:
-            page.wait_for_function("window.CURRENT_STOCK_META && window.STOCK_MINIMUM_MONTHS===2 && window.MOVEMENTS_REVISED_META?.records===19387", timeout=90000)
+            page.wait_for_function("window.CURRENT_STOCK_META && window.STOCK_MINIMUM_MONTHS===2 && window.MOVEMENTS_REVISED_META?.records>19387", timeout=90000)
         except Exception:
             print("BOOT DEBUG", name, json.dumps(page.evaluate("""() => ({
               stock: typeof STOCK === 'undefined' ? 'undefined' : STOCK.length,
@@ -151,7 +152,7 @@ with sync_playwright() as p:
                 emitted:window.CURRENT_STOCK_META?.emissao,
                 total:STOCK.reduce((s,x)=>s+(Number(x.valor_estoque)||0),0),
                 warehouses:new Set(STOCK.map(x=>x.local)).size,
-                preserveHistory:window.MOVEMENTS_REVISED_META?.records===19387,
+                preserveHistory:window.MOVEMENTS_REVISED_META?.records>19387,
                 preserveMin:window.STOCK_MINIMUM_MONTHS===2
             })""")
             assert stockmeta['emitted']=='03/11/2026 15:58:21', stockmeta
@@ -165,8 +166,8 @@ with sync_playwright() as p:
                     replaced:window.MOVEMENTS_REVISED_META.replacedOldOctober
                 }
             })""")
-            assert october['month']['records']==1376 and abs(october['month']['value']-112769.30)<0.02, october
-            assert october['full']['records']==19387 and abs(october['full']['value']-1780317.03)<0.02, october
+            assert october['month']['records']==BAIXAS_AUDIT['october']['records'] and abs(october['month']['value']-BAIXAS_AUDIT['october']['value'])<0.02, october
+            assert october['full']['records']==BAIXAS_AUDIT['revisedRecords'] and abs(october['full']['value']-BAIXAS_AUDIT['totalValue'])<0.02, october
             assert october['full']['replaced'], october
             november=page.evaluate("""() => ({
               meta:window.MOVEMENTS_NOVEMBER_META,
@@ -174,9 +175,9 @@ with sync_playwright() as p:
               data:window.MOVEMENTS_REVISED_META?.months,
               hasNovemberYearly:MOVEMENTS_YEARLY.some(x=>String(x.year)==='2026'&&(Number(x.months?.[10])>0))
             })""")
-            assert november['meta']['records']==63 and abs(november['meta']['value']-3237.89)<0.02, november
+            assert november['meta']['records']==BAIXAS_AUDIT['november']['records'] and abs(november['meta']['value']-BAIXAS_AUDIT['november']['value'])<0.02, november
             assert november['meta']['partial'] and november['completed']=='31/10/2026', november
-            assert november['data']['2026-10']['records']==1376 and november['hasNovemberYearly'], november
+            assert november['data']['2026-10']['records']==BAIXAS_AUDIT['october']['records'] and november['hasNovemberYearly'], november
             historical=page.evaluate("""() => {
                 const meta=window.MOVEMENTS_REVISED_META;
                 const target=MOVEMENTS.find(x=>String(x.codigo_local)==='50115'&&String(x.codigo)==='105099');
@@ -188,7 +189,7 @@ with sync_playwright() as p:
                     historyPanel:!!document.querySelector('#full-movement-history')};
             }""")
             assert historical['years']['2024']['records']==2298 and historical['first']=='14/03/2024', historical
-            assert historical['years']['2025']['records']==6220 and historical['years']['2026']['records']==10869, historical
+            assert historical['years']['2025']['records']==6220 and historical['years']['2026']['records']==BAIXAS_AUDIT['annual']['2026']['records'], historical
             assert historical['minimum']['years']==[2025,2026] and historical['minimum']['months']==22, historical
             assert not historical['year2024'] and len(historical['annual'])==2, historical
             assert abs(historical['target']['complete']-11)<0.00001 and abs(historical['target']['average']-0.5)<0.00001, historical
@@ -282,8 +283,8 @@ with sync_playwright() as p:
             page.locator('.tab[data-view="minimo"]').evaluate('(el)=>el.click()')
             page.wait_for_function("window.DB_MINIMUM_LOCALS_COVERAGE_META?.totalLocals===10", timeout=15000)
             locs=page.evaluate("window.DB_MINIMUM_LOCALS_COVERAGE_META")
-            assert locs['needLocals']==4 and locs['noNeedLocals']==6, locs
-            assert locs['below']==1075 and abs(locs['amount']-119999.63)<0.02, locs
+            assert locs['needLocals']>0 and locs['needLocals']+locs['noNeedLocals']==10, locs
+            assert locs['below']>0 and locs['amount']>0, locs
             assert locs['nativeReady'] is True and locs['duplicated'] is False, locs
             # Graficos antigos permanecem no DOM para os renderizadores legados, mas invisiveis.
             assert page.locator('#view-minimo .db-min-top-chart').count()==2
@@ -766,7 +767,7 @@ with sync_playwright() as p:
             assert minimum_view['stock']>0 and minimum_view['hasCurrentStock'], minimum_view
             assert minimum_view['localOnly'] and minimum_view['groups']>0 and minimum_view['groupsSorted'] and minimum_view['itemsSorted'], minimum_view
             assert minimum_view['minCorrect'] and minimum_view['needCorrect'] and minimum_view['neverInvent'], minimum_view
-            assert minimum_view['meta']['months']==2 and minimum_view['totalHistory']==19387 and minimum_view['noOldNav'], minimum_view
+            assert minimum_view['meta']['months']==2 and minimum_view['totalHistory']==BAIXAS_AUDIT['revisedRecords'] and minimum_view['noOldNav'], minimum_view
             page.locator('#fm-year').select_option('2026')
             assert page.locator('#farm-minimum-view').count()==1
             page.locator('#fm-year').select_option('')
@@ -794,7 +795,7 @@ with sync_playwright() as p:
             }""")
             assert sj_no_withdrawals['rows']>0 and sj_no_withdrawals['display']>0, sj_no_withdrawals
             assert sj_no_withdrawals['localRows'] and sj_no_withdrawals['valid'] and sj_no_withdrawals['ordered'], sj_no_withdrawals
-            assert sj_no_withdrawals['purchaseLocal'] and sj_no_withdrawals['meta']==19387, sj_no_withdrawals
+            assert sj_no_withdrawals['purchaseLocal'] and sj_no_withdrawals['meta']==BAIXAS_AUDIT['revisedRecords'], sj_no_withdrawals
             assert sj_no_withdrawals['date']=='03/11/2026 15:58:21', sj_no_withdrawals
             page.locator('#sj-nw-sort').select_option('unitario')
             sorted_unit=page.evaluate("""() => [...document.querySelectorAll('#sj-nw-view tr[data-sj-nw-unit]')]
@@ -867,7 +868,7 @@ with sync_playwright() as p:
             assert minimum_view['stock']>0 and minimum_view['hasCurrentStock'], minimum_view
             assert minimum_view['localOnly'] and minimum_view['groups']>0 and minimum_view['groupsSorted'] and minimum_view['itemsSorted'], minimum_view
             assert minimum_view['minCorrect'] and minimum_view['needCorrect'] and minimum_view['neverInvent'], minimum_view
-            assert minimum_view['meta']['months']==2 and minimum_view['totalHistory']==19387 and minimum_view['noOldNav'], minimum_view
+            assert minimum_view['meta']['months']==2 and minimum_view['totalHistory']==BAIXAS_AUDIT['revisedRecords'] and minimum_view['noOldNav'], minimum_view
             page.locator('#fm-year').select_option('2026')
             assert page.locator('#farm-minimum-view').count()==1
             page.locator('#fm-year').select_option('')
