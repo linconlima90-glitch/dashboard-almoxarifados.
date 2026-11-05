@@ -540,7 +540,7 @@ with sync_playwright() as p:
             assert panel.locator('.dbmx-filter-empty').is_hidden()
             assert panel.locator('.dbmx-scroll th').count()==13
             assert page.evaluate("window.STOCK_MINIMUM_MONTHS") == 2
-            assert page.evaluate("window.DB_MINIMUM_LOCALS_COVERAGE_META.totalLocals") == 10
+            assert page.evaluate("window.DB_MINIMUM_LOCALS_COVERAGE_META.totalLocals") == locs['totalLocals']
             panel.locator('#dbmx-year').select_option('2025')
             page.wait_for_function("window.DB_STOCK_UNIFIED.meta.year==='2025'")
             data25=page.evaluate("window.DB_STOCK_UNIFIED.meta")
