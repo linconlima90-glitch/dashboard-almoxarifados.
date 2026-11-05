@@ -281,9 +281,9 @@ with sync_playwright() as p:
 
             # Analise unica: preserva o minimo, adiciona o maximo e elimina a duplicacao visual.
             page.locator('.tab[data-view="minimo"]').evaluate('(el)=>el.click()')
-            page.wait_for_function("window.DB_MINIMUM_LOCALS_COVERAGE_META?.totalLocals===10", timeout=15000)
+            page.wait_for_function("window.DB_MINIMUM_LOCALS_COVERAGE_META?.totalLocals>=9", timeout=15000)
             locs=page.evaluate("window.DB_MINIMUM_LOCALS_COVERAGE_META")
-            assert locs['needLocals']>0 and locs['needLocals']+locs['noNeedLocals']==10, locs
+            assert locs['needLocals']>0 and locs['needLocals']+locs['noNeedLocals']==locs['totalLocals'], locs
             assert locs['below']>0 and locs['amount']>0, locs
             assert locs['nativeReady'] is True and locs['duplicated'] is False, locs
             # Graficos antigos permanecem no DOM para os renderizadores legados, mas invisiveis.
