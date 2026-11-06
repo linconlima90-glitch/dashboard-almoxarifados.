@@ -100,6 +100,31 @@ with sync_playwright() as p:
             assert purchase30115['sumMonths']==15019467 and purchase30115['hasPanel'], purchase30115
             assert purchase30115['ruleYes'] and not purchase30115['ruleNoOtherLocal'], purchase30115
             assert not purchase30115['ruleNoOtherType'] and not purchase30115['ruleNoBefore'], purchase30115
+            # Cascata real baseada nas 256 linhas XLSX (nao somente nos totais agregados).
+            page.wait_for_function("window.CDI_DISTRIBUTION_PURCHASES?.cascade?.getRows()?.length===256", timeout=20000)
+            cascade_initial=page.evaluate("""() => {
+              const x=window.CDI_DISTRIBUTION_PURCHASES;
+              return {rows:x.cascade.getRows().length,summary:x.filteredSummary,months:document.querySelectorAll('#dp-month option').length,
+                groups:document.querySelectorAll('#dp-group option').length,products:document.querySelectorAll('#dp-product option').length,
+                hasDocTable:document.querySelectorAll('#dp-records tr').length===256};
+            }""")
+            assert cascade_initial['rows']==256 and cascade_initial['summary']['cents']==15019467, cascade_initial
+            assert cascade_initial['months']==8 and cascade_initial['groups']==15 and cascade_initial['products']==209, cascade_initial
+            assert cascade_initial['hasDocTable'], cascade_initial
+            page.locator('#dp-month').select_option('2026-05')
+            month_summary=page.evaluate('window.CDI_DISTRIBUTION_PURCHASES.filteredSummary')
+            assert month_summary['lines']==37 and month_summary['cents']==4001950, month_summary
+            first_group=page.locator('#dp-group option').nth(1).get_attribute('value')
+            page.locator('#dp-group').select_option(first_group)
+            group_summary=page.evaluate('window.CDI_DISTRIBUTION_PURCHASES.filteredSummary')
+            assert group_summary['lines']>0 and group_summary['lines']<=37, group_summary
+            first_product=page.locator('#dp-product option').nth(1).get_attribute('value')
+            page.locator('#dp-product').select_option(first_product)
+            product_summary=page.evaluate('window.CDI_DISTRIBUTION_PURCHASES.filteredSummary')
+            assert product_summary['lines']>0 and product_summary['lines']<=group_summary['lines'], product_summary
+            page.locator('#dp-reset').click()
+            assert page.evaluate('window.CDI_DISTRIBUTION_PURCHASES.filteredSummary.cents')==15019467
+
 
 
         # O usuario removeu o painel de pneus e camaras do rodape do Resumo.
