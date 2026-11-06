@@ -152,7 +152,9 @@ class DashboardInjector {
         '<script src="/baixas-erp-conferido-20261106.js?v=20261106-custo-total-erp"></script>'+
         '<script src="/cdi-transfer-data.js?v=20261106-cdi-aprovacao"></script>'+
         '<script src="/cdi-transfer-savings.js?v=20261106-cdi-aprovacao"></script>'+ 
-        '<script src="/cdi-distribution-purchases.js?v=20261106-distribuicao-30115"></script>'),
+        '<script src="/cdi-distribution-purchases.js?v=20261106-distribuicao-30115"></script>'+ 
+        '<script src="/cdi-distribution-detail-data-20261106.js?v=20261106-cascata-30115"></script>'+ 
+        '<script src="/cdi-distribution-cascade-ui.js?v=20261106-cascata-30115"></script>'),
       { html: true }
     );
   }
