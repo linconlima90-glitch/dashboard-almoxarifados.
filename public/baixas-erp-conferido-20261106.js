@@ -52,6 +52,25 @@
       (!f.empresa||norm(x.empresa).includes(norm(f.empresa))||norm(companyByLocal.get(x.local)).includes(norm(f.empresa)))&&
       (!f.q||norm([x.codigo,x.produto,x.grupo,x.local].join(' ')).includes(f.q)));
   }
+  // Niveis independentes da fonte ERP: ano > almoxarifado > grupo > produto.
+  // Cada etapa limita as opcoes da proxima, sem modificar Custo_Total nem o estoque.
+  function cascade(){
+    const base=selected();
+    const locals=summarize(base,r=>r.local);
+    if(state.local&&!locals.some(x=>x.key===state.local)){
+      state.local='';state.group='';state.item='';
+    }
+    const localRows=state.local?base.filter(x=>x.local===state.local):base;
+    const groups=summarize(localRows,r=>r.grupo);
+    if(state.group&&!groups.some(x=>x.key===state.group)){
+      state.group='';state.item='';
+    }
+    const groupRows=state.group?localRows.filter(x=>x.grupo===state.group):localRows;
+    const items=itemRows(groupRows);
+    if(state.item&&!items.some(x=>x.key===state.item))state.item='';
+    const data=state.item?groupRows.filter(x=>[x.codigo,x.un].join('|')===state.item):groupRows;
+    return {locals,groups,items,data};
+  }
   function summarize(list,keyFn){
     const output=new Map();
     for(const r of list){
@@ -81,10 +100,31 @@
     return '<div class="dbx-scroll"><table class="dbx-table"><thead><tr><th>#</th><th>Código</th><th>Produto</th><th>UN</th><th class="dbx-num">Qtd. baixada</th><th class="dbx-num">Lançamentos</th>'+
       (withLocals?'<th class="dbx-num">Locais</th>':'')+
       '<th class="dbx-num">Custo_Total ERP</th></tr></thead><tbody>'+
-      items.map((x,i)=>'<tr><td>'+number(i+1)+'</td><td>'+esc(x.codigo)+'</td><td>'+esc(x.produto)+'</td><td>'+esc(x.un)+
+      items.map((x,i)=>'<tr class="dbx-item-row'+(state.item===x.key?' dbx-selected':'')+'" data-dbx-action="item" data-dbx-key="'+esc(x.key)+'" tabindex="0" role="button" aria-label="Filtrar pelo produto '+esc(x.produto)+'"><td>'+number(i+1)+'</td><td>'+esc(x.codigo)+'</td><td>'+esc(x.produto)+'</td><td>'+esc(x.un)+
       '</td><td class="dbx-num">'+qty(x.quantidade)+'</td><td class="dbx-num">'+number(x.records)+'</td>'+
       (withLocals?'<td class="dbx-num">'+number(x.locais)+'</td>':'')+
       '<td class="dbx-num dbx-value">'+brlCents(x.cents)+'</td></tr>').join('')+'</tbody></table></div>';
+  }
+  function cascadeOptions(options,label){
+    return '<option value="">'+esc(label)+'</option>'+
+      options.map(x=>'<option value="'+esc(x.key)+'">'+esc(x.label||x.key)+'</option>').join('');
+  }
+  function cascadePanel(c){
+    const products=c.items.map(x=>({key:x.key,label:x.codigo+' · '+x.produto+' ('+x.un+')'}));
+    const activeItem=c.items.find(x=>x.key===state.item);
+    const trail=[
+      state.period==='all'?'2024 a 2026':state.period==='2025-2026'?'2025 e 2026':state.period,
+      state.local||'Todos os almoxarifados',state.group||'Todos os grupos',
+      activeItem?activeItem.codigo+' · '+activeItem.produto:'Todos os produtos'
+    ];
+    return '<div class="dbx-cascade" aria-label="Filtros em cascata das baixas">'+
+      '<div class="dbx-cascade-head"><b>Filtro em cascata</b><span>Período → Almoxarifado → Grupo → Produto</span></div>'+
+      '<div class="dbx-cascade-grid">'+
+      '<label>1. Almoxarifado<select id="dbx-local">'+cascadeOptions(c.locals,'Todos os almoxarifados')+'</select></label>'+
+      '<label>2. Grupo<select id="dbx-group" '+(state.mode==='local'&&!state.local?'disabled title="Escolha um almoxarifado primeiro"':'')+'>'+cascadeOptions(c.groups,'Todos os grupos')+'</select></label>'+
+      '<label>3. Produto<select id="dbx-item" '+(!state.group?'disabled title="Escolha um grupo primeiro"':'')+'>'+cascadeOptions(products,'Todos os produtos')+'</select></label>'+
+      '<button type="button" class="dbx-clear" data-dbx-action="reset" '+(!state.local&&!state.group&&!state.item?'disabled':'')+'>Limpar seleção</button>'+
+      '</div><p class="dbx-cascade-path">Exibindo: '+esc(trail.join(' → '))+'</p></div>';
   }
   function bars(groups,type){
     const max=Math.max(1,...groups.map(x=>x.cents));
@@ -119,13 +159,12 @@
   }
   function render(){
     if(!panel||!readSource())return;
-    filtered=selected();const stat=totals(filtered);
+    const data=cascade();
+    filtered=data.data;const stat=totals(filtered);
     localGroups=summarize(filtered,r=>r.local);allGroups=summarize(filtered,r=>r.grupo);
-    if(!localGroups.some(x=>x.key===state.local))state.local='';
-    if(state.mode==='all'){if(!allGroups.some(x=>x.key===state.group))state.group='';}
-    else if(state.local&&!localGroups.find(x=>x.key===state.local)?.rows.some(x=>x.grupo===state.group))state.group='';
     panel.innerHTML='<div class="dbx-head"><div><h2>Baixas conferidas no ERP</h2><p>Valores efetivos de <b>Custo_Total</b> por <b>data de negociação (Dt.Neg.)</b>, sem transferências e sem estimativas pelo custo do estoque.</p></div>'+
       '<label class="dbx-year">Período<select id="dbx-period"><option value="all">Todo o histórico · 2024 a 2026</option><option value="2025-2026">2025 + 2026</option><option value="2024">Somente 2024</option><option value="2025">Somente 2025</option><option value="2026">Somente 2026</option></select></label></div>'+
+      cascadePanel(data)+
       '<div class="dbx-kpis"><div><small>Locais com baixas</small><strong>'+number(stat.locals.size)+'</strong></div>'+ 
       '<div><small>Posições movimentadas</small><strong>'+number(stat.products.size)+'</strong></div>'+ 
       '<div><small>Grupos movimentados</small><strong>'+number(stat.groups.size)+'</strong></div>'+ 
@@ -143,6 +182,16 @@
     panel.querySelector('#dbx-period').addEventListener('change',ev=>{
       state.period=ev.target.value;state.local='';state.group='';state.item='';render();
     });
+    for(const level of ['local','group','item']){
+      const control=panel.querySelector('#dbx-'+level);
+      control.value=state[level];
+      control.addEventListener('change',ev=>{
+        state[level]=ev.target.value;
+        if(level==='local'){state.group='';state.item='';}
+        else if(level==='group')state.item='';
+        render();
+      });
+    }
   }
   function install(){
     if(panel)return true;
@@ -162,6 +211,16 @@
       #${rootId} p{font-size:11px;line-height:1.5;margin:0;color:#65796b}
       #${rootId} .dbx-year{display:block;min-width:240px;font-size:10px;font-weight:850;color:#536d5c}
       #${rootId} select{display:block;width:100%;margin-top:5px;padding:9px;border:1px solid #c9dfce;background:#fbfdfb;border-radius:8px;color:#125530;font-weight:800;font-size:12px}
+      #${rootId} .dbx-cascade{margin:12px 0;background:#fff;border:1px solid #d7e5db;border-radius:12px;padding:13px 16px}
+      #${rootId} .dbx-cascade-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;color:#115830}
+      #${rootId} .dbx-cascade-head span{font-size:10px;color:#718676}
+      #${rootId} .dbx-cascade-grid{display:grid;grid-template-columns:1.3fr 1.1fr 1.7fr auto;gap:10px;align-items:end}
+      #${rootId} .dbx-cascade-grid label{display:block;min-width:0;font-size:10px;font-weight:800;color:#536d5c}
+      #${rootId} .dbx-cascade-grid select{height:38px;white-space:nowrap;text-overflow:ellipsis}
+      #${rootId} .dbx-cascade-grid select:disabled{background:#f2f5f2;color:#9aa69e;cursor:not-allowed}
+      #${rootId} .dbx-clear{height:38px;white-space:nowrap;padding:0 12px;border:1px solid #bad8c3;border-radius:8px;background:#eaf6ee;color:#115830;font-size:11px;font-weight:800}
+      #${rootId} .dbx-clear:disabled{opacity:.42;cursor:default}
+      #${rootId} .dbx-cascade-path{margin-top:9px;color:#356a49;font-weight:700;overflow-wrap:anywhere}
       #${rootId} .dbx-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(190px,1.4fr);gap:10px;margin:12px 0}
       #${rootId} .dbx-kpis>div{padding:13px 12px;border:1px solid #d7e6dc;border-radius:12px;background:#fff;min-width:0;box-shadow:0 3px 15px #14371c09}
       #${rootId} .dbx-kpis small{display:block;text-transform:uppercase;font-size:9px;letter-spacing:.02em;font-weight:850;color:#6a7a6f;margin-bottom:6px}
@@ -198,11 +257,13 @@
       #${rootId} .dbx-table td{padding:10px 8px;border-bottom:1px solid #e9efeb}
       #${rootId} .dbx-table .dbx-num{text-align:right;white-space:nowrap}
       #${rootId} .dbx-table .dbx-value{font-weight:800;color:#145f35}
+      #${rootId} .dbx-item-row{cursor:pointer}
+      #${rootId} .dbx-item-row:hover,#${rootId} .dbx-item-row.dbx-selected{background:#edf7f0}
       #${rootId} .dbx-muted{padding:15px 2px}
       #${rootId} .dbx-audit{margin-top:11px;padding:12px 14px;background:#f7fbf8;border:1px solid #dcece0;border-left:3px solid #1a8a4a;border-radius:8px}
       #${rootId} button:focus-visible{outline:3px solid #d5a80d;outline-offset:2px}
-      @media(max-width:1100px){#${rootId} .dbx-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}#${rootId} .dbx-bar{grid-template-columns:minmax(160px,35%) minmax(120px,1fr) minmax(100px,125px);gap:8px}}
-      @media(max-width:700px){#${rootId} .dbx-head{flex-direction:column;align-items:stretch}#${rootId} .dbx-year{min-width:0}#${rootId} .dbx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#${rootId} .dbx-kpis .dbx-total{grid-column:1/-1}#${rootId} .dbx-bar{grid-template-columns:minmax(0,1fr) minmax(90px,120px);gap:8px}#${rootId} .dbx-track{grid-row:2;grid-column:1/-1}#${rootId} .dbx-money{grid-column:2;grid-row:1}}
+      @media(max-width:1100px){#${rootId} .dbx-cascade-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#${rootId} .dbx-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}#${rootId} .dbx-bar{grid-template-columns:minmax(160px,35%) minmax(120px,1fr) minmax(100px,125px);gap:8px}}
+      @media(max-width:700px){#${rootId} .dbx-cascade-grid{grid-template-columns:1fr}#${rootId} .dbx-head{flex-direction:column;align-items:stretch}#${rootId} .dbx-year{min-width:0}#${rootId} .dbx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#${rootId} .dbx-kpis .dbx-total{grid-column:1/-1}#${rootId} .dbx-bar{grid-template-columns:minmax(0,1fr) minmax(90px,120px);gap:8px}#${rootId} .dbx-track{grid-row:2;grid-column:1/-1}#${rootId} .dbx-money{grid-column:2;grid-row:1}}
     `;
     document.head.appendChild(style);
     const summary=document.getElementById('baixas-snapshot-2024-2026');
@@ -212,24 +273,31 @@
     if(legacyNotice)legacyNotice.classList.add('dbx-legacy-hidden');
     panel=div;
     panel.addEventListener('click',event=>{
-      const btn=event.target.closest('button[data-dbx-action]');if(!btn||!panel.contains(btn))return;
+      const btn=event.target.closest('[data-dbx-action]');if(!btn||!panel.contains(btn))return;
       const action=btn.dataset.dbxAction,key=btn.dataset.dbxKey||'';
       if(action==='mode-local'||action==='mode-all'){
-        state.mode=action==='mode-all'?'all':'local';state.local='';state.group='';
+        state.mode=action==='mode-all'?'all':'local';state.local='';state.group='';state.item='';
       }else if(action==='local'){
-        state.local=state.local===key?'':key;state.group='';
+        state.local=state.local===key?'':key;state.group='';state.item='';
       }else if(action==='group'||action==='local-group'){
-        state.group=state.group===key?'':key;
-      }else if(action==='close'){
-        state.local='';state.group='';
+        state.group=state.group===key?'':key;state.item='';
+      }else if(action==='item'){
+        state.item=state.item===key?'':key;
+      }else if(action==='reset'||action==='close'){
+        state.local='';state.group='';state.item='';
       }
       render();
+    });
+    panel.addEventListener('keydown',event=>{
+      if((event.key==='Enter'||event.key===' ')&&event.target.matches('.dbx-item-row')){
+        event.preventDefault();event.target.click();
+      }
     });
     ['fEmpresa','fLocal','fGrupo','fUn','fBusca'].forEach(id=>{
       const input=document.getElementById(id);if(input){input.addEventListener('change',render);if(id==='fBusca')input.addEventListener('input',render)}
     });
     window.DB_BAIXAS_ERP_CONFERIDO={getMeta:()=>({dateBasis:'Dt.Neg.',records:source.meta.records,cents:Math.round(source.meta.value*100),period:state.period,
-       filteredRecords:totals(filtered).records,filteredCents:totals(filtered).cents,localCount:totals(filtered).locals.size}),refresh:render,setPeriod:p=>{if(periodSet[p]){state.period=p;state.local='';state.group='';render()}}};
+       filteredRecords:totals(filtered).records,filteredCents:totals(filtered).cents,localCount:totals(filtered).locals.size}),refresh:render,setPeriod:p=>{if(periodSet[p]){state.period=p;state.local='';state.group='';state.item='';render()}}};
     render();return true;
   }
   if(!install()){
