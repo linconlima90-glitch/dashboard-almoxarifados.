@@ -188,8 +188,8 @@ with sync_playwright() as p:
                     annual:annual.map(x=>({year:String(x.year),total:x.total})),
                     historyPanel:!!document.querySelector('#full-movement-history')};
             }""")
-            assert historical['years']['2024']['records']==2298 and historical['first']=='14/03/2024', historical
-            assert historical['years']['2025']['records']==6220 and historical['years']['2026']['records']==BAIXAS_AUDIT['annual']['2026']['records'], historical
+            assert historical['years']['2024']['records']==BAIXAS_AUDIT['annual']['2024']['records'] and historical['first']=='14/03/2024', historical
+            assert historical['years']['2025']['records']==BAIXAS_AUDIT['annual']['2025']['records'] and historical['years']['2026']['records']==BAIXAS_AUDIT['annual']['2026']['records'], historical
             assert historical['minimum']['years']==[2025,2026] and historical['minimum']['months']==22, historical
             assert not historical['year2024'] and len(historical['annual'])==2, historical
             assert abs(historical['target']['complete']-11)<0.00001 and abs(historical['target']['average']-0.5)<0.00001, historical
