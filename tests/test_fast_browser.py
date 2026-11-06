@@ -62,6 +62,27 @@ with sync_playwright() as p:
             page.wait_for_function("document.documentElement.dataset.fastReady==='1'")
         page.wait_for_timeout(600)
 
+        if optimized and 'Pilot' not in name:
+            # Modulo CDI sem planilha: nao deve assumir economia, nem alterar outras bases.
+            page.wait_for_function("window.CDI_TRANSFER_CONTROL && document.querySelector('#cdi-transfer-panel')", timeout=20000)
+            cdi=page.evaluate("""() => {
+              const api=window.CDI_TRANSFER_CONTROL, m=api.summary();
+              const r={id:'TEST-TRANSFER',date:'2026-05-07',document:'TOP-1',origin:'CDI CHUA',
+                destination:'FAZENDA SAO JOAO',code:'107385',product:'ROLAMENTO',group:'ROLAMENTOS',
+                unit:'PC',quantity:2,cdiUnitCost:40,alternativePurchasePrice:55,
+                transferCost:10,evidence:'TOP 94 e comprovacao da compra evitada',reviewStatus:'VALIDADO'};
+              const fixture={schemaVersion:1,approvalDate:'2026-05-07',transfers:[r]};
+              const verified=api.validate(fixture);
+              let beforeRejected=false,duplicateRejected=false;
+              try{api.validate({...fixture,transfers:[{...r,date:'2026-05-06'}]})}catch(e){beforeRejected=true}
+              try{api.validate({...fixture,transfers:[r,r]})}catch(e){duplicateRejected=true}
+              return {m,cost:verified[0].comparisonCents,verified:verified[0].validatedCents,
+                beforeRejected,duplicateRejected,card:document.querySelector('#cdi-transfer-panel #cdtr-count').textContent};
+            }""")
+            assert cdi['m']['approvalDate']=='2026-05-07' and cdi['m']['rows']==0 and cdi['m']['status']=='AGUARDANDO_PLANILHA', cdi
+            assert cdi['cost']==2000 and cdi['verified']==2000 and cdi['beforeRejected'] and cdi['duplicateRejected'], cdi
+            assert 'Aguardando' in cdi['card'], cdi
+
         # O usuario removeu o painel de pneus e camaras do rodape do Resumo.
         # Os pneus continuam no cadastro e devem ser consultaveis no Estoque.
         tire_panel_check=page.evaluate("""() => ({
