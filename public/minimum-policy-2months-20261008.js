@@ -12,6 +12,11 @@
   const n0=x=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(num(x));
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const norm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  // Granjas ainda sem controle de almoxarifado: excluir somente das visoes gerenciais.
+  const outOfScopeLocal=v=>{
+    const local=norm(v).replace(/\s+/g,' ').trim();
+    return local==='ALMOXARIFADO GERAL G GERIBA'||local==='ALMOXARIFADO GERAL G S CRUZ';
+  };
   const excludedFromMinimum=x=>{
     const group=norm(x?.grupo),item=norm(x?.produto);
     return /\bPNEUS?\b|\bCAMARAS?\b|\bCIMENTOS?\b/.test(group)||
@@ -71,7 +76,7 @@
   function rows(){
     let list=[];
     try{list=typeof window.minimumBaseRows==='function'?window.minimumBaseRows():MOVEMENTS}catch(e){list=MOVEMENTS}
-    return Array.isArray(list)?list.filter(x=>!excludedFromMinimum(x)):[];
+    return Array.isArray(list)?list.filter(x=>!excludedFromMinimum(x)&&!outOfScopeLocal(x.local)):[];
   }
 
   function transfers(mins){
@@ -191,6 +196,7 @@
     if(!globalFiltered&&base.some(x=>x.network_scope||x.local==='CDI DE PECAS CHUA'))
       names.add('CDI DE PECAS CHUA');
     for(const x of list)names.add(String(x.local||''));
+    for(const local of names)if(outOfScopeLocal(local))names.delete(local);
     names.delete('');
     const fresh=local=>({local,items:0,need:0,critical:0,above:0,attention:0,unknown:0,amount:0,uncosted:0,rows:[]});
     const data=new Map([...names].map(local=>[local,fresh(local)]));

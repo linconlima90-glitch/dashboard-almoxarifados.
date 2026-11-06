@@ -6,6 +6,11 @@
   const n=v=>Number(v)||0;
   const str=v=>String(v??'');
   const norm=v=>str(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  // Granjas fora do escopo atual de controle, sem alterar o historico do ERP.
+  const outOfScopeLocal=v=>{
+    const local=norm(v).replace(/\s+/g,' ').trim();
+    return local==='ALMOXARIFADO GERAL G GERIBA'||local==='ALMOXARIFADO GERAL G S CRUZ';
+  };
   const esc=v=>str(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const brl=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(n(v));
   const qty=v=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2}).format(n(v));
@@ -64,7 +69,7 @@
     const positions=new Map();
     if(typeof STOCK==='undefined'||!Array.isArray(STOCK))return positions;
     for(const s of STOCK){
-      if(exclude(s)||!str(s.local)||!str(s.codigo))continue;
+      if(exclude(s)||outOfScopeLocal(s.local)||!str(s.local)||!str(s.codigo))continue;
       const k=rowKey(s),old=positions.get(k)||{
         local:str(s.local),codigo_local:str(s.codigo_local),grupo:str(s.grupo||'SEM GRUPO'),
         codigo:str(s.codigo),produto:str(s.produto),un:str(s.un),stock:0,value:0,cost:0
@@ -87,7 +92,7 @@
       ?minimumRowsForYear(base,config.year):base;
     const result=new Map(),assignedWithdrawals=new Set();
     function push(x){
-      if(!x||!str(x.codigo)||!str(x.local))return;
+      if(!x||!str(x.codigo)||!str(x.local)||outOfScopeLocal(x.local))return;
       const vk=virtual(x),k=rowKey(x),stock=snapshots.get(k);
       if(result.has(k))return;
       const sourceKey=(vk?'REDE|':'LOCAL|')+(vk?str(x.codigo):key(x));
@@ -150,11 +155,12 @@
     if(typeof STOCK!=='undefined'&&Array.isArray(STOCK)){
       for(const s of STOCK){
         const local=str(s.local);
-        if(local&&!map.has(local))map.set(local,{local,rows:[],needCount:0,excessCount:0,
+        if(local&&!outOfScopeLocal(local)&&!map.has(local))map.set(local,{local,rows:[],needCount:0,excessCount:0,
           needValue:0,excessValue:0,withoutHistory:0,withoutCost:0,network:false});
       }
     }
     for(const x of rows){
+      if(outOfScopeLocal(x.local))continue;
       if(!map.has(x.local))map.set(x.local,{local:x.local,rows:[],needCount:0,
         excessCount:0,needValue:0,excessValue:0,withoutHistory:0,withoutCost:0,network:x.network});
       const a=map.get(x.local);
