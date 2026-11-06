@@ -102,14 +102,27 @@ with sync_playwright() as p:
               negative:window.INVENTORY_LEDGER.entries.filter(x=>x.quantidadeAjuste<0).length,
               distinct:new Set(window.INVENTORY_LEDGER.entries.map(x=>x.codigo)).size,
               correctMissing:window.INVENTORY_HISTORY.getRows().filter(x=>x.tipoRegistro==='AJUSTE').every(x=>x.saldoAnterior===null&&x.quantidadeContada===null),
-              impact:window.INVENTORY_HISTORY.getRows().reduce((sum,x)=>sum+x.impacto,0)
+              impact:window.INVENTORY_HISTORY.getRows().reduce((sum,x)=>sum+x.impacto,0),
+              previousInventory:window.INVENTORY_LEDGER.entries.filter(x=>x.inventoryId==='INV-2026-10-30-SJ-CORREIAS-001').length,
+              patos:(() => {
+                const rows=window.INVENTORY_HISTORY.getRows().filter(x=>x.inventoryId==='INV-2026-11-06-CHUA-PATOS-FILTROS-001');
+                return {count:rows.length,positive:rows.filter(x=>x.delta>0).length,
+                  negative:rows.filter(x=>x.delta<0).length,
+                  netCents:rows.reduce((sum,x)=>sum+Math.round(x.impacto*100),0),
+                  correct:rows.every(x=>x.local==='ALMOXARIFADO OFICINA CAMINHOES PATOS'&&
+                    x.empresaFiscal==='DECIO BRUXEL E OUTROS - FAZENDA CHUA'&&
+                    x.grupo==='FILTROS'&&x.statusERP==='PENDENTE'&&
+                    x.saldoAnterior===null&&x.quantidadeContada===null)}
+              })()
             })""")
-            assert actual_inventory['rows']==199 and actual_inventory['entries']==199, actual_inventory
-            assert actual_inventory['positive']==53 and actual_inventory['negative']==53, actual_inventory
-            assert actual_inventory['distinct']==197 and actual_inventory['correctMissing'], actual_inventory
+            assert actual_inventory['rows']==216 and actual_inventory['entries']==216, actual_inventory
+            assert actual_inventory['positive']==59 and actual_inventory['negative']==64, actual_inventory
+            assert actual_inventory['distinct']==214 and actual_inventory['correctMissing'], actual_inventory
+            assert actual_inventory['previousInventory']==199, actual_inventory
+            assert actual_inventory['patos']=={'count':17,'positive':6,'negative':11,'netCents':-326619,'correct':True}, actual_inventory
             ok_rows=page.evaluate("""() => window.INVENTORY_HISTORY.getRows().filter(x=>x.tipoRegistro==='SEM_DIFERENCA_DECLARADA').map(x=>[x.delta,x.saldoReferencia,x.statusERP])""")
             assert len(ok_rows)==93 and all(x[0]==0 and x[1]>0 and x[2]=='SEM_DIFERENCA' for x in ok_rows), ok_rows[:4]
-            assert abs(actual_inventory['impact']+1656.16)<0.02, actual_inventory
+            assert abs(actual_inventory['impact']+4922.35)<0.02, actual_inventory
             if inventory_check['empty']:
                 assert inventory_check['emptyText'], inventory_check
             page.locator('.tab[data-view="executivo"]').evaluate('(el)=>el.click()')
@@ -226,11 +239,31 @@ with sync_playwright() as p:
             assert erp['source']=='Dt.Neg.' and erp['meta']['cents']==254684892, erp
             assert erp['meta']['filteredCents']==erp['cost'] and erp['meta']['filteredRecords']==erp['count'], erp
             assert erp['meta']['localCount']==erp['localCount'] and erp['legacyHidden'], erp
+            page.locator('.tab[data-view="baixas"]').evaluate('(el)=>el.click()')
+            page.wait_for_function("document.querySelector('#view-baixas.active') !== null")
             page.locator('#dbx-period').select_option('2025-2026')
             year_cost=page.evaluate('window.DB_BAIXAS_ERP_CONFERIDO.getMeta().filteredCents')
             assert year_cost==214247570, year_cost
             page.locator('#dbx-period').select_option('all')
             assert page.locator('#db-baixas-erp-conferido').is_visible()
+            assert page.locator('#dbx-group').is_disabled()
+            assert page.locator('#dbx-item').is_disabled()
+            first_local=page.locator('#dbx-local option').nth(1).get_attribute('value')
+            assert first_local, 'Nenhum almoxarifado no filtro em cascata'
+            page.locator('#dbx-local').select_option(first_local)
+            assert page.locator('#dbx-group').is_enabled()
+            first_group=page.locator('#dbx-group option').nth(1).get_attribute('value')
+            assert first_group, 'Nenhum grupo para o almoxarifado selecionado'
+            page.locator('#dbx-group').select_option(first_group)
+            assert page.locator('#dbx-item').is_enabled()
+            first_product=page.locator('#dbx-item option').nth(1).get_attribute('value')
+            assert first_product, 'Nenhum produto para o grupo selecionado'
+            page.locator('#dbx-item').select_option(first_product)
+            assert page.evaluate("window.DB_BAIXAS_ERP_CONFERIDO.getMeta().filteredRecords")>0
+            page.locator('[data-dbx-action="reset"]').click()
+            assert page.locator('#dbx-group').is_disabled()
+            assert page.locator('#dbx-item').is_disabled()
+            page.locator('.tab[data-view="executivo"]').evaluate('(el)=>el.click()')
 
         if optimized and 'Pilot' not in name:
             # O atalho "Local" e o botao de retorno permitem sair de Grupo e Produto
