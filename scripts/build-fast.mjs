@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import assert from 'node:assert/strict';
 import { applyPurchaseAnalyticsPolicy } from './purchase-analytics-policy.mjs';
-import { applyBaixas20261105 } from './apply-baixas-20261105.mjs';
+import { applyBaixasNegociacao20261106 } from './apply-baixas-negociacao-20261106.mjs';
 import { applyStock20261105 } from './apply-stock-20261105.mjs';
 
 const root = process.cwd(), input = path.join(root, 'public'), out = path.join(root, 'dist');
@@ -93,7 +93,7 @@ const legacy = read('src/index.js');
 const report = { originalHtmlBytes: Buffer.byteLength(source), datasets: [], routes: {} };
 fs.rmSync(out, { recursive: true, force: true });
 fs.cpSync(input, out, { recursive: true });
-const baixasAudit=applyBaixas20261105(root,out);
+const baixasAudit=applyBaixasNegociacao20261106(root,out);
 report.baixasRetificadas=baixasAudit;
 const stockAudit=applyStock20261105(root,out);
 report.estoqueAtualizado=stockAudit;
