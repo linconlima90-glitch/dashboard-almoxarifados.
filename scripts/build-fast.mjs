@@ -75,6 +75,20 @@ source=source.replace('O CDI Chua usa a demanda consolidada anual da rede com da
 
 source = applyPurchaseAnalyticsPolicy(source);
 
+// As granjas G Geriba e G S Cruz ainda nao fazem parte do controle de estoque.
+// Filtrar somente nas visualizacoes de baixas, mantendo as fontes historicas ERP.
+const movementFilterAnchor='function movementFiltered(){const f=criteria();return MOVEMENTS.filter(x=>';
+assert(source.includes(movementFilterAnchor), 'Revisar funcao de baixas antes de publicar');
+source=source.replace(movementFilterAnchor, String.raw`
+function dbOutOfScopeGranja(local){
+  const name=String(local??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+  return name==='ALMOXARIFADO GERAL G GERIBA'||name==='ALMOXARIFADO GERAL G S CRUZ';
+}
+function movementFiltered(){const f=criteria();return MOVEMENTS.filter(x=>!dbOutOfScopeGranja(x.local)&&
+`);
+assert(source.includes('!dbOutOfScopeGranja(x.local)&&'), 'Filtro das granjas nao aplicado');
+
+
 const legacy = read('src/index.js');
 const report = { originalHtmlBytes: Buffer.byteLength(source), datasets: [], routes: {} };
 fs.rmSync(out, { recursive: true, force: true });
