@@ -208,6 +208,31 @@ with sync_playwright() as p:
                 String(x.un)==='PC').map(x=>String(x.empresa))""")
             assert len(fiscal_positions)==2 and len(set(fiscal_positions))==2, fiscal_positions
         if optimized and 'Pilot' not in name:
+            # O cartao de baixas usa o Custo_Total do ERP (Dt.Neg.), nao a
+            # estimativa do custo medio do estoque nem o consumo do minimo.
+            page.wait_for_function("window.DB_BAIXAS_ERP_CONFERIDO && document.querySelector('#db-baixas-erp-conferido')", timeout=20000)
+            erp = page.evaluate("""() => {
+              const p=window.MOVEMENTS_COMPLETE_20261103;
+              const D=p.dict,rows=p.rows;
+              const local=(i)=>String(D.local[i]?.[1]||'');
+              const visible=rows.filter(r=>!['ALMOXARIFADO GERAL G GERIBA','ALMOXARIFADO GERAL G S CRUZ'].includes(
+                local(r[1]).normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase()));
+              const cost=visible.reduce((v,r)=>v+Number(r[6]),0), count=visible.reduce((v,r)=>v+Number(r[7]),0);
+              const meta=window.DB_BAIXAS_ERP_CONFERIDO.getMeta();
+              return {cost,count,meta,source:p.meta.dateBasis,
+                legacyHidden:getComputedStyle(document.querySelector('#barsBaixasLocais').closest('.panel')).display==='none',
+                localCount:new Set(visible.map(r=>local(r[1]))).size};
+            }""")
+            assert erp['source']=='Dt.Neg.' and erp['meta']['cents']==254684892, erp
+            assert erp['meta']['filteredCents']==erp['cost'] and erp['meta']['filteredRecords']==erp['count'], erp
+            assert erp['meta']['localCount']==erp['localCount'] and erp['legacyHidden'], erp
+            page.locator('#dbx-period').select_option('2025-2026')
+            year_cost=page.evaluate('window.DB_BAIXAS_ERP_CONFERIDO.getMeta().filteredCents')
+            assert year_cost==214247570, year_cost
+            page.locator('#dbx-period').select_option('all')
+            assert page.locator('#db-baixas-erp-conferido').is_visible()
+
+        if optimized and 'Pilot' not in name:
             # O atalho "Local" e o botao de retorno permitem sair de Grupo e Produto
             # sem perder dados, filtros ou a visao geral dos almoxarifados.
             capital_nav=page.evaluate("""() => {

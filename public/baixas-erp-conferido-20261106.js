@@ -153,7 +153,7 @@
     if(!cards||!legacyChart)return false;
     const div=document.createElement('section');div.id=rootId;div.setAttribute('aria-label','Baixas ERP conferidas');
     const style=document.createElement('style');style.id='dbx-audit-styles';style.textContent=`
-      #view-baixas .dbx-legacy-hidden{display:none!important}
+      #view-baixas .dbx-legacy-hidden,#view-baixas #dbBaixasConsolidated{display:none!important}
       #${rootId}{margin:14px 0 16px;color:#194b30;font-family:inherit}
       #${rootId} *{box-sizing:border-box}
       #${rootId} .dbx-head{background:#fff;border:1px solid #d7e5da;border-left:4px solid #16733b;border-radius:12px;padding:15px 17px;display:flex;justify-content:space-between;gap:16px;align-items:center}
