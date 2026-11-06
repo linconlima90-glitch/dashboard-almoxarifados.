@@ -151,7 +151,8 @@ class DashboardInjector {
         '<script src="/stock-min-max-unified-20261103.js?v=20261103-status-column-filter-v8"></script>' +
         '<script src="/baixas-erp-conferido-20261106.js?v=20261106-custo-total-erp"></script>'+
         '<script src="/cdi-transfer-data.js?v=20261106-cdi-aprovacao"></script>'+
-        '<script src="/cdi-transfer-savings.js?v=20261106-cdi-aprovacao"></script>'),
+        '<script src="/cdi-transfer-savings.js?v=20261106-cdi-aprovacao"></script>'+ 
+        '<script src="/cdi-distribution-purchases.js?v=20261106-distribuicao-30115"></script>'),
       { html: true }
     );
   }

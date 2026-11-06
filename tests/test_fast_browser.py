@@ -82,6 +82,25 @@ with sync_playwright() as p:
             assert cdi['m']['approvalDate']=='2026-05-07' and cdi['m']['rows']==0 and cdi['m']['status']=='AGUARDANDO_PLANILHA', cdi
             assert cdi['cost']==2000 and cdi['verified']==2000 and cdi['beforeRejected'] and cdi['duplicateRejected'], cdi
             assert 'Aguardando' in cdi['card'], cdi
+            # Todas as compras para estoque do 30115 sao para distribuicao, nao transferencias.
+            purchase30115=page.evaluate("""() => {
+              const base=window.CDI_DISTRIBUTION_PURCHASES,panel=document.getElementById('cdi-distribution-purchases');
+              return {meta:base.meta,hasPanel:!!panel,groups:base.groups.length,
+                sumGroups:base.groups.reduce((s,x)=>s+x.valueCents,0),
+                sumMonths:base.months.reduce((s,x)=>s+x.valueCents,0),
+                ruleYes:base.qualifies({codigo_local:30115,top:89,data:'07/05/2026'}),
+                ruleNoOtherLocal:base.qualifies({codigo_local:50115,top:89,data:'07/05/2026'}),
+                ruleNoOtherType:base.qualifies({codigo_local:30115,top:94,data:'07/05/2026'}),
+                ruleNoBefore:base.qualifies({codigo_local:30115,top:89,data:'06/05/2026'})};
+            }""")
+            assert purchase30115['meta']['classification']=='COMPRA_PARA_DISTRIBUICAO', purchase30115
+            assert purchase30115['meta']['localCode']=='30115' and purchase30115['meta']['lines']==256, purchase30115
+            assert purchase30115['meta']['totalCents']==15019467 and purchase30115['meta']['distinctSkuUnits']==208, purchase30115
+            assert purchase30115['groups']==14 and purchase30115['sumGroups']==15019467, purchase30115
+            assert purchase30115['sumMonths']==15019467 and purchase30115['hasPanel'], purchase30115
+            assert purchase30115['ruleYes'] and not purchase30115['ruleNoOtherLocal'], purchase30115
+            assert not purchase30115['ruleNoOtherType'] and not purchase30115['ruleNoBefore'], purchase30115
+
 
         # O usuario removeu o painel de pneus e camaras do rodape do Resumo.
         # Os pneus continuam no cadastro e devem ser consultaveis no Estoque.
