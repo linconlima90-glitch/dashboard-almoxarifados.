@@ -159,7 +159,8 @@ class DashboardInjector {
         '<script src="/cdi-distribution-purchases.js?v=20261106-distribuicao-30115"></script>'+ 
         '<script src="/cdi-distribution-detail-data-20261106.js?v=20261106-cascata-30115"></script>'+ 
         '<script src="/cdi-distribution-cascade-ui.js?v=20261106-cascata-30115"></script>' +
-        '<script src="/cdi-direct-buy-savings-20261109.js?v=20261109-aquisicao-direta"></script>'),
+        '<script src="/economia-faixa-precos-todas-unidades-20261109.js?v=20261109-rede-max-min"></script>'+ 
+        '<script src="/economia-faixa-precos-ui-20261109.js?v=20261109-rede-max-min"></script>'),
       { html: true }
     );
   }
