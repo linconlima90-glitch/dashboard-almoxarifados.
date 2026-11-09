@@ -6,7 +6,7 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 import assert from 'node:assert/strict';
 import { applyPurchaseAnalyticsPolicy } from './purchase-analytics-policy.mjs';
 import { applyBaixasNegociacao20261106 } from './apply-baixas-negociacao-20261106.mjs';
-import { applyStock20261105 } from './apply-stock-20261105.mjs';
+import { applyStock20261109 } from './apply-stock-20261109.mjs';
 
 const root = process.cwd(), input = path.join(root, 'public'), out = path.join(root, 'dist');
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
@@ -95,7 +95,7 @@ fs.rmSync(out, { recursive: true, force: true });
 fs.cpSync(input, out, { recursive: true });
 const baixasAudit=applyBaixasNegociacao20261106(root,out);
 report.baixasRetificadas=baixasAudit;
-const stockAudit=applyStock20261105(root,out);
+const stockAudit=applyStock20261109(root,out);
 report.estoqueAtualizado=stockAudit;
 // Monta a fotografia auditada de compras sem transportar arquivos Excel ao navegador.
 const auditedPurchaseB64=Array.from({length:4},(_,i)=>{
