@@ -80,15 +80,65 @@
   `;
   document.head.appendChild(css);
 
+  // Aplica a referencia corrigida a todas as compras do produto antes de exibir
+  // KPIs, provas por nota e API do painel consolidado, sem editar o ERP.
+  function aplicarReferenciasAprovadas(data){
+    const M=data.meta,P=data.products,T=data.purchases;
+    if(M.approvedReferenceCorrections?.['105090'])return;
+    const override=window.DB_COST_TABLE_REFERENCE_OVERRIDES?.['105090'];
+    if(!override || override.approvedMaxMicro!==24235000 || override.previousMaxMicro!==242350000)
+      throw Error('Referencia autorizada para o eletrodo 105090 ausente.');
+    const product=P.find(r=>r[1]==='105090'&&r[4]==='KG');
+    const buys=T.filter(r=>r[2]==='105090'&&r[5]==='KG');
+    if(!product||product[6]!==override.previousMaxMicro||buys.length!==2||
+       buys.reduce((s,r)=>s+r[11],0)!==8574719||
+       buys.reduce((s,r)=>s+r[8],0)!==390)
+      throw Error('Base do eletrodo 105090 mudou: revisar antes de substituir os valores.');
+    let oldPositive=0,oldNegative=0,newPositive=0,newNegative=0;
+    for(const r of buys){
+      oldPositive+=r[11];oldNegative+=r[12];
+      // Preco unitario em micros de real; valor da diferenca em centavos.
+      const signed=Math.round((override.approvedMaxMicro-r[10])*r[8]/10000);
+      r[11]=Math.max(0,signed);
+      r[12]=Math.min(0,signed);
+      r[13]=signed;
+      newPositive+=r[11];newNegative+=r[12];
+      r[19]='REFERENCIA MANUAL APROVADA';
+    }
+    const deltaPositive=newPositive-oldPositive,deltaNegative=newNegative-oldNegative;
+    product[6]=override.approvedMaxMicro;
+    product[14]+=deltaPositive;
+    product[15]+=deltaNegative;
+    product[16]+=deltaPositive+deltaNegative;
+    M.positiveCents+=deltaPositive;
+    M.negativeCents+=deltaNegative;
+    M.netCents+=deltaPositive+deltaNegative;
+    // O maximo antigo de agosto era posterior a ambas as compras analisadas.
+    if(Number.isFinite(M.temporalCents))M.temporalCents+=deltaPositive+deltaNegative;
+    if(Number.isFinite(M.approvedExceptionalPositiveCents))M.approvedExceptionalPositiveCents+=deltaPositive;
+    for(const row of M.approvedOtherMaximums||[])if(row.code==='105090'){
+      row.maxCost='24.235';row.reason='Referencia ajustada por orientacao de 09/11/2026';
+    }
+    M.approvedReferenceCorrections={
+      '105090':{maxMicro:override.approvedMaxMicro,oldMaxMicro:override.previousMaxMicro,
+        purchaseLines:buys.length,quantity:390,oldPositiveCents:oldPositive,
+        correctedPositiveCents:newPositive,deltaCents:deltaPositive+deltaNegative,
+        approvedAt:override.approvedAt}
+    };
+    M.confirmation+=' Nova referencia aprovada do eletrodo 105090: R$ 24,235 por KG.';
+  }
   function show(data){
+    aplicarReferenciasAprovadas(data);
     const M=data.meta,P=data.products,T=data.purchases;
     const ok=M.schemaVersion===2 && M.projectFrom==='2026-05-07' && P.length===320 && T.length===381 &&
-      M.purchaseCents===21832862 && M.positiveCents===18043249 && M.negativeCents===-486263 && M.netCents===17556986 &&
+      M.purchaseCents===21832862 && M.positiveCents===9536764 && M.negativeCents===-486263 && M.netCents===9050501 &&
       T.reduce((s,r)=>s+(r[9]||0),0)===M.purchaseCents &&
       T.reduce((s,r)=>s+(r[11]||0),0)===M.positiveCents &&
       T.reduce((s,r)=>s+(r[12]||0),0)===M.negativeCents &&
       T.every(r=>r[1]>='2026-05-07' && r[8]>0 && r[9]>0) &&
-      P.find(r=>r[1]==='102902')?.[6]===23850000 && P.find(r=>r[1]==='102902')?.[8]===23470000;
+      P.find(r=>r[1]==='102902')?.[6]===23850000 && P.find(r=>r[1]==='102902')?.[8]===23470000 &&
+      P.find(r=>r[1]==='105090')?.[6]===24235000 &&
+      M.approvedReferenceCorrections?.['105090']?.correctedPositiveCents===68234;
     if(!ok)throw Error('A base aprovada da Tabela Custo não passou na reconciliação de valores.');
     const bySku=new Map(P.map(r=>[r[0],r]));
     const farms=new Map();for(const t of T){const k=String(t[6]);const x=farms.get(k)||{code:k,lines:0,paid:0,pos:0,neg:0};x.lines++;x.paid+=t[9];x.pos+=t[11]||0;x.neg+=t[12]||0;farms.set(k,x)}
@@ -106,7 +156,7 @@
       stat('Saldo comparativo (favoráveis − desfavoráveis)',money(M.netCents),'Resultado líquido do comparativo, não economia contábil'),
       stat('Total comprado no período',money(M.purchaseCents),M.purchaseLines+' compras · '+M.projectSkus+' produtos/unidades'),
       '</div>',
-      '<div class="ct-notes"><div class="ct-note"><strong>Correção aprovada: eletrodo 6013 3,25 mm · 102902</strong><p>O custo gerencial da linha 182 passou de R$ 234,70 para <b>R$ 23,47</b>. O maior custo válido do produto passa a ser <b>R$ 23,85</b> (linha 3242). Os demais preços elevados foram mantidos, conforme sua orientação. <b>'+money(M.approvedExceptionalPositiveCents)+'</b> do indicador favorável provém de seis compras com máximos excepcionais aprovados; esse valor já está incluído no total, não deve ser somado.</p></div>',
+      '<div class="ct-notes"><div class="ct-note"><strong>Referências de eletrodos corrigidas</strong><p><b>Eletrodo 105090, 2,5 mm:</b> maior custo aprovado <b>R$ 24,235/kg</b> (antes R$ 242,35). As duas compras de 390 kg somam R$ 682,34 de diferença favorável, já incluída no total acima.</p><br><strong>Correção aprovada: eletrodo 6013 3,25 mm · 102902</strong><p>O custo gerencial da linha 182 passou de R$ 234,70 para <b>R$ 23,47</b>. O maior custo válido do produto passa a ser <b>R$ 23,85</b> (linha 3242). Os demais preços elevados foram mantidos, exceto o eletrodo 105090 corrigido, conforme sua orientação. <b>'+money(M.approvedExceptionalPositiveCents)+'</b> do indicador favorável provém de seis compras com máximos excepcionais aprovados; esse valor já está incluído no total, não deve ser somado.</p></div>',
       '<div class="ct-note warn"><strong>Como interpretar esta economia</strong><p>Para cada nota: <b>máximo da Tabela Custo menos preço realmente pago, multiplicado pela quantidade</b>. O preço máximo pode ser de outra data e a Tabela Custo não contém unidade de medida. Portanto, trata-se de comparação gerencial, <b>não economia financeira comprovada</b>. Não somamos esse valor novamente nas transferências.</p></div></div>',
       '<h3>Resultado por local de compra</h3>',
       '<div class="ct-breakdown" id="ct-farms"></div>',
@@ -162,6 +212,7 @@
       const matches=shown.filter(t=>t[0]===key),sourceRow=r[9],el=$('ct-proof');
       el.style.display='block';el.innerHTML='<h4>'+esc(r[1])+' · '+esc(r[2])+'</h4><p><b>Menor custo da Tabela:</b> '+price(r[5])+' &nbsp; <b>Maior custo válido:</b> '+price(r[6])+' &nbsp; <b>Data do maior:</b> '+dBR(r[7])+' &nbsp; <b>Linha Tabela Custo:</b> '+esc(sourceRow??'—')+'</p>'+
        (r[1]==='102902'?'<p>Este produto teve a linha 182 corrigida de R$ 234,70 para R$ 23,47. Máximo válido remanescente: R$ 23,85 (linha 3242).</p>':'')+
+        (r[1]==='105090'?'<p>Maior custo gerencial aprovado para o eletrodo 2,5 mm: R$ 24,235/kg (antes R$ 242,35/kg), segundo orientação de 09/11/2026. Valor de referência substitui o máximo original para este comparativo.</p>':'')+
        '<div class="ct-scroll"><table><thead><tr>'+['Data','NF','NUNOTA / Seq.','Local','Fornecedor','Qtd.','Preço pago','Valor pago','Máximo Tabela','Ganho favorável','Dif. desfavorável','Situação'].map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr></thead><tbody>'+matches.map(t=>'<tr><td>'+dBR(t[1])+'</td><td>'+esc(t[15])+'</td><td>'+esc(t[16])+'/'+esc(t[17])+'</td><td>'+esc(farmName(t[6]))+'</td><td>'+esc(t[7])+'</td><td class="ct-num">'+numberBR.format(t[8])+'</td><td class="ct-num">'+price(t[10])+'</td><td class="ct-num">'+money(t[9])+'</td><td class="ct-num">'+price(r[6])+'</td><td class="ct-num ct-pos">'+money(t[11])+'</td><td class="ct-num ct-neg">'+money(t[12])+'</td><td>'+esc(t[19])+'</td></tr>').join('')+'</tbody></table></div>';
       el.scrollIntoView({block:'nearest',behavior:'smooth'});
     }
