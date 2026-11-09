@@ -66,7 +66,7 @@ export function applyBaixasNegociacao20261106(root,out) {
   originalMeta.sourceFile=originalMeta.sourceFile+' + '+supplement.sourceFile;
   originalMeta.sourceSHA256=originalMeta.sourceSHA256+'+'+supplement.sourceSHA256;
   originalMeta.years['2026'].records=12352;
-  originalMeta.years['2026'].value=1338424.82;
+  originalMeta.years['2026'].value=1338414.82;
   const source=pack.meta,D=pack.dict,daily=pack.dailyRows;
   const sum=(rows,k)=>rows.reduce((a,x)=>a+Number(x[k]||0),0);
   assert.equal(source.dateBasis,'Dt.Neg.');
@@ -84,7 +84,7 @@ export function applyBaixasNegociacao20261106(root,out) {
     else aggregate.set(k,[mi,...row.slice(1)]);
   }
   const P={dict:D,meta:{...source,sha256:source.sourceSHA256,costField:'Custo_Total',
-    status:{IGUAL:9725,DIFERENTE:12202}},rows:[...aggregate.values()].sort((a,b)=>a[0]-b[0]||a[1]-b[1]||a[3]-b[3])};
+    status:{IGUAL:source.records-sum(daily,8),DIFERENTE:sum(daily,8)}},rows:[...aggregate.values()].sort((a,b)=>a[0]-b[0]||a[1]-b[1]||a[3]-b[3])};
   assert(P.rows.length>=13796,'Historico consolidado inesperadamente menor');
   assert.equal(sum(P.rows,7),source.records);
   assert.equal(sum(P.rows,6),source.cents);
@@ -176,10 +176,10 @@ export function applyBaixasNegociacao20261106(root,out) {
     localCodes:[...historicKeys],networkCodes:[...networkCodes],
     from:'14/03/2024',to:'07/11/2026',dateBasis:'Dt.Neg.',records:source.records,
     includes2024:true,excludedFromMinimum:['2024']
-  })+';\\n';
+  })+';\n';
   const noBaixas=read('public/stock-no-withdrawals-tab-20261015.js')
     .replace('window.MOVEMENTS_REVISED_META?.records === 19387','window.MOVEMENTS_REVISED_META?.records === '+totalCount)
-    .replaceAll('14/03/2024 a 03/11/2026','14/03/2024 a 06/11/2026')
+    .replaceAll('14/03/2024 a 03/11/2026','14/03/2024 a 07/11/2026')
     .replace("historyEnd:'03/11/2026'","historyEnd:'07/11/2026'")
     .replace('const movementByLocal=new Map();',"const movementByLocal=new Map();const allHistory=new Set((window.DB_WITHDRAWAL_HISTORY_2024_2026?.localCodes)||[]);const allNetwork=new Set((window.DB_WITHDRAWAL_HISTORY_2024_2026?.networkCodes)||[]);")
     .replace('if(movementByLocal.has(stockKey(s)))continue;',"if(movementByLocal.has(stockKey(s))||allHistory.has(localCodeKey(s)))continue;")
