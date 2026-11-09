@@ -131,7 +131,7 @@ function localAsset(url) {
     'movement-full-01-20261103.js','movement-full-02-20261103.js',
     'movement-full-03-20261103.js','movement-full-04-20261103.js',
     'movement-reconcile-full-20261103.js','movement-history-ui-20261103.js',
-    'stock-no-withdrawals-tab-20261015.js']);
+    'stock-no-withdrawals-tab-20261015.js','sao-joao-no-withdrawals.js','chua-no-withdrawals.js']);
   return fs.readFileSync((revised.has(pathname.slice(1))||/^\/stock-current-20261103-1558-\d\d\.js$/.test(pathname))?newPath:
     fs.existsSync(originalPath)?originalPath:newPath,'utf8');
 }
