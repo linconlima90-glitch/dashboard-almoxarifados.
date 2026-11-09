@@ -99,7 +99,7 @@ stat('Comparações de preço do CDI',C.destinationComparisons+' de '+C.count,'M
 '<div class="cea-scroll"><table><thead><tr>',
 ['Tipo','Transferência','Fazenda destino','Código / produto','Quantidade','Unidade','Valor ERP','Preço histórico do destino','Compra ref. Nº','Data ref.','Diferença CDI','Situação'].map(h=>'<th>'+esc(h)+'</th>').join(''),
 '</tr></thead><tbody id="cea-rows"></tbody></table></div>',
-'<p class="cea-foot">Fonte: compras ERP até '+esc(summary.purchasesAuditThrough)+'; janela de 365 dias anteriores a cada transferência. Compreendedor: código e unidade de medida idênticos; preço de referência = total da nota de compra ÷ quantidade. Campos sem documento não entram na economia validada.</p>',
+'<p class="cea-foot">Fonte: compras ERP até '+esc(summary.purchasesAuditThrough)+'; janela de 365 dias anteriores a cada transferência. Comparação: código e unidade de medida idênticos; preço de referência = total da nota de compra ÷ quantidade. Campos sem documento não entram na economia validada.</p>',
 '</div></details>'
 ].join('');
 const $=id=>section.querySelector('#'+id);
