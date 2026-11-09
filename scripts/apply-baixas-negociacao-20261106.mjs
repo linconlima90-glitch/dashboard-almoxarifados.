@@ -9,13 +9,72 @@ export function applyBaixasNegociacao20261106(root,out) {
   const write=(p,value)=>fs.writeFileSync(path.join(out,p),value);
 
   const pack=JSON.parse(gunzipSync(Buffer.from(read('data/baixas-negociacao-20261106.b64').trim(),'base64')).toString('utf8'));
+  // A fotografia de 06/11 foi retificada pelo ERP em 09/11. Substitui
+  // integralmente as 28 linhas antigas de 06/11 pelas 147 novas e soma as 16 de 07/11.
+  const supplement=JSON.parse(gunzipSync(Buffer.from(read('data/baixas-complemento-20261107.b64').trim(),'base64')).toString('utf8'));
+  assert.equal(supplement.sourceSHA256,'be6e48626874e88b97c16bd9590b60e7b065cf532d6ef0c62bb19780c6210b15');
+  assert.equal(supplement.records,163);
+  assert.equal(supplement.cents,1637624);
+  assert.equal(supplement.byDate['2026-11-06'].records,147);
+  assert.equal(supplement.byDate['2026-11-07'].records,16);
+  const old06=pack.dailyRows.filter(x=>x[0]==='2026-11-06');
+  assert.equal(old06.reduce((n,r)=>n+r[7],0),28);
+  assert.equal(old06.reduce((n,r)=>n+r[6],0),404091);
+  pack.dailyRows=pack.dailyRows.filter(x=>x[0]!=='2026-11-06');
+  const dict=pack.dict;
+  const indexOrAppend=(list,value)=>{let i=list.findIndex(x=>String(x)===String(value));if(i<0){i=list.length;list.push(value)}return i};
+  const getLocalIndex=code=>{
+    const index=dict.local.findIndex(x=>String(x[0])===String(code));
+    assert(index>=0,'Local de baixa novo nao existe no cadastro: '+code);
+    return index;
+  };
+  const majorityCompany=new Map();
+  for(const row of pack.dailyRows){
+    const id=row[1], companies=majorityCompany.get(id)||new Map();
+    companies.set(row[2],(companies.get(row[2])||0)+row[7]);
+    majorityCompany.set(id,companies);
+  }
+  const productIndex=new Map(dict.product.map((r,i)=>[String(r[0]),i]));
+  const extra=new Map();
+  for(const row of supplement.rows){
+    const [date,company,codeLocal,local,code,product,group,unit,qty,cents,document,seq,comparison]=row;
+    assert(date==='2026-11-06'||date==='2026-11-07');
+    assert(Number(qty)>0 && Number.isInteger(cents) && cents>=0);
+    const li=getLocalIndex(codeLocal);
+    const existing=pack.dailyRows.find(x=>x[1]===li&&String(dict.product[x[3]]?.[0])===String(code));
+    const companies=majorityCompany.get(li)||new Map();
+    const fi=existing?existing[2]:[...companies].sort((a,b)=>b[1]-a[1])[0]?.[0];
+    assert(fi!==undefined,'Empresa de baixa sem referencia para '+codeLocal);
+    const gi=indexOrAppend(dict.group,group);
+    let pi=productIndex.get(String(code));
+    if(pi===undefined){pi=dict.product.length;dict.product.push([String(code),String(product),gi]);productIndex.set(String(code),pi)}
+    const ui=indexOrAppend(dict.unit,unit);
+    const key=[date,li,fi,pi,ui].join('|');
+    const value=extra.get(key)||[date,li,fi,pi,ui,0,0,0,0];
+    value[5]+=Number(qty);value[6]+=Number(cents);value[7]++;
+    if(comparison!=='IGUAL')value[8]++;
+    extra.set(key,value);
+  }
+  pack.dailyRows.push(...extra.values());
+  const originalMeta=pack.meta;
+  assert.equal(originalMeta.records,21792);
+  assert.equal(originalMeta.cents,254684892);
+  originalMeta.records=21927;
+  originalMeta.cents=255918425;
+  originalMeta.value=2559184.25;
+  originalMeta.to='2026-11-07';
+  originalMeta.sourceFile=originalMeta.sourceFile+' + '+supplement.sourceFile;
+  originalMeta.sourceSHA256=originalMeta.sourceSHA256+'+'+supplement.sourceSHA256;
+  originalMeta.years['2026'].records=12352;
+  originalMeta.years['2026'].value=1338414.82;
   const source=pack.meta,D=pack.dict,daily=pack.dailyRows;
   const sum=(rows,k)=>rows.reduce((a,x)=>a+Number(x[k]||0),0);
   assert.equal(source.dateBasis,'Dt.Neg.');
-  assert.equal(source.sourceSHA256,'a068fc42ae4e5ce17378da97351d98b1ad1c99fefdc3af26a0b6c795e493f897');
-  assert.equal(source.records,21792);
-  assert.equal(sum(daily,7),21792);
-  assert.equal(sum(daily,6),254684892);
+  assert(source.sourceSHA256.startsWith('a068fc42ae4e5ce17378da97351d98b1ad1c99fefdc3af26a0b6c795e493f897+'));
+  assert.equal(source.to,'2026-11-07');
+  assert.equal(source.records,21927);
+  assert.equal(sum(daily,7),21927);
+  assert.equal(sum(daily,6),255918425);
   const aggregate=new Map();
   for(const row of daily){
     const mi=D.month.indexOf(row[0].slice(0,7));
@@ -25,8 +84,8 @@ export function applyBaixasNegociacao20261106(root,out) {
     else aggregate.set(k,[mi,...row.slice(1)]);
   }
   const P={dict:D,meta:{...source,sha256:source.sourceSHA256,costField:'Custo_Total',
-    status:{IGUAL:9562,DIFERENTE:12230}},rows:[...aggregate.values()].sort((a,b)=>a[0]-b[0]||a[1]-b[1]||a[3]-b[3])};
-  assert.equal(P.rows.length,13796);
+    status:{IGUAL:source.records-sum(daily,8),DIFERENTE:sum(daily,8)}},rows:[...aggregate.values()].sort((a,b)=>a[0]-b[0]||a[1]-b[1]||a[3]-b[3])};
+  assert(P.rows.length>=13796,'Historico consolidado inesperadamente menor');
   assert.equal(sum(P.rows,7),source.records);
   assert.equal(sum(P.rows,6),source.cents);
   const byMonth={},byYear={};
@@ -76,19 +135,19 @@ export function applyBaixasNegociacao20261106(root,out) {
     "window.MOVEMENTS_OCTOBER_META={from:'01/10/2026',to:'31/10/2026',records:"+byMonth['2026-10'].records+
     ",value:"+money(byMonth['2026-10'].cents)+"};");
   replace('novembro',/window\.MOVEMENTS_NOVEMBER_META=\{[^;]+;/,
-    "window.MOVEMENTS_NOVEMBER_META={from:'01/11/2026',to:'06/11/2026',records:"+byMonth['2026-11'].records+
+    "window.MOVEMENTS_NOVEMBER_META={from:'01/11/2026',to:'07/11/2026',records:"+byMonth['2026-11'].records+
     ",value:"+money(byMonth['2026-11'].cents)+",partial:true};");
   replace('quantidade minima',/minMonths:2,records:17026/,
     'minMonths:2,records:'+(byYear['2025'].records+byYear['2026'].records-byMonth['2026-11'].records));
   replace('resumo',/box\.innerHTML=[\s\S]*?;\s*summary\.prepend\(box\);/,
-    "box.innerHTML='<b>Baixas ERP (data de negociação): 14/03/2024 a 06/11/2026</b> · "+
+    "box.innerHTML='<b>Baixas ERP (data de negociação): 14/03/2024 a 07/11/2026</b> · "+
     totalCount.toLocaleString('pt-BR')+" lancamentos · <b>R$ "+formatted(totalCents)+
     "</b>.'+'<div style=\"color:#657366;font-size:11px\">"+
     "2024: "+byYear['2024'].records+" baixas (somente consulta). 2025: "+byYear['2025'].records+
     " baixas. 2026: "+byYear['2026'].records+
-    " baixas ate 06/11. Fonte integral substituída pela data de negociação, sem duplicidade. "+
+    " baixas ate 07/11. Fonte integral substituída pela data de negociação, sem duplicidade. "+
     "Estoque minimo: 22 meses completos (2025 e janeiro-outubro/2026), cobertura de 2 meses; "+
-    "novembro parcial fora da média. Saldo físico preservado da posição ERP 05/11/2026, sem subtração adicional.</div>';summary.prepend(box);");
+    "novembro parcial fora da média. Saldo físico preservado da posição ERP 09/11/2026, sem subtração adicional.</div>';summary.prepend(box);");
   replace('2024 meta',/window\.MOVEMENTS_2024_META=\{[^;]+;/,
     "window.MOVEMENTS_2024_META={from:'14/03/2024',to:'31/12/2024',records:"+byYear['2024'].records+",value:"+money(byYear['2024'].cents)+",forMinimum:false};");
   reconcile=reconcile.replace("sourceSHA256:meta.sha256,","sourceSHA256:meta.sha256,dateBasis:meta.dateBasis,");
@@ -105,12 +164,44 @@ export function applyBaixasNegociacao20261106(root,out) {
     .replace('O arquivo recebido não informa a situação da conferência.','A data de referência é a negociação (Dt.Neg.).');
   assert(history.includes('20261106-negociacao'));
   write('movement-history-ui-20261103.js',history);
+  const historicKeys=new Set(),networkCodes=new Set();
+  for(const d of daily){
+    if(Number(d[5])<=0)continue;
+    const loc=D.local[d[1]],prod=D.product[d[3]];
+    if(!loc||!prod)continue;
+    historicKeys.add(String(loc[0])+'|'+String(prod[0]));
+    networkCodes.add(String(prod[0]));
+  }
+  const historicPrelude='window.DB_WITHDRAWAL_HISTORY_2024_2026='+JSON.stringify({
+    localCodes:[...historicKeys],networkCodes:[...networkCodes],
+    from:'14/03/2024',to:'07/11/2026',dateBasis:'Dt.Neg.',records:source.records,
+    includes2024:true,excludedFromMinimum:['2024']
+  })+';\n';
   const noBaixas=read('public/stock-no-withdrawals-tab-20261015.js')
     .replace('window.MOVEMENTS_REVISED_META?.records === 19387','window.MOVEMENTS_REVISED_META?.records === '+totalCount)
-    .replaceAll('14/03/2024 a 03/11/2026','14/03/2024 a 06/11/2026')
-    .replace("historyEnd:'03/11/2026'","historyEnd:'06/11/2026'");
+    .replaceAll('14/03/2024 a 03/11/2026','14/03/2024 a 07/11/2026')
+    .replace("historyEnd:'03/11/2026'","historyEnd:'07/11/2026'")
+    .replace('const movementByLocal=new Map();',"const movementByLocal=new Map();const allHistory=new Set((window.DB_WITHDRAWAL_HISTORY_2024_2026?.localCodes)||[]);const allNetwork=new Set((window.DB_WITHDRAWAL_HISTORY_2024_2026?.networkCodes)||[]);")
+    .replace('if(movementByLocal.has(stockKey(s)))continue;',"if(movementByLocal.has(stockKey(s))||allHistory.has(localCodeKey(s)))continue;")
+    .replace("if(f.scope==='rede'&&hasMovementsInNetwork.has(x.codigo))return false;","if(f.scope==='rede'&&(hasMovementsInNetwork.has(x.codigo)||allNetwork.has(x.codigo)))return false;")
+    .replace('sourceRows.filter(x=>!hasMovementsInNetwork.has(x.codigo)).length',"sourceRows.filter(x=>!hasMovementsInNetwork.has(x.codigo)&&!allNetwork.has(x.codigo)).length");
   assert(noBaixas!==read('public/stock-no-withdrawals-tab-20261015.js'));
-  write('stock-no-withdrawals-tab-20261015.js',noBaixas);
+  write('stock-no-withdrawals-tab-20261015.js',historicPrelude+noBaixas);
+  for(const pilot of ['sao-joao','chua']){
+    const name=pilot+'-no-withdrawals.js';
+    const src=read('public/'+name)
+      .replace('window.MOVEMENTS_REVISED_META?.records!==21792','window.MOVEMENTS_REVISED_META?.records!=='+totalCount)
+      .replace('const localMovements = new Set(), networkMovements = new Set(), pending = new Set();',
+        'const localMovements = new Set(), networkMovements = new Set(), pending = new Set();'+
+        'const allHistory=new Set((window.DB_WITHDRAWAL_HISTORY_2024_2026?.localCodes)||[]);'+
+        'const allNetwork=new Set((window.DB_WITHDRAWAL_HISTORY_2024_2026?.networkCodes)||[]);')
+      .replace('localMovements.has(stockKey(s)))continue;',
+        'localMovements.has(stockKey(s))||allHistory.has(localCode(s)))continue;')
+      .replace('networkMovements.has(String(s.codigo))',
+        '(networkMovements.has(String(s.codigo))||allNetwork.has(String(s.codigo)))');
+    assert(src.includes('allHistory.has(localCode(s))'));
+    write(name,historicPrelude+src);
+  }
   const audit={sourceSHA256:source.sourceSHA256,dateBasis:'Dt.Neg.',monthsReclassified:950,
     receivedRecords:source.records,
     revisedRecords:totalCount,totalValue:money(totalCents),
