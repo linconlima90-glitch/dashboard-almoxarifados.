@@ -68,7 +68,7 @@ const CSS=`
 const css=document.createElement('style');css.id='cea-bulk-style';css.textContent=CSS;document.head.appendChild(css);
 const cash=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
 const numeric=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:4});
-const fmt=c=>cash.format((Number(c)||0)/100),escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+const fmt=c=>cash.format((Number(c)||0)/100),escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const price=n=>n==null?'—':cash.format(Number(n));
 const displayDate=d=>d?d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4):'';
 const types={DISTRIBUICAO:'Distribuição CDI',CONSUMO_CHUA:'Consumo Fazenda Chuá',CONSUMO_COMPARTILHADO:'Estrutura Compartilhada',CONSUMO_OUTROS:'Outros centros (fora do resultado)',PERDA_D410:'Perdas D410 (excluídas)'};
