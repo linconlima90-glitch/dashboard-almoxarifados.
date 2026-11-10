@@ -232,7 +232,8 @@ export function applyBaixasNegociacao20261106(root,out) {
     .replace('window.MOVEMENTS_REVISED_META?.records === 19387','window.MOVEMENTS_REVISED_META?.records === '+totalCount)
     .replaceAll('14/03/2024 a 03/11/2026','14/03/2024 a 09/11/2026')
     .replace("historyEnd:'03/11/2026'","historyEnd:'09/11/2026'")
-    .replace('const movementByLocal=new Map();',"const movementByLocal=new Map();const allHistory=new Set((window.DB_WITHDRAWAL_HISTORY_2024_2026?.localCodes)||[]);const allNetwork=new Set((window.DB_WITHDRAWAL_HISTORY_2024_2026?.networkCodes)||[]);")
+    .replace('let sourceRows=[], hasMovementsInNetwork=new Set(), historyByProduct=',"let sourceRows=[], hasMovementsInNetwork=new Set(), allNetwork=new Set((window.DB_WITHDRAWAL_HISTORY_2024_2026?.networkCodes)||[]), historyByProduct=")
+    .replace('const movementByLocal=new Map();',"const movementByLocal=new Map();const allHistory=new Set((window.DB_WITHDRAWAL_HISTORY_2024_2026?.localCodes)||[]);")
     .replace('if(movementByLocal.has(stockKey(s)))continue;',"if(movementByLocal.has(stockKey(s))||allHistory.has(localCodeKey(s)))continue;")
     .replace("if(f.scope==='rede'&&hasMovementsInNetwork.has(x.codigo))return false;","if(f.scope==='rede'&&(hasMovementsInNetwork.has(x.codigo)||allNetwork.has(x.codigo)))return false;")
     .replace('sourceRows.filter(x=>!hasMovementsInNetwork.has(x.codigo)).length',"sourceRows.filter(x=>!hasMovementsInNetwork.has(x.codigo)&&!allNetwork.has(x.codigo)).length");
