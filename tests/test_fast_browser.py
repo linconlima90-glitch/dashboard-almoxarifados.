@@ -790,6 +790,7 @@ with sync_playwright() as p:
               const moved=new Set([...MOVEMENTS,...MOVEMENTS_YEARLY].filter(x=>
                 Number(x.total)>0||Number(x.complete_total)>0||(x.months||[]).some(q=>Number(q)>0))
                 .map(x=>String(x.codigo)));
+              for(const code of (window.DB_WITHDRAWAL_HISTORY_2024_2026?.networkCodes||[])) moved.add(String(code));
               return {
                 count:window.STOCK_NO_WITHDRAWAL_META.filteredRows,
                 expected:window.STOCK_NO_WITHDRAWAL.getRows().filter(x=>!moved.has(x.codigo)).length,
