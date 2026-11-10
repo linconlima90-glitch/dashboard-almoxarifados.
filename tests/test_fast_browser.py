@@ -79,9 +79,9 @@ with sync_playwright() as p:
               return {m,cost:verified[0].comparisonCents,verified:verified[0].validatedCents,
                 beforeRejected,duplicateRejected,card:document.querySelector('#cdi-transfer-panel #cdtr-count').textContent};
             }""")
-            assert cdi['m']['approvalDate']=='2026-05-07' and cdi['m']['rows']==0 and cdi['m']['status']=='AGUARDANDO_PLANILHA', cdi
+            assert cdi['m']['approvalDate']=='2026-05-07' and cdi['m']['rows']==184 and cdi['m']['status']=='REGISTRADO', cdi
             assert cdi['cost']==2000 and cdi['verified']==2000 and cdi['beforeRejected'] and cdi['duplicateRejected'], cdi
-            assert 'Aguardando' in cdi['card'], cdi
+            assert cdi['card'].strip()=='184', cdi
             # Todas as compras para estoque do 30115 sao para distribuicao, nao transferencias.
             purchase30115=page.evaluate("""() => {
               const base=window.CDI_DISTRIBUTION_PURCHASES,panel=document.getElementById('cdi-distribution-purchases');
@@ -233,8 +233,8 @@ with sync_playwright() as p:
                 preserveHistory:window.MOVEMENTS_REVISED_META?.records>19387,
                 preserveMin:window.STOCK_MINIMUM_MONTHS===2
             })""")
-            assert stockmeta['emitted']=='05/11/2026 19:19:46', stockmeta
-            assert abs(stockmeta['total']-2300866.50)<0.01 and stockmeta['warehouses']==9, stockmeta
+            assert stockmeta['emitted']=='09/11/2026 10:29:10', stockmeta
+            assert abs(stockmeta['total']-2292215.23)<0.01 and stockmeta['warehouses']==9, stockmeta
             assert stockmeta['preserveHistory'] and stockmeta['preserveMin'], stockmeta
             october=page.evaluate("""() => ({
                 month:window.MOVEMENTS_OCTOBER_META,
