@@ -97,6 +97,11 @@ const baixasAudit=applyBaixasNegociacao20261106(root,out);
 report.baixasRetificadas=baixasAudit;
 const stockAudit=applyStock20261110(root,out);
 report.estoqueAtualizado=stockAudit;
+const buyPack=JSON.parse(gunzipSync(Buffer.from(read('data/purchases-changes-20261110.b64').trim(),'base64')).toString('utf8'));
+assert.equal(buyPack.meta.sourceSHA256,'9ed21525bbab94802abd56ddf8260c9706f5b15f4a7295d20577b66b8db75405');
+assert.equal(buyPack.added.length,49);assert.equal(buyPack.reprice.length,2);assert.equal(buyPack.economy.length,28);
+fs.writeFileSync(path.join(out,'purchase-update.js'),'window.DB_PURCHASES_20261110_DELTA='+JSON.stringify(buyPack)+';\n'+read('public/purchase-update.js'),'utf8');
+report.comprasAtualizadas=buyPack.meta;
 // Monta a fotografia auditada de compras sem transportar arquivos Excel ao navegador.
 const auditedPurchaseB64=Array.from({length:4},(_,i)=>{
   const filename='public/audited-purchase-part-20261103-'+(i+1)+'.js';
@@ -131,7 +136,7 @@ function localAsset(url) {
     'movement-full-01-20261103.js','movement-full-02-20261103.js',
     'movement-full-03-20261103.js','movement-full-04-20261103.js',
     'movement-reconcile-full-20261103.js','movement-history-ui-20261103.js',
-    'stock-no-withdrawals-tab-20261015.js','sao-joao-no-withdrawals.js','chua-no-withdrawals.js']);
+    'stock-no-withdrawals-tab-20261015.js','sao-joao-no-withdrawals.js','chua-no-withdrawals.js','purchase-update.js']);
   return fs.readFileSync((revised.has(pathname.slice(1))||/^\/stock-current-20261103-1558-\d\d\.js$/.test(pathname))?newPath:
     fs.existsSync(originalPath)?originalPath:newPath,'utf8');
 }

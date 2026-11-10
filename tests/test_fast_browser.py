@@ -206,13 +206,13 @@ with sync_playwright() as p:
           octoberUnique: (() => {const rows=PURCHASES.filter(x=>x.data.slice(3)==='10/2026');return new Set(rows.map(x=>[x.nrounico,x.seq,x.codigo,x.codigo_local].join('|'))).size===rows.length;})(),
           rollerRef: PURCHASES.find(x=>x.codigo===107385 && String(x.nota)==='138466')?.preco,
           correctMeta: window.LATEST_PURCHASE_META?.audited===true &&
-            window.LATEST_PURCHASE_META?.sourceRows===2873 &&
-            window.LATEST_PURCHASE_META?.source==='COMPRAS_DE_INSUMOS_POR_LOCAL(1).xlsx'
+            window.LATEST_PURCHASE_META?.sourceRows===2922 &&
+            window.LATEST_PURCHASE_META?.source==='COMPRAS_DE_INSUMOS_POR_LOCAL(5).xlsx'
         })""")
-        assert purchase_checks['aug']==197 and purchase_checks['sep']==241 and purchase_checks['oct']==126, purchase_checks
-        assert abs(purchase_checks['sepValue']-118631.41)<0.02 and abs(purchase_checks['octValue']-56071.19)<0.02, purchase_checks
-        assert abs(purchase_checks['monthlyOct']-56071.19)<0.02 and abs(purchase_checks['total']-1814454.14)<0.02, purchase_checks
-        assert purchase_checks['rows']==2873 and purchase_checks['historical2025']==1149 and purchase_checks['historical2026']==1724, purchase_checks
+        assert purchase_checks['aug']==197 and purchase_checks['sep']==241 and purchase_checks['oct']==152, purchase_checks
+        assert abs(purchase_checks['sepValue']-118631.41)<0.02 and abs(purchase_checks['octValue']-91266.91)<0.02, purchase_checks
+        assert abs(purchase_checks['monthlyOct']-91266.91)<0.02 and abs(purchase_checks['total']-1853523.51)<0.02, purchase_checks
+        assert purchase_checks['rows']==2922 and purchase_checks['historical2025']==1149 and purchase_checks['historical2026']==1773, purchase_checks
         assert abs(purchase_checks['rollerRef']-62.11)<0.01 and purchase_checks['correctMeta'] and purchase_checks['octoberUnique'], purchase_checks
 
         snapshots[name] = page.evaluate(SNAPSHOT)
