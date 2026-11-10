@@ -61,6 +61,26 @@ with sync_playwright() as p:
         if optimized:
             page.wait_for_function("document.documentElement.dataset.fastReady==='1'")
         page.wait_for_timeout(600)
+        if name in ('legacy','fast'):
+            overview_fn=page.evaluate("""() => ({
+              overviewFn: (typeof renderOverview==='function'?renderOverview.toString():'unknown').slice(0,26000),
+              currentView:document.querySelector('.tab.active')?.dataset?.view,
+              stockCount:STOCK.length,stockProducts:new Set(STOCK.map(x=>String(x.codigo))).size,
+              productRows:PRODUCTS.length,productsWithStock:PRODUCTS.filter(x=>Number(x.estoque)>0).length
+            })""")
+            print('KPI_AUDIT_SOURCE',name,json.dumps(overview_fn,ensure_ascii=False),flush=True)
+            if name=='fast':
+                page.locator('.tab[data-view="geral"]').evaluate('(el)=>el.click()')
+                page.wait_for_timeout(350)
+                overview_values=page.evaluate("""() => ({
+                  values:[...document.querySelectorAll('#view-geral .card')].map(el=>({
+                    label:el.querySelector('.k')?.textContent?.trim(),
+                    value:el.querySelector('.v')?.textContent?.trim()
+                  })).filter(x=>x.label),
+                  stats:window.DB_FAST?.stats
+                })""")
+                print('KPI_AUDIT_RENDERED',json.dumps(overview_values,ensure_ascii=False),flush=True)
+
 
         if optimized and 'Pilot' not in name:
             # Modulo CDI sem planilha: nao deve assumir economia, nem alterar outras bases.
