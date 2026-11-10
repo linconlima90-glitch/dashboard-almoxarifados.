@@ -704,7 +704,7 @@ with sync_playwright() as p:
               const mixed=new Set((window.MOVEMENTS_REVISED_META.mixedUnits||[]).map(x=>String(x.codigo_local)+'|'+String(x.codigo)));
               const movementKeys=new Set(MOVEMENTS.filter(x=>Number(x.total)>0).map(x=>String(x.local)+'|'+String(x.codigo)));
               return {
-                rows:source.length,filtered:m.filteredRows,position:m.stockDate,
+                rows:source.length,filtered:m.filteredRows,networkRows:m.semBaixaNaRede,networkDefault:document.querySelector('#ns-scope')?.value==='rede',position:m.stockDate,
                 anyItems:source.length>0,
                 noWithdrawals:source.every(x=>!movementKeys.has(x.local+'|'+x.codigo)),
                 noMixed:source.every(x=>!STOCK.some(s=>String(s.codigo)===x.codigo&&s.local===x.local&&mixed.has(String(s.codigo_local)+'|'+x.codigo))),
@@ -725,7 +725,7 @@ with sync_playwright() as p:
             assert no_withdrawals['initiallyClosed'] and no_withdrawals['lazyItems'], no_withdrawals
             assert no_withdrawals['locationsSorted'] and no_withdrawals['groupsSorted'], no_withdrawals
             assert all(no_withdrawals[x] for x in ['locationCounts','groupCounts','locationValues','groupValues']), no_withdrawals
-            assert no_withdrawals['filtered']==no_withdrawals['rows'] and no_withdrawals['purchaseHistoryAvailable'], no_withdrawals
+            assert no_withdrawals['networkDefault'] and no_withdrawals['filtered']==no_withdrawals['networkRows'] and no_withdrawals['purchaseHistoryAvailable'], no_withdrawals\n            assert no_withdrawals['rows']==2637 and no_withdrawals['filtered']==2295, no_withdrawals
             assert no_withdrawals['position']=='09/11/2026 10:29:10', no_withdrawals
             assert no_withdrawals['header']=='Estoque sem baixas registradas' and no_withdrawals['groupLabel'], no_withdrawals
 
@@ -921,7 +921,7 @@ with sync_playwright() as p:
             assert sj_no_withdrawals['rows']>0 and sj_no_withdrawals['display']>0, sj_no_withdrawals
             assert sj_no_withdrawals['localRows'] and sj_no_withdrawals['valid'] and sj_no_withdrawals['ordered'], sj_no_withdrawals
             assert sj_no_withdrawals['purchaseLocal'] and sj_no_withdrawals['meta']==BAIXAS_AUDIT['revisedRecords'], sj_no_withdrawals
-            assert sj_no_withdrawals['date']=='09/11/2026 10:29:10', sj_no_withdrawals
+            assert sj_no_withdrawals['date']=='09/11/2026 10:29:10', sj_no_withdrawals\n            assert page.locator('#sj-nw-scope').input_value()=='rede', 'Sao Joao deve iniciar sem baixas em toda a rede'
             page.locator('#sj-nw-sort').select_option('unitario')
             sorted_unit=page.evaluate("""() => [...document.querySelectorAll('#sj-nw-view tr[data-sj-nw-unit]')]
               .map(el=>Number(el.dataset.sjNwUnit)).every((x,i,a)=>!i||a[i-1]>=x)""")
@@ -1018,7 +1018,7 @@ with sync_playwright() as p:
               };
             }""")
             assert chua_no_withdrawals['rows']>0 and chua_no_withdrawals['localOnly'] and chua_no_withdrawals['noWithdrawals'], chua_no_withdrawals
-            assert chua_no_withdrawals['purchasesOnlyChua'] and chua_no_withdrawals['date']==chua_no_withdrawals['stockDate'], chua_no_withdrawals
+            assert chua_no_withdrawals['purchasesOnlyChua'] and chua_no_withdrawals['date']==chua_no_withdrawals['stockDate'], chua_no_withdrawals\n            assert page.locator('#sj-nw-scope').input_value()=='rede', 'Chua deve iniciar sem baixas em toda a rede'
             assert 'São João' not in page.locator('#sj-pilot-root').inner_text()
         results[name]['errors'] = errors.copy()
         page.close()

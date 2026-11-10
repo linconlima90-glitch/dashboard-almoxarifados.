@@ -21,7 +21,7 @@
   section.innerHTML = `
     <div class="ns-header">
       <h2>Estoque sem baixas registradas</h2>
-      <p>Produtos com saldo positivo, mas sem consumo registrado no período histórico disponível. A classificação é feita por almoxarifado, com opção de exigir ausência de baixas em toda a rede.</p>
+      <p>Visão padrão: produtos com saldo positivo e nenhuma baixa em toda a rede no histórico disponível. Para identificar materiais parados em um almoxarifado, mesmo quando utilizados em outras fazendas, selecione o filtro por local.</p>
     </div>
     <div class="ns-cards" aria-live="polite">
       <div class="ns-card"><span>Posições encontradas</span><strong id="ns-count">—</strong></div>
@@ -34,7 +34,7 @@
       <label>Almoxarifado<select id="ns-local"><option value="">Todos os locais</option></select></label>
       <label>Grupo de produto<select id="ns-group"><option value="">Todos os grupos</option></select></label>
       <label>Ordenar itens do grupo<select id="ns-order"><option value="valor">Maior valor em estoque</option><option value="unitario">Maior valor unitário</option><option value="quantidade">Maior quantidade em estoque</option><option value="compra">Última compra mais recente</option></select></label>
-      <label>Verificar baixas<select id="ns-scope"><option value="local">Sem baixa neste almoxarifado</option><option value="rede">Sem baixa em toda a rede</option></select></label>
+      <label>Verificar baixas<select id="ns-scope"><option value="rede">Sem baixa em toda a rede</option><option value="local">Sem baixa somente neste almoxarifado (pode ter uso em outros)</option></select></label>
       <button type="button" class="ns-export" id="ns-export">Exportar CSV</button>
     </div>
     <div class="ns-note" id="ns-note">A data da <b>última compra</b> representa a data informada na NF e não comprova recebimento físico. A posição de estoque é apresentada separadamente. Histórico anterior sem ano definido permanece sujeito à conciliação.</div>
@@ -174,7 +174,7 @@
     fillOptions('#ns-group', sourceRows.map(x=>x.grupo));
     dirty=false;
     window.STOCK_NO_WITHDRAWAL_META={
-      scope:'por almoxarifado',rows:sourceRows.length,semBaixaNaRede:sourceRows.filter(x=>!hasMovementsInNetwork.has(x.codigo)).length,
+      scope:'rede por padrao; por almoxarifado opcional',rows:sourceRows.length,semBaixaNaRede:sourceRows.filter(x=>!hasMovementsInNetwork.has(x.codigo)).length,
       excludedPending,excludedMixedUnits:mixedUnitsExcluded,stockDate:window.CURRENT_STOCK_META.emissao||'03/11/2026',
       historyStart:'14/03/2024',historyEnd:'03/11/2026',purchaseLatest:'29/10/2026'
     };
@@ -284,7 +284,7 @@
     const meta=window.STOCK_NO_WITHDRAWAL_META||{};
     const position=String(meta.stockDate||'03/11/2026');
     $('#ns-caption').textContent=`Posição de estoque: ${position} · ${renderedRows.length} posição(ões) · itens por ${getFilters().sort==='unitario'?'maior valor unitário':getFilters().sort==='quantidade'?'maior quantidade':getFilters().sort==='compra'?'última compra mais recente':'maior valor total'}`;
-    $('#ns-note').innerHTML=`<b>Critério:</b> saldo positivo e nenhuma baixa no escopo selecionado, dentro do histórico disponível (de 14/03/2024 a 03/11/2026; mínimo usa apenas 2025/2026). <b>Última compra:</b> data de NF, não data de entrada física. <b>Valor unitário:</b> custo unitário da posição de estoque, diferente do preço pago na última compra. <b>Estoque:</b> posição de ${esc(position)}. <b>Conciliação:</b> ${integer(excludedPending)} posições com histórico pendente e ${integer(mixedUnitsExcluded)} com baixas em outra unidade foram retiradas desta lista para evitar falso “nunca baixado”. Pneus, câmaras, lubrificantes e cimento são exibidos se atenderem ao critério. Quantidades de unidades distintas não são somadas.`;
+    $('#ns-note').innerHTML=`<b>Critério:</b> saldo positivo e nenhuma baixa no escopo selecionado. A opção 'toda a rede' exige ausência de consumo em qualquer unidade; a opção 'somente neste almoxarifado' pode incluir itens utilizados em outras fazendas. Histórico disponível (de 14/03/2024 a 03/11/2026; mínimo usa apenas 2025/2026). <b>Última compra:</b> data de NF, não data de entrada física. <b>Valor unitário:</b> custo unitário da posição de estoque, diferente do preço pago na última compra. <b>Estoque:</b> posição de ${esc(position)}. <b>Conciliação:</b> ${integer(excludedPending)} posições com histórico pendente e ${integer(mixedUnitsExcluded)} com baixas em outra unidade foram retiradas desta lista para evitar falso “nunca baixado”. Pneus, câmaras, lubrificantes e cimento são exibidos se atenderem ao critério. Quantidades de unidades distintas não são somadas.`;
     renderHierarchy(renderedRows);
     window.STOCK_NO_WITHDRAWAL_META.filteredRows=renderedRows.length;
     window.STOCK_NO_WITHDRAWAL_META.filteredValue=Math.round(sum*100)/100;

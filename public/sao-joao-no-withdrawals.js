@@ -4,7 +4,7 @@
   if (window.SJ_NO_WITHDRAWAL) return;
   const LOCAL_CODE = '50115';
   const LOCAL_NAME = 'ALMOXARIFADO GERAL F SJ';
-  const state = { query:'', group:'', sort:'valor', scope:'local', limit:100 };
+  const state = { query:'', group:'', sort:'valor', scope:'rede', limit:100 };
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const norm = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
   const money = v => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v)||0);
@@ -98,7 +98,7 @@
     }).join('');
     const groups=options(source.map(x=>x.grupo),state.group,'Todos os grupos');
     return '<section class="sj-section active" id="sj-nw-view">'+
-      '<div class="sj-hero"><h2>Estoque sem baixas — Sao Joao</h2><p>Produtos com saldo positivo sem saidas registradas no historico disponivel. Somente o Almoxarifado Sao Joao. Última compra indica a data da nota fiscal, nao o recebimento fisico.</p></div>'+
+      '<div class="sj-hero"><h2>Estoque sem baixas — Sao Joao</h2><p>Visao padrao: produtos sem baixas em toda a rede no historico disponivel. Tambem e possivel consultar a ausencia de baixas so neste almoxarifado. Somente o Almoxarifado Sao Joao. Última compra indica a data da nota fiscal, nao o recebimento fisico.</p></div>'+
       '<div class="sj-nw-kpis"><div class="sj-kpi"><div class="k">Posicoes sem baixas</div><div class="v">'+qty(rows.length)+'</div></div>'+
       '<div class="sj-kpi"><div class="k">Capital sem baixas</div><div class="v">'+money(total)+'</div></div>'+
       '<div class="sj-kpi"><div class="k">Sem compra identificada em Sao Joao</div><div class="v">'+qty(rows.filter(x=>!x.historyCount).length)+'</div></div></div>'+
