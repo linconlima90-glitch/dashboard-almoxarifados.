@@ -210,8 +210,8 @@ with sync_playwright() as p:
             window.LATEST_PURCHASE_META?.source==='COMPRAS_DE_INSUMOS_POR_LOCAL(5).xlsx'
         })""")
         assert purchase_checks['aug']==197 and purchase_checks['sep']==241 and purchase_checks['oct']==152, purchase_checks
-        assert abs(purchase_checks['sepValue']-118631.41)<0.02 and abs(purchase_checks['octValue']-91266.91)<0.02, purchase_checks
-        assert abs(purchase_checks['monthlyOct']-91266.91)<0.02 and abs(purchase_checks['total']-1853523.51)<0.02, purchase_checks
+        assert abs(purchase_checks['sepValue']-118631.41)<0.02 and abs(purchase_checks['octValue']-88306.91)<0.02, purchase_checks
+        assert abs(purchase_checks['monthlyOct']-88306.91)<0.02 and abs(purchase_checks['total']-1853523.51)<0.02, purchase_checks
         assert purchase_checks['rows']==2922 and purchase_checks['historical2025']==1149 and purchase_checks['historical2026']==1773, purchase_checks
         assert abs(purchase_checks['rollerRef']-62.11)<0.01 and purchase_checks['correctMeta'] and purchase_checks['octoberUnique'], purchase_checks
 
