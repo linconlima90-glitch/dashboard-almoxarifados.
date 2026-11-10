@@ -209,6 +209,8 @@ with sync_playwright() as p:
             window.LATEST_PURCHASE_META?.sourceRows===2922 &&
             window.LATEST_PURCHASE_META?.source==='COMPRAS_DE_INSUMOS_POR_LOCAL(5).xlsx'
         })""")
+        if purchase_checks['rows']!=2922:
+            print('PURCHASE DEBUG',name,'ERRORS',errors,'DELTA',page.evaluate("""() => ({delta:window.DB_PURCHASES_20261110_DELTA?.meta, audited:window.DB_AUDITED_PURCHASE_META, latest:window.LATEST_PURCHASE_META, loaded:window.DB_AUDITED_PURCHASE_READY})"""),flush=True)
         assert purchase_checks['aug']==197 and purchase_checks['sep']==241 and purchase_checks['oct']==152, purchase_checks
         assert abs(purchase_checks['sepValue']-118631.41)<0.02 and abs(purchase_checks['octValue']-88306.91)<0.02, purchase_checks
         assert abs(purchase_checks['monthlyOct']-88306.91)<0.02 and abs(purchase_checks['total']-1853523.51)<0.02, purchase_checks
