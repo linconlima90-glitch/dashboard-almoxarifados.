@@ -243,6 +243,12 @@ with sync_playwright() as p:
                 cards};
             }""")
             print('OVERVIEW_AUDIT_20261110',audit_summary,flush=True)
+            print('OVERVIEW_FUNCTIONS_20261110',page.evaluate("""() => ({
+              renderOverview: typeof renderOverview==='function'?renderOverview.toString().slice(0,13000):'absent',
+              productFiltered:typeof productFiltered==='function'?productFiltered.toString().slice(0,3000):'absent',
+              stockFiltered:typeof stockFiltered==='function'?stockFiltered.toString().slice(0,2500):'absent'
+            })"""),flush=True)
+
         if optimized and name=='fast':
             page.wait_for_function("window.DB_APPROVED_COST_COMPARISON?.ready===true && window.DB_UNIFIED_ECONOMY?.ready===true", timeout=20000)
             economy=page.evaluate("""() => ({
