@@ -91,7 +91,7 @@ export function applyBaixasNegociacao20261106(root,out) {
     seenDay09.add(documentKey);checkedDay09Cents+=cents;
     const li=getLocalIndex(codeLocal);
     assert.equal(String(dict.local[li][1]),String(local),'Divergencia cadastro local ERP');
-    const fi=dict.company.findIndex(v=>String(v)===String(company));
+    const fi=dict.company.findIndex(v=>Number(v)===Number(company));
     assert(fi>=0,'Empresa fiscal ausente: '+company);
     const gi=indexOrAppend(dict.group,group);
     let pi=productIndex.get(String(code));
