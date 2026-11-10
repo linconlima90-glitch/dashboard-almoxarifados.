@@ -784,7 +784,8 @@ with sync_playwright() as p:
                 if order=='unitario':
                     assert sorted_group['heading'] and sorted_group['caption'], sorted_group
 
-            page.locator('#ns-scope').select_option('rede')
+            page.locator('#ns-scope').evaluate("(el)=>{el.value='rede';el.dispatchEvent(new Event('change',{bubbles:true}));}")
+            page.wait_for_function("window.STOCK_NO_WITHDRAWAL_META.filteredRows < window.STOCK_NO_WITHDRAWAL.getRows().length", timeout=10000)
             strict=page.evaluate("""() => {
               const moved=new Set([...MOVEMENTS,...MOVEMENTS_YEARLY].filter(x=>
                 Number(x.total)>0||Number(x.complete_total)>0||(x.months||[]).some(q=>Number(q)>0))
