@@ -218,6 +218,32 @@ with sync_playwright() as p:
         assert abs(purchase_checks['rollerRef']-62.11)<0.01 and purchase_checks['correctMeta'] and purchase_checks['octoberUnique'], purchase_checks
 
         if optimized and name=='fast':
+            audit_summary=page.evaluate("""() => {
+              const key=x=>String(x.codigo)+'|'+String(x.un||'');
+              const stockSku=new Set(STOCK.map(key)),purchaseSku=new Set(PURCHASES.map(key));
+              const code=new Set(STOCK.map(x=>String(x.codigo)));
+              const withHist=[...stockSku].filter(x=>purchaseSku.has(x));
+              const withoutHist=[...stockSku].filter(x=>!purchaseSku.has(x));
+              const suppliers=new Set(PURCHASES.map(x=>String(x.fornecedor||'')).filter(Boolean));
+              const sum=a=>a.reduce((s,x)=>s+Number(x||0),0);
+              const cards=[...document.querySelectorAll('.card')].map(x=>({label:x.querySelector('.k')?.textContent?.trim(),value:x.querySelector('.v')?.textContent?.trim()})).filter(x=>x.label);
+              return {stockRows:STOCK.length, stockDistinctCodes:code.size, stockDistinctSku:stockSku.size,
+                purchaseRows:PURCHASES.length,purchaseDistinctSku:purchaseSku.size,
+                productsRows:PRODUCTS.length,productsWithPrice:PRODUCTS.filter(x=>Number(x.registros)>0).length,
+                productsWithoutPrice:PRODUCTS.filter(x=>!(Number(x.registros)>0)).length,
+                intersection:withHist.length,noHistory:withoutHist.length,
+                stockRowsWithPurchase:STOCK.filter(x=>purchaseSku.has(key(x))).length,
+                stockRowsWithoutPurchase:STOCK.filter(x=>!purchaseSku.has(key(x))).length,
+                suppliers:SUPPLIERS.length,distinctSupplierNames:suppliers.size,
+                stockPriceVarOver50:new Set(STOCK.filter(x=>Number(x.variacao)>.5).map(key)).size,
+                productsPriceVarOver50:PRODUCTS.filter(x=>Number(x.variacao)>.5).length,
+                stockDiff:sum(STOCK.map(x=>x.dif_estoque_min)),
+                stockDiffNoTires:sum(STOCK.filter(x=>!window.DB_IS_TIRE_OR_CAMERA(x)).map(x=>x.dif_estoque_min)),
+                priceMinMatching:STOCK.filter(x=>Number(x.min_preco)>0).length,
+                cards};
+            }""")
+            print('OVERVIEW_AUDIT_20261110',audit_summary,flush=True)
+        if optimized and name=='fast':
             page.wait_for_function("window.DB_APPROVED_COST_COMPARISON?.ready===true && window.DB_UNIFIED_ECONOMY?.ready===true", timeout=20000)
             economy=page.evaluate("""() => ({
                 cost:window.DB_APPROVED_COST_COMPARISON.summary,
