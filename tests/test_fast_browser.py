@@ -301,14 +301,14 @@ with sync_playwright() as p:
                 legacyHidden:getComputedStyle(document.querySelector('#barsBaixasLocais').closest('.panel')).display==='none',
                 localCount:new Set(visible.map(r=>local(r[1]))).size};
             }""")
-            assert erp['source']=='Dt.Neg.' and erp['meta']['cents']==254684892, erp
+            assert erp['source']=='Dt.Neg.' and erp['meta']['cents']==round(BAIXAS_AUDIT['totalValue']*100), erp
             assert erp['meta']['filteredCents']==erp['cost'] and erp['meta']['filteredRecords']==erp['count'], erp
             assert erp['meta']['localCount']==erp['localCount'] and erp['legacyHidden'], erp
             page.locator('.tab[data-view="baixas"]').evaluate('(el)=>el.click()')
             page.wait_for_function("document.querySelector('#view-baixas.active') !== null")
             page.locator('#dbx-period').select_option('2025-2026')
             year_cost=page.evaluate('window.DB_BAIXAS_ERP_CONFERIDO.getMeta().filteredCents')
-            assert year_cost==214247570, year_cost
+            assert year_cost==round(sum(BAIXAS_AUDIT['annual'][k]['value'] for k in ('2025','2026'))*100), year_cost
             page.locator('#dbx-period').select_option('all')
             assert page.locator('#db-baixas-erp-conferido').is_visible()
             assert page.locator('#dbx-group').is_disabled()
@@ -416,7 +416,7 @@ with sync_playwright() as p:
             page.wait_for_function("window.DB_STOCK_UNIFIED?.meta?.integrated===true", timeout=15000)
             meta4=page.evaluate("window.DB_STOCK_UNIFIED.meta")
             assert meta4['warehouseCount']>=9 and meta4['networkExcludedFromTotals'], meta4
-            assert meta4['stockDate']=='05/11/2026 19:19:46', meta4
+            assert meta4['stockDate']=='09/11/2026 10:29:10', meta4
             assert meta4['minimumMonths']==2 and meta4['months']==4, meta4
             assert meta4['physicalNeedItems']>0 and meta4['physicalNeedValue']>0, meta4
             assert meta4['physicalExcessItems']>=0 and meta4['physicalExcessValue']>=0, meta4
@@ -726,7 +726,7 @@ with sync_playwright() as p:
             assert no_withdrawals['locationsSorted'] and no_withdrawals['groupsSorted'], no_withdrawals
             assert all(no_withdrawals[x] for x in ['locationCounts','groupCounts','locationValues','groupValues']), no_withdrawals
             assert no_withdrawals['filtered']==no_withdrawals['rows'] and no_withdrawals['purchaseHistoryAvailable'], no_withdrawals
-            assert no_withdrawals['position']=='05/11/2026 19:19:46', no_withdrawals
+            assert no_withdrawals['position']=='09/11/2026 10:29:10', no_withdrawals
             assert no_withdrawals['header']=='Estoque sem baixas registradas' and no_withdrawals['groupLabel'], no_withdrawals
 
             def open_no_withdrawal_group(key):
@@ -919,7 +919,7 @@ with sync_playwright() as p:
             assert sj_no_withdrawals['rows']>0 and sj_no_withdrawals['display']>0, sj_no_withdrawals
             assert sj_no_withdrawals['localRows'] and sj_no_withdrawals['valid'] and sj_no_withdrawals['ordered'], sj_no_withdrawals
             assert sj_no_withdrawals['purchaseLocal'] and sj_no_withdrawals['meta']==BAIXAS_AUDIT['revisedRecords'], sj_no_withdrawals
-            assert sj_no_withdrawals['date']=='05/11/2026 19:19:46', sj_no_withdrawals
+            assert sj_no_withdrawals['date']=='09/11/2026 10:29:10', sj_no_withdrawals
             page.locator('#sj-nw-sort').select_option('unitario')
             sorted_unit=page.evaluate("""() => [...document.querySelectorAll('#sj-nw-view tr[data-sj-nw-unit]')]
               .map(el=>Number(el.dataset.sjNwUnit)).every((x,i,a)=>!i||a[i-1]>=x)""")
@@ -1023,7 +1023,7 @@ with sync_playwright() as p:
     assert results['fast']['stockRows'] == 4405, 'Unexpected stock positions'
     assert results['fastPilot']['stockRows'] == 4405, 'Unexpected Sao Joao stock positions'
     assert results['fastChuaPilot']['stockRows'] == 4405, 'Unexpected Chua stock positions'
-    assert abs(results['fast']['stockValue'] - 2300866.50) < 0.01, 'Unexpected stock value'
+    assert abs(results['fast']['stockValue'] - 2292215.23) < 0.01, 'Unexpected stock value'
     if snapshots['legacy'] != snapshots['fast']:
         for field in snapshots['legacy']:
             left, right = snapshots['legacy'][field], snapshots['fast'][field]
