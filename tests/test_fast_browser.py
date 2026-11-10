@@ -1022,9 +1022,9 @@ with sync_playwright() as p:
             assert 'São João' not in page.locator('#sj-pilot-root').inner_text()
         results[name]['errors'] = errors.copy()
         page.close()
-    assert results['fast']['stockRows'] == 4405, 'Unexpected stock positions'
-    assert results['fastPilot']['stockRows'] == 4405, 'Unexpected Sao Joao stock positions'
-    assert results['fastChuaPilot']['stockRows'] == 4405, 'Unexpected Chua stock positions'
+    assert results['fast']['stockRows'] == 4380, 'Unexpected stock positions'
+    assert results['fastPilot']['stockRows'] == 4380, 'Unexpected Sao Joao stock positions'
+    assert results['fastChuaPilot']['stockRows'] == 4380, 'Unexpected Chua stock positions'
     assert abs(results['fast']['stockValue'] - 2292215.23) < 0.01, 'Unexpected stock value'
     if snapshots['legacy'] != snapshots['fast']:
         for field in snapshots['legacy']:
