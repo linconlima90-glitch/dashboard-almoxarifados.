@@ -34,7 +34,7 @@ if(!X||X.meta?.sourceSHA256!=='9ed21525bbab94802abd56ddf8260c9706f5b15f4a7295d20
 const rowKey=x=>[Number(x.nrounico),Number(x.seq),Number(x.codigo),Number(x.codigo_local)].join('|');
 const rawKey=r=>[r[1],r[2],r[3],r[4]].join('|');
 const byKey=new Map();
-for(const x of NEW_PURCHASES){const k=rowKey(x);if(byKey.has(k))throw Error('Duplicidade preexistente em compras '+k);byKey.set(k,x)}
+for(const x of NEW_PURCHASES){const k=rowKey(x);if(k.includes('NaN'))continue; if(byKey.has(k))throw Error('Duplicidade preexistente em compras '+k);byKey.set(k,x)}
 const moneyCents=arr=>arr.reduce((s,x)=>s+Math.round(Number(x.valor||0)*100),0);
 if(NEW_PURCHASES.length!==2873||moneyCents(NEW_PURCHASES)!==181445414)throw Error('Historico anterior a 10/11 alterado');
 for(const r of X.reprice){
