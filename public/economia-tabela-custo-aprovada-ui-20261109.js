@@ -127,11 +127,55 @@
     };
     M.confirmation+=' Nova referencia aprovada do eletrodo 105090: R$ 24,235 por KG.';
   }
+
+  function applyPurchases1011(data){
+    const pkg=window.DB_PURCHASES_20261110_DELTA,M=data.meta,P=data.products,T=data.purchases;
+    if(!pkg||pkg.economy?.length!==28||pkg.meta.economyNewPaidCents!==1503593)
+      throw Error('Compras novas de 10/11 sem conciliacao do ERP');
+    if(P.length!==320||T.length!==381||M.purchaseCents!==21832862||
+       M.positiveCents!==9536764||M.negativeCents!==-486263||M.netCents!==9050501)
+      throw Error('Base original aprovada da Tabela Custo mudou');
+    const bySku=new Map(P.map(p=>[p[0],p]));
+    const docs=new Set(T.map(t=>[t[16],t[17],t[2],t[6]].join('|')));
+    for(const v of pkg.economy){
+      const [sku,date,code,desc,group,un,local,supplier,qty,paid,priceMicro,pos,neg,net,status,note,doc,seq,maxMicro,minMicro,maxDate,secondMax,refLine]=v;
+      const k=[doc,seq,code,local].join('|');
+      if(docs.has(k))throw Error('Compra em duplicidade na economia: '+k);
+      docs.add(k);
+      let p=bySku.get(sku);
+      if(!p){
+        p=new Array(20).fill(null);p[0]=sku;p[1]=code;p[2]=desc;p[3]=group;p[4]=un;
+        p[5]=minMicro;p[6]=maxMicro;p[7]=maxDate;p[8]=secondMax;p[9]=refLine;
+        p[14]=0;p[15]=0;p[16]=0;
+        P.push(p);bySku.set(sku,p);
+      }
+      if(maxMicro!=null&&p[6]!=null&&p[6]!==maxMicro)
+        throw Error('Referencia de custo inconsistente no produto '+sku);
+      if(p[6]==null&&maxMicro!=null)p[6]=maxMicro;
+      if(p[5]==null&&minMicro!=null)p[5]=minMicro;
+      p[14]=(p[14]||0)+pos;p[15]=(p[15]||0)+neg;p[16]=(p[16]||0)+net;
+      T.push([sku,date,code,desc,group,un,local,supplier,qty,paid,priceMicro,pos,neg,net,status,note,doc,seq,0,
+        maxMicro==null?'SEM REFERENCIA NA TABELA CUSTO':'REFERENCIA GERENCIAL',refLine,maxDate]);
+    }
+    M.purchaseLines=T.length;
+    M.purchaseCents=T.reduce((s,t)=>s+t[9],0);
+    M.positiveCents=T.reduce((s,t)=>s+(t[11]||0),0);
+    M.negativeCents=T.reduce((s,t)=>s+(t[12]||0),0);
+    M.netCents=M.positiveCents+M.negativeCents;
+    M.matchedLines=T.filter(t=>bySku.get(t[0])?.[6]!=null).length;
+    M.projectSkus=new Set(T.map(t=>t[0])).size;
+    M.localNames={...M.localNames,'50119':'São João · EPI (50119)','10101':'Local 10101'};
+    M.lastUpdated='10/11/2026';M.newPurchasesAudit=pkg.meta;
+    if(T.length!==409||M.purchaseCents!==23336455||M.positiveCents!==9873764||
+       M.negativeCents!==-584605||M.netCents!==9289159||docs.size!==409)
+      throw Error('Economia nao confere com os valores auditados de 10/11');
+  }
   function show(data){
     aplicarReferenciasAprovadas(data);
+    applyPurchases1011(data);
     const M=data.meta,P=data.products,T=data.purchases;
-    const ok=M.schemaVersion===2 && M.projectFrom==='2026-05-07' && P.length===320 && T.length===381 &&
-      M.purchaseCents===21832862 && M.positiveCents===9536764 && M.negativeCents===-486263 && M.netCents===9050501 &&
+    const ok=M.schemaVersion===2 && M.projectFrom==='2026-05-07' && P.length>=320 && T.length===409 &&
+      M.purchaseCents===23336455 && M.positiveCents===9873764 && M.negativeCents===-584605 && M.netCents===9289159 &&
       T.reduce((s,r)=>s+(r[9]||0),0)===M.purchaseCents &&
       T.reduce((s,r)=>s+(r[11]||0),0)===M.positiveCents &&
       T.reduce((s,r)=>s+(r[12]||0),0)===M.negativeCents &&
@@ -173,7 +217,7 @@
       ['Produto','Un.','Menor Tabela Custo','Maior válido','Dif. entre referências','Qtd. comprada','Valor comprado','Ganho favorável','Dif. desfavorável','Saldo do produto'].map(v=>'<th>'+esc(v)+'</th>').join(''),
       '</tr></thead><tbody id="ct-rows"></tbody></table></div>',
       '<div id="ct-proof" class="ct-paper" style="display:none"></div>',
-      '<p class="ct-foot">Fonte: Tabela Custo.xlsx (5.374 registros) + COMPRAS_DE_INSUMOS_POR_LOCAL(4).xlsx e bases históricas. 17 linhas de compras sem correspondência recebem ganho zero. A aba de auditoria mantém valores e datas do ERP, inclusive quando o custo máximo é posterior à compra.</p>',
+      '<p class="ct-foot">Fonte: Tabela Custo.xlsx (5.374 registros), compras consolidadas até 09/11 e nova remessa 10/11; duplicidades removidas, pneus e câmaras fora da economia. Sem referência válida, o ganho é zero. A aba de auditoria mantém valores e datas do ERP, inclusive quando o custo máximo é posterior à compra.</p>',
       '</div></details>',
       '<p class="ct-foot">A Tabela Custo original permanece intacta. A correção aprovada afeta apenas a base analítica, e a mesma diferença de negociação não é duplicada no CDI, no consumo próprio ou no estoque.</p>'
     ].join('');

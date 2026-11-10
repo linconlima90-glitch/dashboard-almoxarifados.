@@ -28,7 +28,7 @@
     '<header class="eu-heading"><div><span class="eu-kicker">GESTÃO DE ALMOXARIFADOS / VISÃO CONSOLIDADA</span>',
     '<h2 id="eu-title">Economias e reaproveitamento de materiais</h2>',
     '<p>Uma única visão do projeto aprovado em <b>07/05/2026</b>, com resultados de compras, CDI e realocações sem somar duas vezes o mesmo benefício.</p></div>',
-    '<span class="eu-asof">Base conferida em 09/11/2026</span></header>',
+    '<span class="eu-asof">Compras conciliadas em 10/11/2026</span></header>',
     '<div class="eu-filter-row">',
     '<label>Ano<select id="eu-year"><option value="">Todos os anos</option></select></label>',
     '<label>Local da compra / destino<select id="eu-local"><option value="">Todas as unidades</option></select></label>',

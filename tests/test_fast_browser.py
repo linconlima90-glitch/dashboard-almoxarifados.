@@ -215,6 +215,17 @@ with sync_playwright() as p:
         assert purchase_checks['rows']==2922 and purchase_checks['historical2025']==1149 and purchase_checks['historical2026']==1773, purchase_checks
         assert abs(purchase_checks['rollerRef']-62.11)<0.01 and purchase_checks['correctMeta'] and purchase_checks['octoberUnique'], purchase_checks
 
+        if optimized and name=='fast':
+            page.wait_for_function("window.DB_APPROVED_COST_COMPARISON?.ready===true && window.DB_UNIFIED_ECONOMY?.ready===true", timeout=20000)
+            economy=page.evaluate("""() => ({
+                cost:window.DB_APPROVED_COST_COMPARISON.summary,
+                unified:window.DB_UNIFIED_ECONOMY.summary(),
+                purchaseRows:window.DB_UNIFIED_ECONOMY.getPurchases().length
+            })""")
+            assert economy['cost']['purchaseLines']==409, economy
+            assert economy['cost']['purchaseCents']==23336455 and economy['cost']['netCents']==9289159, economy
+            assert economy['purchaseRows']==409 and economy['unified']['net']==9289159, economy
+
         snapshots[name] = page.evaluate(SNAPSHOT)
         results[name] = {
             'stockRows': len(snapshots[name]['stock']),
