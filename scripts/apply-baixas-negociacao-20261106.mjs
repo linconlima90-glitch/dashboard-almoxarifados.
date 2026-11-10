@@ -91,8 +91,14 @@ export function applyBaixasNegociacao20261106(root,out) {
     seenDay09.add(documentKey);checkedDay09Cents+=cents;
     const li=getLocalIndex(codeLocal);
     assert.equal(String(dict.local[li][1]),String(local),'Divergencia cadastro local ERP');
-    const fi=dict.company.findIndex(v=>Number(v)===Number(company));
-    assert(fi>=0,'Empresa fiscal ausente: '+company);
+    // O dicionario historico pode usar identificacao fiscal diferente da
+    // exportacao original: manter indice existente do proprio local/produto,
+    // como no complemento ERP de 06-07/11, sem criar empresa ficticia.
+    const directFi=dict.company.findIndex(v=>Number(v)===Number(company));
+    const existing=pack.dailyRows.find(x=>x[1]===li&&String(dict.product[x[3]]?.[0])===String(code));
+    const candidates=majorityCompany.get(li)||new Map();
+    const fi=directFi>=0?directFi:(existing?existing[2]:[...candidates].sort((a,b)=>b[1]-a[1])[0]?.[0]);
+    assert(fi!==undefined && fi>=0,'Empresa fiscal sem referencia historica no local: '+company+'/'+codeLocal);
     const gi=indexOrAppend(dict.group,group);
     let pi=productIndex.get(String(code));
     if(pi===undefined){pi=dict.product.length;dict.product.push([String(code),String(product),gi]);productIndex.set(String(code),pi)}
