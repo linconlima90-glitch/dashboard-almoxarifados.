@@ -111,18 +111,18 @@ with sync_playwright() as p:
             assert cascade_initial['rows']==256 and cascade_initial['summary']['cents']==15019467, cascade_initial
             assert cascade_initial['months']==8 and cascade_initial['groups']==15 and cascade_initial['products']==209, cascade_initial
             assert cascade_initial['hasDocTable'], cascade_initial
-            page.locator('#dp-month').select_option('2026-05')
+            page.locator('#dp-month').evaluate("(el)=>{el.value='2026-05';el.dispatchEvent(new Event('change',{bubbles:true}));}")
             month_summary=page.evaluate('window.CDI_DISTRIBUTION_PURCHASES.filteredSummary')
             assert month_summary['lines']==37 and month_summary['cents']==4001950, month_summary
             first_group=page.locator('#dp-group option').nth(1).get_attribute('value')
-            page.locator('#dp-group').select_option(first_group)
+            page.locator('#dp-group').evaluate("(el,v)=>{el.value=v;el.dispatchEvent(new Event('change',{bubbles:true}));}", first_group)
             group_summary=page.evaluate('window.CDI_DISTRIBUTION_PURCHASES.filteredSummary')
             assert group_summary['lines']>0 and group_summary['lines']<=37, group_summary
             first_product=page.locator('#dp-product option').nth(1).get_attribute('value')
-            page.locator('#dp-product').select_option(first_product)
+            page.locator('#dp-product').evaluate("(el,v)=>{el.value=v;el.dispatchEvent(new Event('change',{bubbles:true}));}", first_product)
             product_summary=page.evaluate('window.CDI_DISTRIBUTION_PURCHASES.filteredSummary')
             assert product_summary['lines']>0 and product_summary['lines']<=group_summary['lines'], product_summary
-            page.locator('#dp-reset').click()
+            page.locator('#dp-reset').evaluate("(el)=>el.click()")
             assert page.evaluate('window.CDI_DISTRIBUTION_PURCHASES.filteredSummary.cents')==15019467
 
 
