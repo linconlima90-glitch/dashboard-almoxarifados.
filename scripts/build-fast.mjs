@@ -73,7 +73,18 @@ source=source.replace(annualPending,'!x.network_scope&&MINIMUM_YEAR_PENDING_KEYS
 // a single non-segregated balance. Warn users not to add the two reorder figures.
 source=source.replace('O CDI Chua usa a demanda consolidada anual da rede com data exata;', 'O CDI usa a demanda consolidada da rede; o almoxarifado Chuá usa somente suas próprias baixas. Ambos compartilham o saldo ERP 30115; não somar as necessidades antes de separar o saldo;');
 
+
 source = applyPurchaseAnalyticsPolicy(source);
+// Os codigos ERP podem chegar ora como numero, ora como texto nas posicoes.
+// Normalizar apenas a CHAVE dos indicadores executivos, sem alterar o cadastro,
+// os filtros, as baixas, o estoque ou as referencias de compra.
+const overviewSkuAnchor="new Set(s.map(x=>x.codigo)).size";
+const overviewHistAnchor="for(const x of s.filter(x=>!window.DB_IS_TIRE_OR_CAMERA(x)))if(!bySku.has(x.codigo))bySku.set(x.codigo,x);";
+assert.equal(source.split(overviewSkuAnchor).length,2,'Contador principal de SKUs mudou');
+assert.equal(source.split(overviewHistAnchor).length,2,'Mapeamento de SKUs com historico mudou');
+source=source.replace(overviewSkuAnchor,"new Set(s.map(x=>String(x.codigo))).size")
+  .replace(overviewHistAnchor,"for(const x of s.filter(x=>!window.DB_IS_TIRE_OR_CAMERA(x))){const codigo=String(x.codigo);if(!bySku.has(codigo))bySku.set(codigo,x);}");
+
 
 // As granjas G Geriba e G S Cruz ainda nao fazem parte do controle de estoque.
 // Filtrar somente nas visualizacoes de baixas, mantendo as fontes historicas ERP.
