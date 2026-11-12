@@ -69,13 +69,19 @@ css.textContent=
 '#view-compras-programadas .pc-location summary{padding:12px;cursor:pointer;background:#fbfdfb;color:#155b31;font-weight:bold;display:flex;gap:12px;justify-content:space-between}'+
 '#view-compras-programadas .pc-location summary small{color:#617b69;font-size:10px;font-weight:normal}'+
 '#view-compras-programadas .pc-empty{padding:18px;color:#708277;text-align:center}'+
-'@media(max-width:1000px){#view-compras-programadas .pc-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}'+
+'#view-compras-programadas .pc-central-flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:12px 0}'+
+'#view-compras-programadas .pc-flow-step{border:1px solid #cfe2d4;background:#f4faf6;padding:12px 14px;border-radius:9px;min-width:0}'+
+'#view-compras-programadas .pc-flow-step b{display:block;color:#185e36;font-size:12px;margin:0 0 5px}'+
+'#view-compras-programadas .pc-flow-step span{display:block;color:#5d7665;font-size:10px;line-height:1.5}'+
+'#view-compras-programadas .pc-flow-step strong{display:block;margin-top:7px;font-size:17px;color:#135b34}'+
+'#view-compras-programadas .pc-route{font-size:10px;color:#4b6954;display:block;margin-top:4px}'+
+'@media(max-width:1000px){#view-compras-programadas .pc-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#view-compras-programadas .pc-central-flow{grid-template-columns:1fr}}'+
 '@media(max-width:600px){#view-compras-programadas .pc-kpis{grid-template-columns:1fr}#view-compras-programadas .pc-filters label{width:100%}}';
 document.head.appendChild(css);
-view.innerHTML='<div class="pc-head"><h2>Compras Programadas · Rede DB</h2>'+
-'<p>Projeção para 2 meses, em duas entregas. A Chuá e o CDI compartilham um único saldo físico 30115: '+
-'primeiro é reservada a demanda da fazenda e somente o restante pode abastecer as demais unidades. '+
-'Não são emitidos pedidos automaticamente.</p></div>'+
+view.innerHTML='<div class="pc-head"><h2>Compras Programadas · CDI de Peças</h2>'+
+'<p>Compra centralizada a cada 2 meses: <b>todos os pedidos e recebimentos são destinados ao CDI de Peças, local ERP 30115 '+
+'(Almoxarifado Geral da Fazenda Chuá)</b>. O CDI recebe os materiais, reserva a necessidade de consumo próprio da Chuá '+
+'e programa a distribuição para as demais fazendas. Não é compra direta para cada unidade; não há emissão automática de pedidos.</p></div>'+
 '<div class="pc-filters"><span class="pc-filter-label">Filtro em cascata · 1. Fazenda → 2. Grupo → 3. Produto</span>'+
 '<label class="pc-cascade">1. Fazenda<select id="pc-local"><option value="">Toda a rede</option></select></label>'+
 '<label class="pc-cascade">2. Grupo<select id="pc-group"><option value="">Todos os grupos</option></select></label>'+
@@ -85,9 +91,9 @@ view.innerHTML='<div class="pc-head"><h2>Compras Programadas · Rede DB</h2>'+
 '<label>Entrega 1<input id="pc-date1" type="date"></label><label>Entrega 2<input id="pc-date2" type="date"></label>'+
 '<label class="pc-toggle"><input id="pc-other" type="checkbox" checked> Usar excedentes confiáveis de outras fazendas</label>'+
 '<label class="pc-toggle"><input id="pc-urgent-only" type="checkbox"> Somente itens prioritários</label>'+
-'<button type="button" class="pc-btn pc-primary" id="pc-export">Exportar compra consolidada</button>'+
-'<button type="button" class="pc-btn" id="pc-export-farm">Exportar por fazenda</button>'+
-'<button type="button" class="pc-btn" id="pc-export-transfer">Exportar transferências</button></div>'+
+'<button type="button" class="pc-btn pc-primary" id="pc-export">Exportar pedido para CDI 30115</button>'+
+'<button type="button" class="pc-btn" id="pc-export-farm">Exportar distribuição por fazenda</button>'+
+'<button type="button" class="pc-btn" id="pc-export-transfer">Exportar transferências de saldos atuais</button></div>'+
 '<div id="pc-overview"></div><div id="pc-details"></div>';
 const $=s=>view.querySelector(s);
 $('#pc-date1').value=state.date1;$('#pc-date2').value=state.date2;
@@ -167,7 +173,9 @@ function compute(){
         }
       }
     }
-    e.gross=0;e.fromChua=0;e.fromOther=0;e.buy=0;e.first=0;e.second=0;e.needLocations=[];
+    e.gross=0;e.fromChua=0;e.fromOther=0;e.buy=0;e.first=0;e.second=0;
+    e.toChua=0;e.toNetwork=0;e.toChuaFirst=0;e.toChuaSecond=0;e.toNetworkFirst=0;e.toNetworkSecond=0;
+    e.needLocations=[];
     for(const x of locations){
       x.buy=Math.max(0,round(x.pending,e.un));x.price=e.price;
       const postTransfer=x.stock+x.receivedChua+x.receivedOther;
@@ -175,6 +183,11 @@ function compute(){
       x.second=Math.max(0,round(x.buy-x.first,e.un));
       e.gross+=x.needed;e.fromChua+=x.receivedChua;e.fromOther+=x.receivedOther;
       e.buy+=x.buy;e.first+=x.first;e.second+=x.second;
+      if(x.codeLocal==='30115'){
+        e.toChua+=x.buy;e.toChuaFirst+=x.first;e.toChuaSecond+=x.second;
+      }else{
+        e.toNetwork+=x.buy;e.toNetworkFirst+=x.first;e.toNetworkSecond+=x.second;
+      }
       if(x.needed>0)e.needLocations.push(x);
       let loc=localSummary.get(x.local);
       if(!loc){loc={name:x.local,rows:[],value:0,buy:0,received:0};localSummary.set(x.local,loc)}
@@ -187,12 +200,17 @@ function compute(){
       e.urgent=e.first>0;lines.push(e)}
   }
   lines.sort((a,b)=>Number(b.urgent)-Number(a.urgent)||b.buy*b.price-a.buy*a.price||a.code.localeCompare(b.code,'pt-BR'));
-  const totals={gross:0,chua:0,others:0,buy:0,first:0,second:0,missing:0,urgent:0,review:review.length,reviewStock:0};
+  const totals={gross:0,chua:0,others:0,buy:0,first:0,second:0,missing:0,urgent:0,
+    reserveChua:0,distributeNetwork:0,reserveFirst:0,reserveSecond:0,networkFirst:0,networkSecond:0,
+    review:review.length,reviewStock:0};
   // Incluir tambem codigos 100% supridos por transferencia, para que o
   // resumo feche: falta bruta = CDI + outras transferencias + compra liquida.
   for(const e of allSkus){
     totals.gross+=e.gross*e.price;totals.chua+=e.fromChua*e.price;totals.others+=e.fromOther*e.price;
     totals.buy+=e.buy*e.price;totals.first+=e.first*e.price;totals.second+=e.second*e.price;
+    totals.reserveChua+=e.toChua*e.price;totals.distributeNetwork+=e.toNetwork*e.price;
+    totals.reserveFirst+=e.toChuaFirst*e.price;totals.reserveSecond+=e.toChuaSecond*e.price;
+    totals.networkFirst+=e.toNetworkFirst*e.price;totals.networkSecond+=e.toNetworkSecond*e.price;
     if(e.buy>0&&e.urgent)totals.urgent++;if(e.buy>0&&!e.price)totals.missing++;
   }
   totals.reviewStock=review.reduce((v,x)=>v+x.value,0);
@@ -244,6 +262,42 @@ function transferInScope(x){
 }
 const edited=e=>{const checked=state.selected.get(e.id)!==false,q=checked?(state.override.has(e.id)?state.override.get(e.id):e.buy):0,
   final=Math.max(0,round(q,e.un)),first=Math.min(final,e.first);return {checked,final,first,second:Math.max(0,round(final-first,e.un)),value:final*e.price}};
+
+const CENTRAL_CDI_LOCAL='30115';
+const CENTRAL_CDI_NAME='ALMOXARIFADO GERAL F CHUA / CDI DE PEÇAS';
+const CENTRAL_CDI_FISCAL='Empresa 003 - Fazenda Chuá (confirmar com o faturamento)';
+function allocationFor(e){
+  // Um unico pedido para 30115; o mesmo recebimento se desdobra em
+  // reserva de consumo proprio Chua e transferencia TOP 94 para outras unidades.
+  // Quantidades alteradas pelo usuario sao distribuidas em ordem de prioridade.
+  const a=edited(e);
+  const dest=e.needLocations.filter(x=>x.buy>0).slice().sort((x,y)=>
+    Number(x.codeLocal!=='30115')-Number(y.codeLocal!=='30115')||
+    Number(y.first>0)-Number(x.first>0)||(x.coverage??999)-(y.coverage??999)||
+    y.buy-x.buy||x.local.localeCompare(y.local,'pt-BR'));
+  const rows=dest.map(x=>({id:x.id,sku:e.id,code:e.code,product:e.product,group:e.group,
+    local:x.local,localCode:x.codeLocal,unit:e.un,kind:x.codeLocal==='30115'?'RESERVA INTERNA CHUA':'DISTRIBUIR DO CDI',
+    first:0,second:0,total:0,planned:x.buy,price:e.price,historyMonths:x.active,
+    currentStock:x.stock,localTarget:x.target60}));
+  let remainingFirst=a.first,remainingSecond=a.second;
+  for(let i=0;i<dest.length;i++){
+    const q=Math.max(0,round(Math.min(remainingFirst,dest[i].first),e.un));
+    rows[i].first=q;remainingFirst=round(remainingFirst-q,e.un);
+  }
+  for(let i=0;i<dest.length;i++){
+    const q=Math.max(0,round(Math.min(remainingSecond,dest[i].second),e.un));
+    rows[i].second=q;remainingSecond=round(remainingSecond-q,e.un);
+    rows[i].total=round(rows[i].first+rows[i].second,e.un);
+  }
+  // Compra acima da demanda calculada fica no CDI como saldo a alocar,
+  // NUNCA e distribuida automaticamente.
+  const surplus=round(remainingFirst+remainingSecond,e.un);
+  const reserve=round(rows.filter(x=>x.localCode==='30115').reduce((v,x)=>v+x.total,0),e.un);
+  const distribute=round(rows.filter(x=>x.localCode!=='30115').reduce((v,x)=>v+x.total,0),e.un);
+  const uncovered=round(dest.reduce((v,x,i)=>v+Math.max(0,round(x.buy-rows[i].total,e.un)),0),e.un);
+  return {...a,rows,reserve,distribute,surplus,uncovered,
+    reconciled:Math.abs(a.final-reserve-distribute-surplus)<0.02};
+}
 const csvField=v=>'"'+str(v??'').replace(/"/g,'""')+'"';
 function csv(name,data){const content='\ufeff'+data.map(row=>row.map(csvField).join(';')).join('\r\n'),
   url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');
