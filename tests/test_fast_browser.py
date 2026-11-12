@@ -813,6 +813,27 @@ with sync_playwright() as p:
             }""")
             assert allocations and all(x['ok'] and x['internal'] and x['external'] for x in allocations),allocations
             assert page.get_by_text('1. Pedido centralizado para CDI · local 30115').count()==1
+            purchase_hierarchy=page.evaluate("""() => {
+              const m=window.DB_PROGRAMMED_PURCHASES.meta;
+              const groups=[...document.querySelectorAll('#view-compras-programadas [data-pc-purchase-group]')];
+              const items=window.DB_PROGRAMMED_PURCHASES.getPlan().lines;
+              const total=items.reduce((v,x)=>v+x.buy*x.price,0);
+              return {hierarchy:m.purchaseHierarchy,groups:m.purchaseGroups,itemCount:m.groupedPurchaseItemCount,
+                value:m.groupedPurchaseValue,networkValue:m.purchaseValue,groupElements:groups.length,
+                oneOpen:groups.some(g=>g.querySelector('[data-pc-purchase-toggle]')?.getAttribute('aria-expanded')==='true'),
+                expected:total};
+            }""")
+            assert purchase_hierarchy['hierarchy']==['Grupo','Item'],purchase_hierarchy
+            assert purchase_hierarchy['groups']==purchase_hierarchy['groupElements']>0,purchase_hierarchy
+            assert purchase_hierarchy['itemCount']>0 and purchase_hierarchy['oneOpen'],purchase_hierarchy
+            assert abs(purchase_hierarchy['value']-purchase_hierarchy['expected'])<0.05,purchase_hierarchy
+            first_group=page.locator('#view-compras-programadas [data-pc-purchase-group]').first
+            first_group.locator('[data-pc-purchase-toggle]').click()
+            assert first_group.locator('[data-pc-purchase-toggle]').get_attribute('aria-expanded')=='false'
+            assert first_group.locator('[data-pc-qty]').count()==0
+            first_group.locator('[data-pc-purchase-toggle]').click()
+            assert first_group.locator('[data-pc-purchase-toggle]').get_attribute('aria-expanded')=='true'
+            assert first_group.locator('[data-pc-qty]').count()>0
             assert page.get_by_text('2. Destinação do material comprado no CDI').count()==1
             assert page.locator('#view-compras-programadas .pc-central-flow .pc-flow-step').count()==3
             assert abs(programmed['grossValue']-programmed['chuaTransferValue']-
