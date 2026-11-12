@@ -135,7 +135,7 @@ function compute(){
     const chua=locations.find(x=>x.codeLocal==='30115');
     const requests=locations.filter(x=>x.needed>0).sort((a,b)=>(a.stock===0?-1:0)-(b.stock===0?-1:0)||
       (a.coverage??999)-(b.coverage??999)||b.needed-a.needed);
-    if(chua&&chua.stock>chua.target60&&!chua.mixed){
+    if(chua&&chua.valid&&chua.stock>chua.target60){
       let free=round(chua.stock-chua.target60,e.un);
       for(const x of requests){if(x===chua||free<=0)continue;
         const q=Math.max(0,round(Math.min(free,x.pending),e.un));if(!q)continue;
@@ -176,9 +176,13 @@ function compute(){
   }
   lines.sort((a,b)=>Number(b.urgent)-Number(a.urgent)||b.buy*b.price-a.buy*a.price||a.code.localeCompare(b.code,'pt-BR'));
   const totals={gross:0,chua:0,others:0,buy:0,first:0,second:0,missing:0,urgent:0,review:review.length,reviewStock:0};
-  for(const e of lines){totals.gross+=e.gross*e.price;totals.chua+=e.fromChua*e.price;totals.others+=e.fromOther*e.price;
+  // Incluir tambem codigos 100% supridos por transferencia, para que o
+  // resumo feche: falta bruta = CDI + outras transferencias + compra liquida.
+  for(const e of allSkus){
+    totals.gross+=e.gross*e.price;totals.chua+=e.fromChua*e.price;totals.others+=e.fromOther*e.price;
     totals.buy+=e.buy*e.price;totals.first+=e.first*e.price;totals.second+=e.second*e.price;
-    if(e.urgent)totals.urgent++;if(!e.price)totals.missing++;}
+    if(e.buy>0&&e.urgent)totals.urgent++;if(e.buy>0&&!e.price)totals.missing++;
+  }
   totals.reviewStock=review.reduce((v,x)=>v+x.value,0);
   return {lines,totals,transfers,review,localSummary:[...localSummary.values()].filter(x=>x.rows.length).sort((a,b)=>b.value-a.value),
     stockDate:str(window.CURRENT_STOCK_META?.emissao),months:22,period:'01/01/2025 a 31/10/2026',cdiUnique:true,skusCount:allSkus.length};
