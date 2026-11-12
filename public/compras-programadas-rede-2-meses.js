@@ -7,7 +7,7 @@ if(!tabs||!wrap)return;
 const tab=document.createElement('button');tab.type='button';tab.className='tab';
 tab.dataset.view='compras-programadas';tab.textContent='Compras Programadas · 2 meses';tabs.appendChild(tab);
 const view=document.createElement('section');view.id='view-compras-programadas';view.className='view';wrap.appendChild(view);
-const state={query:'',local:'',group:'',product:'',onlyUrgent:false,otherTransfers:true,limit:100,selected:new Map(),override:new Map(),purchaseOpen:new Set(),destinationOpen:new Set(),purchaseShown:new Map(),destinationShown:new Map(),purchaseInitialized:false,destinationInitialized:false,dirty:true,plan:null};
+const state={query:'',local:'',group:'',product:'',onlyUrgent:false,otherTransfers:true,deliveryMode:'two',limit:100,selected:new Map(),override:new Map(),purchaseOpen:new Set(),destinationOpen:new Set(),purchaseShown:new Map(),destinationShown:new Map(),purchaseInitialized:false,destinationInitialized:false,dirty:true,plan:null};
 const num=x=>Number(x)||0,str=x=>String(x??''),norm=x=>str(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
 const esc=x=>str(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const cash=x=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(num(x));
@@ -42,6 +42,8 @@ css.textContent=
 '#view-compras-programadas .pc-scope-note{color:#5d7564;font-size:10px;margin:8px 2px 0;line-height:1.5}'+
 '#view-compras-programadas .pc-count{color:#355b42;font-weight:bold;font-size:11px}'+
 '#view-compras-programadas .pc-filters .pc-toggle{flex-direction:row;align-items:center;min-height:36px;max-width:240px;line-height:1.5}'+
+'#view-compras-programadas.pc-single-delivery .pc-second-delivery{display:none!important}'+
+'#view-compras-programadas .pc-delivery-policy{border:1px solid #cbe4d2;background:#f2faf4;border-radius:8px;color:#1c6338;font-size:11px;padding:9px 13px;margin:12px 0;line-height:1.55}'+
 '#view-compras-programadas button.pc-btn{border:1px solid #bfd7c5;background:#e9f5ed;color:#145d33;border-radius:7px;padding:10px;cursor:pointer;font-size:11px;font-weight:bold}'+
 '#view-compras-programadas button.pc-btn:hover{background:#d8eddf}'+
 '#view-compras-programadas button.pc-primary{background:#16633a;color:white;border-color:#16633a}'+
@@ -103,7 +105,10 @@ view.innerHTML='<div class="pc-head"><h2>Compras Programadas · CDI de Peças</h
 '<label class="pc-cascade pc-product-filter">3. Produto<select id="pc-product"><option value="">Todos os produtos</option></select></label>'+
 '<label class="pc-search">Busca adicional<input id="pc-query" type="search" placeholder="Código, produto ou unidade"></label>'+
 '<button type="button" class="pc-btn" id="pc-clear">Limpar filtros</button>'+
-'<label>Entrega 1<input id="pc-date1" type="date"></label><label>Entrega 2<input id="pc-date2" type="date"></label>'+
+'<label>Forma de entrega<select id="pc-delivery-mode"><option value="two">Duas entregas (30 + 30 dias)</option>'+
+'<option value="single">Entrega única (60 dias)</option></select></label>'+
+'<label id="pc-date1-wrap"><span id="pc-date1-label">Entrega 1</span><input id="pc-date1" type="date"></label>'+
+'<label id="pc-date2-wrap" class="pc-second-delivery">Entrega 2<input id="pc-date2" type="date"></label>'+
 '<label class="pc-toggle"><input id="pc-other" type="checkbox" checked> Usar excedentes confiáveis de outras fazendas</label>'+
 '<label class="pc-toggle"><input id="pc-urgent-only" type="checkbox"> Somente itens prioritários</label>'+
 '<button type="button" class="pc-btn pc-primary" id="pc-export">Exportar pedido para CDI 30115</button>'+
@@ -112,6 +117,13 @@ view.innerHTML='<div class="pc-head"><h2>Compras Programadas · CDI de Peças</h
 '<div id="pc-overview"></div><div id="pc-details"></div>';
 const $=s=>view.querySelector(s);
 $('#pc-date1').value=state.date1;$('#pc-date2').value=state.date2;
+function syncDeliveryForm(){
+  $('#pc-delivery-mode').value=state.deliveryMode;
+  $('#pc-date1-label').textContent=state.deliveryMode==='single'?'Entrega única':'Entrega 1';
+  view.classList.toggle('pc-single-delivery',state.deliveryMode==='single');
+  $('#pc-date2').disabled=state.deliveryMode==='single';
+}
+syncDeliveryForm();
 const ready=()=>typeof STOCK!=='undefined'&&Array.isArray(STOCK)&&
   typeof MOVEMENTS_YEARLY!=='undefined'&&Array.isArray(MOVEMENTS_YEARLY)&&
   !!window.CURRENT_STOCK_META&&window.MOVEMENTS_REVISED_META?.forMinimum?.months===22;
@@ -275,8 +287,18 @@ function transferInScope(x){
     (!state.product||x.sku===state.product)&&
     (!needle||norm([x.code,x.product,x.group,x.dest].join(' ')).includes(needle));
 }
-const edited=e=>{const checked=state.selected.get(e.id)!==false,q=checked?(state.override.has(e.id)?state.override.get(e.id):e.buy):0,
-  final=Math.max(0,round(q,e.un)),first=Math.min(final,e.first);return {checked,final,first,second:Math.max(0,round(final-first,e.un)),value:final*e.price}};
+// A cobertura continua sendo de 60 dias. A escolha altera apenas o
+// fracionamento das entregas, nunca a quantidade líquida total a comprar.
+const isSingleDelivery=()=>state.deliveryMode==='single';
+const firstQty=x=>isSingleDelivery()?x.buy:x.first;
+const secondQty=x=>isSingleDelivery()?0:x.second;
+const edited=e=>{
+  const checked=state.selected.get(e.id)!==false;
+  const q=checked?(state.override.has(e.id)?state.override.get(e.id):e.buy):0;
+  const final=Math.max(0,round(q,e.un));
+  const first=isSingleDelivery()?final:Math.min(final,e.first);
+  return {checked,final,first,second:Math.max(0,round(final-first,e.un)),value:final*e.price};
+};
 
 const CENTRAL_CDI_LOCAL='30115';
 const CENTRAL_CDI_NAME='ALMOXARIFADO GERAL F CHUA / CDI DE PEÇAS';
@@ -296,7 +318,8 @@ function allocationFor(e){
     currentStock:x.stock,localTarget:x.target60}));
   let remainingFirst=a.first,remainingSecond=a.second;
   for(let i=0;i<dest.length;i++){
-    const q=Math.max(0,round(Math.min(remainingFirst,dest[i].first),e.un));
+    const capacity=isSingleDelivery()?dest[i].buy:dest[i].first;
+    const q=Math.max(0,round(Math.min(remainingFirst,capacity),e.un));
     rows[i].first=q;remainingFirst=round(remainingFirst-q,e.un);
   }
   for(let i=0;i<dest.length;i++){
@@ -321,6 +344,10 @@ function redraw(){
   if(!ready()){$('#pc-overview').innerHTML='<div class="pc-note">Preparando histórico e estoque. Reabra esta aba após carregar a plataforma.</div>';return}
   if(state.dirty||!state.plan){state.plan=compute();state.dirty=false;refreshCascade()}
   const p=state.plan,t=p.totals,filtered=p.lines.filter(inScope);
+  const single=isSingleDelivery();
+  const plannedFirst=single?t.buy:t.first,plannedSecond=single?0:t.second;
+  const firstLabel=single?'Entrega única · 60 dias':'1ª entrega · primeiro mês';
+  const secondDate=single?'':state.date2;
   const localRows=p.localSummary.flatMap(l=>l.rows).filter(localInScope);
   const scope=localRows.reduce((a,x)=>{a.gross+=x.needed*x.price;a.chua+=x.receivedChua*x.price;
     a.other+=x.receivedOther*x.price;a.buy+=x.buy*x.price;a.first+=x.first*x.price;
@@ -338,15 +365,21 @@ function redraw(){
     card('Atendimento pelo estoque livre Chuá/CDI',cash(t.chua),'Reserva própria da Chuá preservada')+
     card('Excedentes confiáveis de outras unidades',cash(t.others),'Transferências sugeridas')+
     card('Comprar e receber no CDI 30115 · 60 dias',cash(t.buy),integer(p.lines.length)+' produtos para cotar',true)+
-    card('1ª entrega · primeiro mês',cash(t.first),esc(state.date1))+
-    card('2ª entrega · completar 60 dias',cash(t.second),esc(state.date2))+
+    card(firstLabel,cash(plannedFirst),esc(state.date1))+
+    '<div class="pc-second-delivery">'+card('2ª entrega · completar 60 dias',cash(plannedSecond),esc(state.date2))+'</div>'+
     card('Compra ao CDI após ajustes',cash(chosen.value),integer(chosen.items)+' produtos selecionados',true)+
     card('Pendências para análise',integer(t.review),integer(t.missing)+' produtos sem custo de referência')+
     '</div><div class="pc-central-flow">'+
-    '<div class="pc-flow-step"><b>1. Compra e recebimento central</b><span>Pedido único destinado ao CDI de Peças · ERP 30115. Duas entregas previstas.</span><strong>'+cash(t.buy)+'</strong></div>'+
+    '<div class="pc-flow-step"><b>1. Compra e recebimento central</b><span>Pedido único destinado ao CDI de Peças · ERP 30115. '+
+    (single?'Uma entrega para toda a cobertura de 60 dias.':'Duas entregas previstas.')+'</span><strong>'+cash(t.buy)+'</strong></div>'+
     '<div class="pc-flow-step"><b>2. Reserva para consumo da Chuá</b><span>Parte da compra que recompõe a demanda local, sem transferir para outra empresa.</span><strong>'+cash(t.reserveChua)+'</strong></div>'+
     '<div class="pc-flow-step"><b>3. Distribuição às demais fazendas</b><span>Parcela comprada para posterior transferência a partir do CDI, sujeita à TOP 94.</span><strong>'+cash(t.distributeNetwork)+'</strong></div>'+
-    '</div><div class="pc-note"><b>Após ajustes manuais:</b> reserva Chuá '+cash(chosen.chua)+
+    '</div><div class="pc-delivery-policy"><b>Programação:</b> '+(single?
+    'Entrega única: 100% da necessidade calculada para 60 dias será recebida no CDI na data selecionada. '+
+    'A segunda remessa fica desativada.':
+    'Duas entregas: a primeira cobre o primeiro mês e a segunda completa os 60 dias.')+
+    ' O valor total da compra permanece igual nos dois modos.</div>'+
+    '<div class="pc-note"><b>Após ajustes manuais:</b> reserva Chuá '+cash(chosen.chua)+
     ' · distribuição às outras unidades '+cash(chosen.network)+
     ' · saldo a alocar no CDI '+cash(chosen.surplus)+
     ' · demanda não coberta '+cash(chosen.uncovered)+
@@ -374,7 +407,8 @@ function redraw(){
     '<td class="num">'+fmt(e.gross)+'</td><td class="num">'+fmt(e.chuaReserve)+'</td><td class="num">'+fmt(e.fromChua)+'</td>'+
     '<td class="num">'+fmt(e.fromOther)+'</td><td class="num"><b>'+fmt(e.buy)+'</b></td>'+
     '<td><input class="pc-qty" type="number" min="0" step="'+(continuous.has(e.un)?'0.01':'1')+
-    '" data-pc-qty="'+esc(e.id)+'" value="'+a.final+'"></td><td class="num">'+fmt(a.first)+'</td><td class="num">'+fmt(a.second)+'</td>'+
+    '" data-pc-qty="'+esc(e.id)+'" value="'+a.final+'"></td><td class="num">'+fmt(a.first)+
+    '</td><td class="num pc-second-delivery">'+fmt(a.second)+'</td>'+
     '<td class="num">'+(e.price?cash(e.price):'Cotar')+'</td><td class="num"><b>'+cash(a.value)+'</b></td>'+
     '<td class="'+(e.urgent?'pc-urgent':'')+'">'+(e.urgent?'PRIORITÁRIO':'PROGRAMADO')+'</td></tr>';
   };
@@ -391,7 +425,8 @@ function redraw(){
   }
   const purchaseHeader='<thead><tr><th>Incluir</th><th>Código</th><th>Produto</th><th>UN</th><th>Falta 60d</th>'+
     '<th>Reserva Chuá</th><th>Transferir CDI</th><th>Outras transf.</th><th>Compra sugerida</th><th>Comprar</th>'+
-    '<th>1ª entrega</th><th>2ª entrega</th><th>Custo ref.</th><th>Valor</th><th>Prioridade</th></tr></thead>';
+    '<th>'+(single?'Entrega única':'1ª entrega')+'</th><th class="pc-second-delivery">2ª entrega</th>'+
+    '<th>Custo ref.</th><th>Valor</th><th>Prioridade</th></tr></thead>';
   const purchaseGroupHtml=purchaseGroups.map(g=>{
     const open=state.purchaseOpen.has(g.name),sorted=g.items.slice().sort((a,b)=>
       edited(b).value-edited(a).value||b.buy*b.price-a.buy*a.price||
@@ -409,8 +444,8 @@ function redraw(){
       '<span class="pc-group-label"><span class="pc-group-arrow">'+(open?'▾':'▸')+'</span>'+
       '<b>'+esc(g.name)+'</b><span class="pc-group-count">'+integer(g.items.length)+' itens</span></span>'+
       '<span class="pc-group-values"><span>Compra CDI: <strong>'+cash(g.planned)+'</strong></span>'+
-      '<span>Selecionado: '+cash(g.selected)+'</span><span>1ª entrega: '+cash(g.first)+'</span>'+
-      '<span>2ª entrega: '+cash(g.second)+'</span></span></button>'+body+'</section>';
+      '<span>Selecionado: '+cash(g.selected)+'</span><span>'+(single?'Entrega única: ':'1ª entrega: ')+cash(g.first)+'</span>'+
+      '<span class="pc-second-delivery">2ª entrega: '+cash(g.second)+'</span></span></button>'+body+'</section>';
   }).join('');
   const locs=p.localSummary.filter(l=>!state.local||l.name===state.local).map(l=>{
     const rows=l.rows.filter(localInScope).sort((a,b)=>b.buy*b.price-a.buy*a.price);
