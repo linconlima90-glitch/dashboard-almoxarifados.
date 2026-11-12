@@ -360,6 +360,17 @@ with sync_playwright() as p:
             assert source_meta['rows']==4374,source_meta
             assert source_meta['visiblePositions']==source_meta['rows'],source_meta
             cascade=page.locator('#db-stock-cascade')
+            print('DBSC_VISIBILITY_DEBUG',page.evaluate("""() => {
+              const v=document.querySelector('#view-estoque'),p=document.querySelector('#db-stock-cascade');
+              const legacy=[...v.querySelectorAll('.tablepanel')].find(el=>el.textContent.includes('Onde existe cada produto'));
+              return {viewClass:v.className,viewDisplay:getComputedStyle(v).display,
+                panelParent:p?.parentElement?.className, panelDisplay:p?getComputedStyle(p).display:'absent',
+                panelParentDisplay:p?.parentElement?getComputedStyle(p.parentElement).display:'absent',
+                panelRect:p?.getBoundingClientRect().toJSON(),
+                title:p?.querySelector('h2')?.textContent,legacyHidden:legacy?.style.display,
+                activeView:document.querySelector('.tab.active')?.dataset.view,
+                otherPanels:[...v.querySelectorAll('.tablepanel')].slice(0,5).map(x=>({txt:x.textContent.slice(0,60),d:getComputedStyle(x).display}))};
+            }"""),flush=True)
             assert cascade.is_visible()
             assert cascade.locator('[data-dbsc-loc]').count()>1
             assert cascade.locator('#dbsc-local option').count()>1
