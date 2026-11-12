@@ -336,7 +336,7 @@ function redraw(){
     ' · saldo a alocar no CDI '+cash(chosen.surplus)+
     ' · demanda não coberta '+cash(chosen.uncovered)+
     '. A compra entra uma única vez no 30115; reserva e distribuição são destinações previstas, não estoque adicional.</div>'+
-    '<div id="pc-cascade-summary"></div><div class="pc-note"><b>Período da média:</b> +p.period+' (22 meses completos). <b>Estoque:</b> '+esc(p.stockDate)+
+    '<div id="pc-cascade-summary"></div><div class="pc-note"><b>Período da média:</b> '+p.period+' (22 meses completos). <b>Estoque:</b> '+esc(p.stockDate)+
     '. Meta = média mensal × 2 meses. Excluídos: pneus, câmaras, cimento e granjas ainda fora do controle. '+
     'Falta de histórico (menos de 3 meses com baixas) ou unidade divergente: não gera compra nem transferência automática. '+
     'Valores pelo custo ERP disponível (ou histórico indicado), sujeitos a nova cotação. Transferências precisam de verificação física e fiscal; não são economia realizada.</div>';
