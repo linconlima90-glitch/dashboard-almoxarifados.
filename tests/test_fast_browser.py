@@ -351,6 +351,42 @@ with sync_playwright() as p:
                 String(x.un)==='PC').map(x=>String(x.empresa))""")
             assert len(fiscal_positions)==2 and len(set(fiscal_positions))==2, fiscal_positions
         if optimized and 'Pilot' not in name:
+            # Posicoes de estoque: cascata local -> grupo -> produto preserva
+            # quantidade, custo e referencia de precos do ERP.
+            page.locator('.tab[data-view="estoque"]').evaluate('(el)=>el.click()')
+            page.wait_for_function("window.DB_STOCK_LOCATION_CASCADE?.meta?.rows>0",timeout=20000)
+            source_meta=page.evaluate("window.DB_STOCK_LOCATION_CASCADE.meta")
+            assert source_meta['viewLevels']==['Almoxarifado','Grupo','Produto'],source_meta
+            assert source_meta['rows']==4374,source_meta
+            assert source_meta['visiblePositions']==source_meta['rows'],source_meta
+            cascade=page.locator('#db-stock-cascade')
+            assert cascade.is_visible()
+            assert cascade.locator('[data-dbsc-loc]').count()>1
+            assert cascade.locator('#dbsc-local option').count()>1
+            first_stock_local=cascade.locator('#dbsc-local option').nth(1).get_attribute('value')
+            cascade.locator('#dbsc-local').select_option(first_stock_local)
+            local_meta=page.evaluate("window.DB_STOCK_LOCATION_CASCADE.meta")
+            assert local_meta['selectedLocal']==first_stock_local and local_meta['visiblePositions']>0,local_meta
+            assert cascade.locator('[data-dbsc-loc]').count()==1
+            assert cascade.locator('#dbsc-group option').count()>1
+            first_stock_group=cascade.locator('#dbsc-group option').nth(1).get_attribute('value')
+            cascade.locator('#dbsc-group').select_option(first_stock_group)
+            group_meta=page.evaluate("window.DB_STOCK_LOCATION_CASCADE.meta")
+            assert group_meta['selectedGroup']==first_stock_group and group_meta['visiblePositions']>0,group_meta
+            assert cascade.locator('#dbsc-product option').count()>1
+            first_stock_product=cascade.locator('#dbsc-product option').nth(1).get_attribute('value')
+            cascade.locator('#dbsc-product').select_option(first_stock_product)
+            item_meta=page.evaluate("window.DB_STOCK_LOCATION_CASCADE.meta")
+            assert item_meta['selectedProduct']==first_stock_product and item_meta['visiblePositions']>0,item_meta
+            assert cascade.locator('.dbsc-scroll table tbody tr').count()>0
+            assert cascade.locator('.dbsc-scroll thead th').count()==9
+            cascade.locator('#dbsc-clear').click()
+            reset_meta=page.evaluate("window.DB_STOCK_LOCATION_CASCADE.meta")
+            assert reset_meta['selectedLocal']=='' and reset_meta['selectedGroup']=='' and reset_meta['selectedProduct']=='',reset_meta
+            assert reset_meta['visiblePositions']==reset_meta['rows'],reset_meta
+            page.locator('.tab[data-view="executivo"]').evaluate('(el)=>el.click()')
+
+        if optimized and 'Pilot' not in name:
             # O cartao de baixas usa o Custo_Total do ERP (Dt.Neg.), nao a
             # estimativa do custo medio do estoque nem o consumo do minimo.
             page.wait_for_function("window.DB_BAIXAS_ERP_CONFERIDO && document.querySelector('#db-baixas-erp-conferido')", timeout=20000)
