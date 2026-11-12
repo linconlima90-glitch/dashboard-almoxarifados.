@@ -311,19 +311,32 @@ function redraw(){
     a.other+=x.receivedOther*x.price;a.buy+=x.buy*x.price;a.first+=x.first*x.price;
     a.second+=x.second*x.price;a.rows++;return a;},
     {gross:0,chua:0,other:0,buy:0,first:0,second:0,rows:0});
-  const chosen=p.lines.reduce((a,e)=>{const x=edited(e);a.value+=x.value;a.items+=(x.final>0?1:0);return a},{value:0,items:0});
+  const chosen=p.lines.reduce((a,e)=>{const x=allocationFor(e);
+    a.value+=x.value;a.items+=(x.final>0?1:0);a.chua+=x.reserve*e.price;
+    a.network+=x.distribute*e.price;a.surplus+=x.surplus*e.price;
+    a.uncovered+=x.uncovered*e.price;return a;
+  },{value:0,items:0,chua:0,network:0,surplus:0,uncovered:0});
   const card=(label,value,note,highlight=false)=>'<div class="pc-kpi'+(highlight?' important':'')+'"><span>'+label+'</span><strong>'+
     value+'</strong><small>'+note+'</small></div>';
   $('#pc-overview').innerHTML='<div class="pc-kpis">'+
     card('Falta bruta da rede · 60 dias',cash(t.gross),'Antes das transferências')+
     card('Atendimento pelo estoque livre Chuá/CDI',cash(t.chua),'Reserva própria da Chuá preservada')+
     card('Excedentes confiáveis de outras unidades',cash(t.others),'Transferências sugeridas')+
-    card('Compra líquida calculada · 60 dias',cash(t.buy),integer(p.lines.length)+' produtos para cotar',true)+
+    card('Comprar e receber no CDI 30115 · 60 dias',cash(t.buy),integer(p.lines.length)+' produtos para cotar',true)+
     card('1ª entrega · primeiro mês',cash(t.first),esc(state.date1))+
     card('2ª entrega · completar 60 dias',cash(t.second),esc(state.date2))+
-    card('Compra selecionada após ajustes',cash(chosen.value),integer(chosen.items)+' produtos selecionados',true)+
+    card('Compra ao CDI após ajustes',cash(chosen.value),integer(chosen.items)+' produtos selecionados',true)+
     card('Pendências para análise',integer(t.review),integer(t.missing)+' produtos sem custo de referência')+
-    '</div><div id="pc-cascade-summary"></div><div class="pc-note"><b>Período da média:</b> '+p.period+' (22 meses completos). <b>Estoque:</b> '+esc(p.stockDate)+
+    '</div><div class="pc-central-flow">'+
+    '<div class="pc-flow-step"><b>1. Compra e recebimento central</b><span>Pedido único destinado ao CDI de Peças · ERP 30115. Duas entregas previstas.</span><strong>'+cash(t.buy)+'</strong></div>'+
+    '<div class="pc-flow-step"><b>2. Reserva para consumo da Chuá</b><span>Parte da compra que recompõe a demanda local, sem transferir para outra empresa.</span><strong>'+cash(t.reserveChua)+'</strong></div>'+
+    '<div class="pc-flow-step"><b>3. Distribuição às demais fazendas</b><span>Parcela comprada para posterior transferência a partir do CDI, sujeita à TOP 94.</span><strong>'+cash(t.distributeNetwork)+'</strong></div>'+
+    '</div><div class="pc-note"><b>Após ajustes manuais:</b> reserva Chuá '+cash(chosen.chua)+
+    ' · distribuição às outras unidades '+cash(chosen.network)+
+    ' · saldo a alocar no CDI '+cash(chosen.surplus)+
+    ' · demanda não coberta '+cash(chosen.uncovered)+
+    '. A compra entra uma única vez no 30115; reserva e distribuição são destinações previstas, não estoque adicional.</div>'+
+    '<div id="pc-cascade-summary"></div><div class="pc-note"><b>Período da média:</b> +p.period+' (22 meses completos). <b>Estoque:</b> '+esc(p.stockDate)+
     '. Meta = média mensal × 2 meses. Excluídos: pneus, câmaras, cimento e granjas ainda fora do controle. '+
     'Falta de histórico (menos de 3 meses com baixas) ou unidade divergente: não gera compra nem transferência automática. '+
     'Valores pelo custo ERP disponível (ou histórico indicado), sujeitos a nova cotação. Transferências precisam de verificação física e fiscal; não são economia realizada.</div>';
@@ -370,7 +383,18 @@ function redraw(){
     '<tr><td>'+esc(x.local)+'</td><td>'+esc(x.code)+'</td><td>'+esc(x.product)+'</td><td>'+esc(x.un)+'</td>'+
     '<td class="num">'+fmt(x.stock)+'</td><td class="num">'+integer(x.active)+'</td><td>'+esc(x.reason)+'</td>'+
     '<td class="num">'+cash(x.value)+'</td></tr>').join('');
-  $('#pc-details').innerHTML='<div class="pc-panel"><div class="pc-title"><h3>1. Pedido consolidado por código / unidade</h3>'+
+  const destRows=filtered.flatMap(e=>allocationFor(e).rows.filter(x=>x.total>0)
+    .map(x=>({...x,price:e.price}))).sort((a,b)=>
+      Number(a.localCode!=='30115')-Number(b.localCode!=='30115')||
+      a.local.localeCompare(b.local,'pt-BR')||a.code.localeCompare(b.code,'pt-BR'));
+  const reserveCount=destRows.filter(x=>x.localCode==='30115').length;
+  const destHtml=destRows.slice(0,500).map(x=>'<tr><td>'+esc(x.kind)+'</td>'+
+    '<td>'+esc(x.localCode)+'</td><td>'+esc(x.local)+'</td><td>'+esc(x.code)+'</td>'+
+    '<td>'+esc(x.product)+'</td><td>'+esc(x.unit)+'</td>'+
+    '<td class="num">'+fmt(x.first)+'</td><td class="num">'+fmt(x.second)+'</td>'+
+    '<td class="num"><b>'+fmt(x.total)+'</b></td>'+
+    '<td class="num">'+cash(x.total*x.price)+'</td></tr>').join('');
+  $('#pc-details').innerHTML='<div class="pc-panel"><div class="pc-title"><h3>1. Pedido centralizado para CDI · local 30115</h3>'+
     '<small>'+integer(filtered.length)+' itens no filtro · valores e quantidades de compra consolidados para toda a rede</small></div>'+
     '<div class="pc-scroll"><table><thead><tr><th>Incluir</th><th>Código</th><th>Produto / grupo</th><th>UN</th><th>Falta 60d</th>'+
     '<th>Reserva Chuá</th><th>Transferir CDI</th><th>Outras transf.</th><th>Compra sugerida</th><th>Comprar</th>'+
@@ -378,9 +402,16 @@ function redraw(){
     '<div class="pc-footer"><span>Mostrando '+integer(Math.min(filtered.length,state.limit))+' de '+integer(filtered.length)+
     '. Ajustes ficam nesta sessão; exporte antes de fechar.</span>'+
     (filtered.length>state.limit?'<button class="pc-btn" id="pc-more">Mostrar mais 100</button>':'')+'</div></div>'+
-    '<div class="pc-panel"><div class="pc-title"><h3>2. Planejamento de abastecimento por fazenda</h3><small>Consumo e transferências por local</small></div>'+
+    '<div class="pc-panel"><div class="pc-title"><h3>2. Destinação do material comprado no CDI</h3>'+
+    '<small>'+integer(destRows.length)+' alocações previstas · '+integer(reserveCount)+' reservas internas da Chuá</small></div>'+
+    '<div class="pc-scroll"><table><thead><tr><th>Tipo</th><th>Local destino</th><th>Fazenda</th><th>Código</th>'+
+    '<th>Produto</th><th>UN</th><th>1ª entrega</th><th>2ª entrega</th><th>Total previsto</th><th>Valor ref.</th>'+
+    '</tr></thead><tbody>'+destHtml+'</tbody></table></div>'+
+    '<div class="pc-footer">Compra recebida no CDI 30115. A reserva Chuá permanece no próprio saldo; distribuição às fazendas somente após entrada e transferência formal. '+ 
+    'Exibidas até 500 alocações. Exportar CSV para lista integral.</div></div>'+
+    '<div class="pc-panel"><div class="pc-title"><h3>3. Planejamento de abastecimento por fazenda</h3><small>Consumo e distribuição a partir do CDI</small></div>'+
     (locs||'<div class="pc-empty">Sem demanda para reposição.</div>')+'</div>'+
-    '<div class="pc-panel"><div class="pc-title"><h3>3. Revisões antes de comprar ou realocar</h3>'+
+    '<div class="pc-panel"><div class="pc-title"><h3>4. Revisões antes de comprar ou realocar</h3>'+
     '<small>'+integer(audit.length)+' posições exibidas no filtro · revisão de histórico ou unidades</small></div>'+
     '<div class="pc-scroll"><table><thead><tr><th>Local</th><th>Código</th><th>Produto</th><th>UN</th><th>Saldo</th>'+
     '<th>Meses com baixas</th><th>Motivo</th><th>Valor em estoque</th></tr></thead><tbody>'+audit+'</tbody></table></div>'+
@@ -393,6 +424,12 @@ function redraw(){
     grossValue:t.gross,chuaTransferValue:t.chua,otherTransferValue:t.others,purchaseValue:t.buy,
     firstDeliveryValue:t.first,secondDeliveryValue:t.second,firstDate:state.date1,secondDate:state.date2,
     chosenValue:chosen.value,items:p.lines.length,urgentItems:t.urgent,historyReviewItems:t.review,
+    centralPurchaseDestination:'CDI DE PECAS',centralPurchaseLocal:'30115',centralPurchaseFiscalCompany:'003',
+    purchaseReceivingOnlyAtCDI:true,transferAfterReceipt:true,internalChuaReservation:true,
+    centralToChuaValue:t.reserveChua,centralToNetworkValue:t.distributeNetwork,
+    editedCentralReserveValue:chosen.chua,editedCentralNetworkValue:chosen.network,
+    editedCentralUnallocatedValue:chosen.surplus,editedUncoveredDemandValue:chosen.uncovered,
+    centralAllocationRows:destRows.length,
     priceMissingItems:t.missing,exportFormats:['consolidado','por-fazenda','transferencias'],
     cascadeLocal:state.local,cascadeGroup:state.group,cascadeProduct:state.product,
     cascadeSequence:['Fazenda','Grupo','Produto'],cascadeVisibleItems:filtered.length,
