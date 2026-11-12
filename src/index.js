@@ -84,7 +84,7 @@ class DashboardInjector {
     element.append(
       (this.pilot ? '' : '<script src="/stock-no-withdrawals-tab-20261015.js?v=20261103-full-history"></script>') +
       (this.pilot ? '' : '<script src="/inventory-audit-data.js?v=20261030-sj-cor-final"></script><script src="/inventory-history-tab.js?v=20261030-sj-cor-final"></script>') +
-      (this.pilot ? '' : '<script src="/compras-programadas-rede-2-meses.js?v=20261112-compra-unica-2meses-v6"></script>') +
+      (this.pilot ? '' : '<script src="/cdi-sankhya-requests-data.js?v=20261112-correias-110998"></script><script src="/cdi-sankhya-control.js?v=20261112-historico-sankhya-v1"></script>') +
       '<script src="/layout-clean-v2.js?v=20261015-2"></script>' +
       '<script src="/db-brand-theme.js?v=20261008-1"></script>' +
       '<script src="/db-brand-fixes.js?v=20261008-1"></script>' +
