@@ -7,7 +7,7 @@ if(!tabs||!wrap)return;
 const tab=document.createElement('button');tab.type='button';tab.className='tab';
 tab.dataset.view='compras-programadas';tab.textContent='Compras Programadas · 2 meses';tabs.appendChild(tab);
 const view=document.createElement('section');view.id='view-compras-programadas';view.className='view';wrap.appendChild(view);
-const state={query:'',group:'',onlyUrgent:false,otherTransfers:true,limit:100,selected:new Map(),override:new Map(),dirty:true,plan:null};
+const state={query:'',local:'',group:'',product:'',onlyUrgent:false,otherTransfers:true,limit:100,selected:new Map(),override:new Map(),dirty:true,plan:null};
 const num=x=>Number(x)||0,str=x=>String(x??''),norm=x=>str(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
 const esc=x=>str(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const cash=x=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(num(x));
@@ -33,6 +33,14 @@ css.textContent=
 '#view-compras-programadas .pc-filters label{display:flex;flex-direction:column;gap:5px;font-size:10px;font-weight:bold;min-width:135px}'+
 '#view-compras-programadas .pc-filters input:not([type=checkbox]),#view-compras-programadas .pc-filters select{border:1px solid #b9d0c0;border-radius:6px;min-height:36px;padding:6px;background:#fff;color:#254a32}'+
 '#view-compras-programadas .pc-filters .pc-search{flex:1;min-width:200px}'+
+'#view-compras-programadas .pc-filters .pc-cascade{min-width:190px;flex:1}'+
+'#view-compras-programadas .pc-filters .pc-product-filter{min-width:210px;flex:1.2}'+
+'#view-compras-programadas .pc-filter-label{flex-basis:100%;font-size:11px;color:#176138;font-weight:bold}'+
+'#view-compras-programadas .pc-scope{border:1px solid #cfe4d5;border-radius:10px;padding:10px 13px;margin:11px 0;background:#f3faf5}'+
+'#view-compras-programadas .pc-scope h3{font-size:13px;margin:0 0 8px;color:#145b32}'+
+'#view-compras-programadas .pc-scope .pc-kpi{background:#fff}'+
+'#view-compras-programadas .pc-scope-note{color:#5d7564;font-size:10px;margin:8px 2px 0;line-height:1.5}'+
+'#view-compras-programadas .pc-count{color:#355b42;font-weight:bold;font-size:11px}'+
 '#view-compras-programadas .pc-filters .pc-toggle{flex-direction:row;align-items:center;min-height:36px;max-width:240px;line-height:1.5}'+
 '#view-compras-programadas button.pc-btn{border:1px solid #bfd7c5;background:#e9f5ed;color:#145d33;border-radius:7px;padding:10px;cursor:pointer;font-size:11px;font-weight:bold}'+
 '#view-compras-programadas button.pc-btn:hover{background:#d8eddf}'+
@@ -68,7 +76,12 @@ view.innerHTML='<div class="pc-head"><h2>Compras Programadas · Rede DB</h2>'+
 '<p>Projeção para 2 meses, em duas entregas. A Chuá e o CDI compartilham um único saldo físico 30115: '+
 'primeiro é reservada a demanda da fazenda e somente o restante pode abastecer as demais unidades. '+
 'Não são emitidos pedidos automaticamente.</p></div>'+
-'<div class="pc-filters"><label class="pc-search">Buscar código, produto, grupo ou fazenda<input id="pc-query" type="search" placeholder="Pesquisar na compra consolidada"></label>'+
+'<div class="pc-filters"><span class="pc-filter-label">Filtro em cascata · 1. Fazenda → 2. Grupo → 3. Produto</span>'+
+'<label class="pc-cascade">1. Fazenda<select id="pc-local"><option value="">Toda a rede</option></select></label>'+
+'<label class="pc-cascade">2. Grupo<select id="pc-group"><option value="">Todos os grupos</option></select></label>'+
+'<label class="pc-cascade pc-product-filter">3. Produto<select id="pc-product"><option value="">Todos os produtos</option></select></label>'+
+'<label class="pc-search">Busca adicional<input id="pc-query" type="search" placeholder="Código, produto ou unidade"></label>'+
+'<button type="button" class="pc-btn" id="pc-clear">Limpar filtros</button>'+
 '<label>Grupo<select id="pc-group"><option value="">Todos os grupos</option></select></label>'+
 '<label>Entrega 1<input id="pc-date1" type="date"></label><label>Entrega 2<input id="pc-date2" type="date"></label>'+
 '<label class="pc-toggle"><input id="pc-other" type="checkbox" checked> Usar excedentes confiáveis de outras fazendas</label>'+
@@ -140,7 +153,7 @@ function compute(){
       for(const x of requests){if(x===chua||free<=0)continue;
         const q=Math.max(0,round(Math.min(free,x.pending),e.un));if(!q)continue;
         x.pending=round(x.pending-q,e.un);x.receivedChua+=q;chua.donated+=q;free=round(free-q,e.un);
-        transfers.push({source:chua.local,dest:x.local,code:e.code,product:e.product,un:e.un,q,kind:'CHUA/CDI',price:e.price});
+        transfers.push({source:chua.local,dest:x.local,code:e.code,product:e.product,un:e.un,sku:e.id,group:e.group,q,kind:'CHUA/CDI',price:e.price});
       }
     }
     if(state.otherTransfers){
@@ -151,13 +164,13 @@ function compute(){
         for(const x of requests){if(x===d||x.pending<=0||free<=0)continue;
           const q=Math.max(0,round(Math.min(free,x.pending),e.un));if(!q)continue;
           x.pending=round(x.pending-q,e.un);x.receivedOther+=q;d.donated+=q;free=round(free-q,e.un);
-          transfers.push({source:d.local,dest:x.local,code:e.code,product:e.product,un:e.un,q,kind:'OUTRA FAZENDA',price:e.price});
+          transfers.push({source:d.local,dest:x.local,code:e.code,product:e.product,un:e.un,sku:e.id,group:e.group,q,kind:'OUTRA FAZENDA',price:e.price});
         }
       }
     }
     e.gross=0;e.fromChua=0;e.fromOther=0;e.buy=0;e.first=0;e.second=0;e.needLocations=[];
     for(const x of locations){
-      x.buy=Math.max(0,round(x.pending,e.un));
+      x.buy=Math.max(0,round(x.pending,e.un));x.price=e.price;
       const postTransfer=x.stock+x.receivedChua+x.receivedOther;
       x.first=Math.min(x.buy,roundUp(Math.max(0,x.target30-postTransfer),e.un));
       x.second=Math.max(0,round(x.buy-x.first,e.un));
@@ -187,6 +200,49 @@ function compute(){
   return {lines,totals,transfers,review,localSummary:[...localSummary.values()].filter(x=>x.rows.length).sort((a,b)=>b.value-a.value),
     stockDate:str(window.CURRENT_STOCK_META?.emissao),months:22,period:'01/01/2025 a 31/10/2026',cdiUnique:true,skusCount:allSkus.length};
 }
+// Os selects sao dependentes: a fazenda limita grupos; o grupo limita produtos.
+const hasLocal=(e,local)=>!local||e.needLocations.some(x=>x.local===local);
+function refreshCascade(){
+  const p=state.plan;if(!p)return;
+  const source=p.lines;
+  const sorted=(values)=>[...new Set(values)].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const options=(id,label,values,selected,display)=>{
+    $(id).innerHTML='<option value="">'+esc(label)+'</option>'+
+      values.map(value=>'<option value="'+esc(value)+'"'+(selected===value?' selected':'')+'>'+
+        esc(display?display(value):value)+'</option>').join('');
+  };
+  const locals=sorted(p.localSummary.filter(l=>l.rows.some(x=>x.buy>0)).map(l=>l.name));
+  if(state.local&&!locals.includes(state.local)){state.local='';state.group='';state.product=''}
+  options('#pc-local','Toda a rede',locals,state.local);
+  const localLines=source.filter(e=>hasLocal(e,state.local));
+  const groups=sorted(localLines.map(e=>e.group));
+  if(state.group&&!groups.includes(state.group)){state.group='';state.product=''}
+  options('#pc-group','Todos os grupos',groups,state.group);
+  const matching=localLines.filter(e=>!state.group||e.group===state.group)
+    .slice().sort((a,b)=>a.product.localeCompare(b.product,'pt-BR')||a.code.localeCompare(b.code,'pt-BR'));
+  const products=matching.map(e=>e.id);
+  if(state.product&&!products.includes(state.product))state.product='';
+  const labels=new Map(matching.map(e=>[e.id,e.code+' · '+e.product+' ('+e.un+')']));
+  options('#pc-product','Todos os produtos',products,state.product,value=>labels.get(value));
+}
+function inScope(e){
+  const needle=norm(state.query);
+  return hasLocal(e,state.local)&&(!state.group||e.group===state.group)&&
+    (!state.product||e.id===state.product)&&(!state.onlyUrgent||e.urgent)&&
+    (!needle||norm([e.code,e.product,e.group,...e.needLocations.map(x=>x.local)].join(' ')).includes(needle));
+}
+function localInScope(x){
+  const needle=norm(state.query);
+  return (!state.local||x.local===state.local)&&(!state.group||x.group===state.group)&&
+    (!state.product||x.sku===state.product)&&(!state.onlyUrgent||x.first>0)&&
+    (!needle||norm([x.code,x.product,x.group,x.local].join(' ')).includes(needle));
+}
+function transferInScope(x){
+  const needle=norm(state.query);
+  return (!state.local||x.dest===state.local)&&(!state.group||x.group===state.group)&&
+    (!state.product||x.sku===state.product)&&
+    (!needle||norm([x.code,x.product,x.group,x.dest].join(' ')).includes(needle));
+}
 const edited=e=>{const checked=state.selected.get(e.id)!==false,q=checked?(state.override.has(e.id)?state.override.get(e.id):e.buy):0,
   final=Math.max(0,round(q,e.un)),first=Math.min(final,e.first);return {checked,final,first,second:Math.max(0,round(final-first,e.un)),value:final*e.price}};
 const csvField=v=>'"'+str(v??'').replace(/"/g,'""')+'"';
@@ -195,14 +251,13 @@ function csv(name,data){const content='\ufeff'+data.map(row=>row.map(csvField).j
   a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),400)}
 function redraw(){
   if(!ready()){$('#pc-overview').innerHTML='<div class="pc-note">Preparando histórico e estoque. Reabra esta aba após carregar a plataforma.</div>';return}
-  if(state.dirty||!state.plan){state.plan=compute();state.dirty=false;
-    const groups=[...new Set(state.plan.lines.map(x=>x.group))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
-    $('#pc-group').innerHTML='<option value="">Todos os grupos</option>'+groups.map(g=>'<option value="'+esc(g)+'">'+esc(g)+'</option>').join('');
-    if(!groups.includes(state.group))state.group='';$('#pc-group').value=state.group;
-  }
-  const p=state.plan,t=p.totals,needle=norm(state.query);
-  const filtered=p.lines.filter(e=>(!state.group||e.group===state.group)&&(!state.onlyUrgent||e.urgent)&&
-    (!needle||norm([e.code,e.product,e.group,...e.needLocations.map(x=>x.local)].join(' ')).includes(needle)));
+  if(state.dirty||!state.plan){state.plan=compute();state.dirty=false;refreshCascade()}
+  const p=state.plan,t=p.totals,filtered=p.lines.filter(inScope);
+  const localRows=p.localSummary.flatMap(l=>l.rows).filter(localInScope);
+  const scope=localRows.reduce((a,x)=>{a.gross+=x.needed*x.price;a.chua+=x.receivedChua*x.price;
+    a.other+=x.receivedOther*x.price;a.buy+=x.buy*x.price;a.first+=x.first*x.price;
+    a.second+=x.second*x.price;a.rows++;return a;},
+    {gross:0,chua:0,other:0,buy:0,first:0,second:0,rows:0});
   const chosen=p.lines.reduce((a,e)=>{const x=edited(e);a.value+=x.value;a.items+=(x.final>0?1:0);return a},{value:0,items:0});
   const card=(label,value,note,highlight=false)=>'<div class="pc-kpi'+(highlight?' important':'')+'"><span>'+label+'</span><strong>'+
     value+'</strong><small>'+note+'</small></div>';
@@ -215,10 +270,23 @@ function redraw(){
     card('2ª entrega · completar 60 dias',cash(t.second),esc(state.date2))+
     card('Compra selecionada após ajustes',cash(chosen.value),integer(chosen.items)+' produtos selecionados',true)+
     card('Pendências para análise',integer(t.review),integer(t.missing)+' produtos sem custo de referência')+
-    '</div><div class="pc-note"><b>Período da média:</b> '+p.period+' (22 meses completos). <b>Estoque:</b> '+esc(p.stockDate)+
+    '</div><div id="pc-cascade-summary"></div><div class="pc-note"><b>Período da média:</b> '+p.period+' (22 meses completos). <b>Estoque:</b> '+esc(p.stockDate)+
     '. Meta = média mensal × 2 meses. Excluídos: pneus, câmaras, cimento e granjas ainda fora do controle. '+
     'Falta de histórico (menos de 3 meses com baixas) ou unidade divergente: não gera compra nem transferência automática. '+
     'Valores pelo custo ERP disponível (ou histórico indicado), sujeitos a nova cotação. Transferências precisam de verificação física e fiscal; não são economia realizada.</div>';
+  const scoped=Boolean(state.local||state.group||state.product||state.query||state.onlyUrgent);
+  const selectedCaption=[state.local||'Toda a rede',state.group||'Todos os grupos',
+    state.product?(p.lines.find(x=>x.id===state.product)?.product||'Produto selecionado'):'Todos os produtos']
+    .map(esc).join(' / ');
+  $('#pc-cascade-summary').innerHTML=scoped?
+    '<div class="pc-scope"><h3>Resultado dos filtros · '+selectedCaption+'</h3>'+
+    '<div class="pc-kpis">'+card('Necessidade bruta do recorte',cash(scope.gross),'Antes das transferências')+
+    card('Receber da Chuá / CDI',cash(scope.chua),'Reserva própria da Chuá preservada')+
+    card('Receber das outras unidades',cash(scope.other),'Redistribuição sugerida')+
+    card('Compra líquida do recorte',cash(scope.buy),integer(scope.rows)+' combinações de produto e fazenda',true)+
+    '</div><p class="pc-scope-note">Os indicadores acima representam somente a demanda das unidades selecionadas. '+
+    'A tabela consolidada abaixo continua mostrando a compra da <b>rede inteira</b> para os produtos filtrados, '+
+    'pois o mesmo item comprado pode abastecer mais de uma fazenda. O resumo geral acima permanece inalterado.</p></div>':'';
   const rows=filtered.slice(0,state.limit).map(e=>{const a=edited(e);
     return '<tr><td><input type="checkbox" data-pc-select="'+esc(e.id)+'" '+(a.checked?'checked':'')+'></td>'+
     '<td>'+esc(e.code)+'</td><td class="pc-description"><b>'+esc(e.product)+'</b><small>'+esc(e.group)+'</small></td><td>'+esc(e.un)+'</td>'+
@@ -229,21 +297,28 @@ function redraw(){
     '<td class="num">'+(e.price?cash(e.price):'Cotar')+'</td><td class="num"><b>'+cash(a.value)+'</b></td>'+
     '<td class="'+(e.urgent?'pc-urgent':'')+'">'+(e.urgent?'PRIORITÁRIO':'PROGRAMADO')+'</td></tr>';
   }).join('');
-  const locs=p.localSummary.map(l=>'<details class="pc-location"><summary>'+esc(l.name)+
-    '<small>'+integer(l.rows.length)+' códigos com demanda · compra projetada '+cash(l.value)+'</small></summary>'+
+  const locs=p.localSummary.filter(l=>!state.local||l.name===state.local).map(l=>{
+    const rows=l.rows.filter(localInScope).sort((a,b)=>b.buy*b.price-a.buy*a.price);
+    if(!rows.length)return '';
+    const purchase=rows.reduce((total,x)=>total+x.buy*x.price,0);
+    return '<details class="pc-location"><summary>'+esc(l.name)+
+    '<small>'+integer(rows.length)+' códigos com demanda · compra projetada '+cash(purchase)+'</small></summary>'+
     '<div class="pc-scroll"><table><thead><tr><th>Código</th><th>Produto</th><th>UN</th><th>Média/mês</th><th>Saldo</th>'+
     '<th>Meta 60d</th><th>Falta 60d</th><th>Receber CDI</th><th>Outras transf.</th><th>Compra</th><th>1ª entrega</th><th>2ª entrega</th></tr></thead><tbody>'+
-    l.rows.sort((a,b)=>b.buy-a.buy).map(x=>'<tr><td>'+esc(x.code)+'</td><td>'+esc(x.product)+'</td><td>'+esc(x.un)+'</td>'+
+    rows.map(x=>'<tr><td>'+esc(x.code)+'</td><td>'+esc(x.product)+'</td><td>'+esc(x.un)+'</td>'+
       '<td class="num">'+fmt(x.average)+'</td><td class="num">'+fmt(x.stock)+'</td><td class="num">'+fmt(x.target60)+'</td>'+
       '<td class="num">'+fmt(x.needed)+'</td><td class="num">'+fmt(x.receivedChua)+'</td><td class="num">'+fmt(x.receivedOther)+'</td>'+
       '<td class="num"><b>'+fmt(x.buy)+'</b></td><td class="num">'+fmt(x.first)+'</td><td class="num">'+fmt(x.second)+'</td></tr>').join('')+
-    '</tbody></table></div></details>').join('');
-  const audit=p.review.slice().sort((a,b)=>b.value-a.value).slice(0,100).map(x=>
+    '</tbody></table></div></details>';
+  }).join('');
+  const audit=p.review.filter(x=>(!state.local||x.local===state.local)&&(!state.group||x.group===state.group)&&
+    (!state.product||x.sku===state.product)&&(!state.query||norm([x.code,x.product,x.group,x.local].join(' ')).includes(norm(state.query))))
+    .sort((a,b)=>b.value-a.value).slice(0,100).map(x=>
     '<tr><td>'+esc(x.local)+'</td><td>'+esc(x.code)+'</td><td>'+esc(x.product)+'</td><td>'+esc(x.un)+'</td>'+
     '<td class="num">'+fmt(x.stock)+'</td><td class="num">'+integer(x.active)+'</td><td>'+esc(x.reason)+'</td>'+
     '<td class="num">'+cash(x.value)+'</td></tr>').join('');
   $('#pc-details').innerHTML='<div class="pc-panel"><div class="pc-title"><h3>1. Pedido consolidado por código / unidade</h3>'+
-    '<small>'+integer(filtered.length)+' itens no filtro · editar quantidades e selecionar para CSV</small></div>'+
+    '<small>'+integer(filtered.length)+' itens no filtro · valores e quantidades de compra consolidados para toda a rede</small></div>'+
     '<div class="pc-scroll"><table><thead><tr><th>Incluir</th><th>Código</th><th>Produto / grupo</th><th>UN</th><th>Falta 60d</th>'+
     '<th>Reserva Chuá</th><th>Transferir CDI</th><th>Outras transf.</th><th>Compra sugerida</th><th>Comprar</th>'+
     '<th>1ª entrega</th><th>2ª entrega</th><th>Custo ref.</th><th>Valor</th><th>Prioridade</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
@@ -253,7 +328,7 @@ function redraw(){
     '<div class="pc-panel"><div class="pc-title"><h3>2. Planejamento de abastecimento por fazenda</h3><small>Consumo e transferências por local</small></div>'+
     (locs||'<div class="pc-empty">Sem demanda para reposição.</div>')+'</div>'+
     '<div class="pc-panel"><div class="pc-title"><h3>3. Revisões antes de comprar ou realocar</h3>'+
-    '<small>'+integer(t.review)+' posições sem histórico suficiente ou com unidades incompatíveis</small></div>'+
+    '<small>'+integer(audit.length)+' posições exibidas no filtro · revisão de histórico ou unidades</small></div>'+
     '<div class="pc-scroll"><table><thead><tr><th>Local</th><th>Código</th><th>Produto</th><th>UN</th><th>Saldo</th>'+
     '<th>Meses com baixas</th><th>Motivo</th><th>Valor em estoque</th></tr></thead><tbody>'+audit+'</tbody></table></div>'+
     '<div class="pc-footer">Exibidas as 100 posições de maior valor para revisão. Não são compras automáticas.</div></div>'+
@@ -265,7 +340,12 @@ function redraw(){
     grossValue:t.gross,chuaTransferValue:t.chua,otherTransferValue:t.others,purchaseValue:t.buy,
     firstDeliveryValue:t.first,secondDeliveryValue:t.second,firstDate:state.date1,secondDate:state.date2,
     chosenValue:chosen.value,items:p.lines.length,urgentItems:t.urgent,historyReviewItems:t.review,
-    priceMissingItems:t.missing,exportFormats:['consolidado','por-fazenda','transferencias']};
+    priceMissingItems:t.missing,exportFormats:['consolidado','por-fazenda','transferencias'],
+    cascadeLocal:state.local,cascadeGroup:state.group,cascadeProduct:state.product,
+    cascadeSequence:['Fazenda','Grupo','Produto'],cascadeVisibleItems:filtered.length,
+    cascadeScopedPurchaseValue:scope.buy,cascadeScopedGrossValue:scope.gross,
+    cascadeScopedChuaTransferValue:scope.chua,cascadeScopedOtherTransferValue:scope.other,
+    cascadeScopeRows:scope.rows,networkTotalsUnaffectedByCascade:true};
 }
 function exportPlan(mode){
   const p=state.plan;if(!p)return;
@@ -275,7 +355,7 @@ function exportPlan(mode){
       'Saldo livre Chuá para CDI','Transferência Chuá/CDI','Transferência outras fazendas',
       'Compra calculada 60 dias','Comprar ajustado','Entrega 1 quantidade','Entrega 2 quantidade','Custo referência ERP (R$)',
       'Fonte do custo','Valor estimado (R$)','Prioridade','Destinos','Data entrega 1','Data entrega 2','Data posição ERP']];
-    for(const e of p.lines){const a=edited(e);if(!a.checked||a.final<=0)continue;
+    for(const e of p.lines.filter(inScope)){const a=edited(e);if(!a.checked||a.final<=0)continue;
       rows.push([e.code,e.product,e.group,e.un,e.gross,e.chuaReserve,e.chuaStock,e.chuaFree,e.fromChua,e.fromOther,
         e.buy,a.final,a.first,a.second,e.price,e.priceSource,a.value,e.urgent?'PRIORITÁRIO':'PROGRAMADO',
         e.needLocations.map(x=>x.local).join(' | '),state.date1,state.date2,p.stockDate]);}
@@ -285,18 +365,25 @@ function exportPlan(mode){
     const rows=[['Fazenda','Código','Produto','Grupo','UN','Média por mês','Meses com baixas','Saldo atual',
       'Meta 30 dias','Meta 60 dias','Falta 60 dias','Receber Chuá/CDI','Receber outras fazendas',
       'Compra 60 dias','Entrega 1','Entrega 2','Data posição ERP']];
-    for(const l of p.localSummary)for(const x of l.rows)
+    for(const l of p.localSummary)for(const x of l.rows.filter(localInScope))
       rows.push([x.local,x.code,x.product,x.group,x.un,x.average,x.active,x.stock,x.target30,x.target60,
         x.needed,x.receivedChua,x.receivedOther,x.buy,x.first,x.second,p.stockDate]);
     csv(name+'_por_fazenda.csv',rows);return;
   }
   const rows=[['Origem','Destino','Código','Produto','UN','Quantidade sugerida','Custo referência (R$)','Tipo','Observação']];
-  for(const x of p.transfers)rows.push([x.source,x.dest,x.code,x.product,x.un,x.q,x.price,x.kind,
+  for(const x of p.transfers.filter(transferInScope))rows.push([x.source,x.dest,x.code,x.product,x.un,x.q,x.price,x.kind,
     'Conferir disponibilidade, unidade fiscal e TOP 94; não registrar como economia realizada']);
   csv(name+'_transferencias.csv',rows);
 }
 $('#pc-query').addEventListener('input',e=>{state.query=e.target.value;state.limit=100;redraw()});
-$('#pc-group').addEventListener('change',e=>{state.group=e.target.value;state.limit=100;redraw()});
+$('#pc-local').addEventListener('change',e=>{state.local=e.target.value;state.group='';state.product='';
+  state.limit=100;refreshCascade();redraw()});
+$('#pc-group').addEventListener('change',e=>{state.group=e.target.value;state.product='';
+  state.limit=100;refreshCascade();redraw()});
+$('#pc-product').addEventListener('change',e=>{state.product=e.target.value;state.limit=100;redraw()});
+$('#pc-clear').addEventListener('click',()=>{state.local='';state.group='';state.product='';
+  state.query='';state.onlyUrgent=false;state.limit=100;$('#pc-query').value='';
+  $('#pc-urgent-only').checked=false;refreshCascade();redraw()});
 $('#pc-other').addEventListener('change',e=>{state.otherTransfers=e.target.checked;state.dirty=true;state.limit=100;redraw()});
 $('#pc-urgent-only').addEventListener('change',e=>{state.onlyUrgent=e.target.checked;state.limit=100;redraw()});
 for(const k of ['1','2'])$('#pc-date'+k).addEventListener('change',e=>{state['date'+k]=e.target.value;redraw()});
@@ -316,5 +403,5 @@ tab.addEventListener('click',()=>{
 });
 const refresh=()=>{state.dirty=true;if(view.classList.contains('active'))redraw()};
 for(const event of ['stock-position-updated','movements-updated','minimum-policy-updated'])window.addEventListener(event,refresh);
-window.DB_PROGRAMMED_PURCHASES={open:()=>tab.click(),refresh,getPlan:()=>state.plan,meta:null,version:'20261112-rede-60d-v1'};
+window.DB_PROGRAMMED_PURCHASES={open:()=>tab.click(),refresh,getPlan:()=>state.plan,meta:null,version:'20261112-rede-60d-cascata-v2'};
 })();
