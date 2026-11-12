@@ -7,7 +7,7 @@ if(!tabs||!wrap)return;
 const tab=document.createElement('button');tab.type='button';tab.className='tab';
 tab.dataset.view='compras-programadas';tab.textContent='Compras Programadas · 2 meses';tabs.appendChild(tab);
 const view=document.createElement('section');view.id='view-compras-programadas';view.className='view';wrap.appendChild(view);
-const state={query:'',local:'',group:'',product:'',onlyUrgent:false,otherTransfers:true,deliveryMode:'two',limit:100,selected:new Map(),override:new Map(),purchaseOpen:new Set(),destinationOpen:new Set(),purchaseShown:new Map(),destinationShown:new Map(),purchaseInitialized:false,destinationInitialized:false,dirty:true,plan:null};
+const state={query:'',local:'',group:'',product:'',onlyUrgent:false,otherTransfers:true,receiptDate:'',limit:100,selected:new Map(),override:new Map(),purchaseOpen:new Set(),destinationOpen:new Set(),purchaseShown:new Map(),destinationShown:new Map(),purchaseInitialized:false,destinationInitialized:false,dirty:true,plan:null};
 const num=x=>Number(x)||0,str=x=>String(x??''),norm=x=>str(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
 const esc=x=>str(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const cash=x=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(num(x));
@@ -20,8 +20,6 @@ const banned=x=>typeof window.DB_MINIMUM_EXCLUDED==='function'?window.DB_MINIMUM
   /\b(PNEUS?|CAMARAS?|CIMENTOS?)\b/.test(norm(str(x.grupo)+' '+str(x.produto)));
 const out=x=>['ALMOXARIFADO GERAL G GERIBA','ALMOXARIFADO GERAL G S CRUZ'].includes(norm(x.local).replace(/\s+/g,' '));
 const isoDate=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
-const future=days=>{const d=new Date();d.setDate(d.getDate()+days);return isoDate(d)};
-state.date1=future(7);state.date2=future(37);
 const css=document.createElement('style');css.id='db-pc-style';
 css.textContent=
 '#view-compras-programadas{font:12px Arial,Helvetica,sans-serif;color:#234c33;padding-bottom:20px}'+
@@ -42,7 +40,6 @@ css.textContent=
 '#view-compras-programadas .pc-scope-note{color:#5d7564;font-size:10px;margin:8px 2px 0;line-height:1.5}'+
 '#view-compras-programadas .pc-count{color:#355b42;font-weight:bold;font-size:11px}'+
 '#view-compras-programadas .pc-filters .pc-toggle{flex-direction:row;align-items:center;min-height:36px;max-width:240px;line-height:1.5}'+
-'#view-compras-programadas.pc-single-delivery .pc-second-delivery{display:none!important}'+
 '#view-compras-programadas .pc-delivery-policy{border:1px solid #cbe4d2;background:#f2faf4;border-radius:8px;color:#1c6338;font-size:11px;padding:9px 13px;margin:12px 0;line-height:1.55}'+
 '#view-compras-programadas button.pc-btn{border:1px solid #bfd7c5;background:#e9f5ed;color:#145d33;border-radius:7px;padding:10px;cursor:pointer;font-size:11px;font-weight:bold}'+
 '#view-compras-programadas button.pc-btn:hover{background:#d8eddf}'+
@@ -95,20 +92,17 @@ css.textContent=
 '@media(max-width:1000px){#view-compras-programadas .pc-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#view-compras-programadas .pc-central-flow{grid-template-columns:1fr}}'+
 '@media(max-width:600px){#view-compras-programadas .pc-kpis{grid-template-columns:1fr}#view-compras-programadas .pc-filters label{width:100%}}';
 document.head.appendChild(css);
-view.innerHTML='<div class="pc-head"><h2>Compras Programadas · CDI de Peças</h2>'+
-'<p>Compra centralizada a cada 2 meses: <b>todos os pedidos e recebimentos são destinados ao CDI de Peças, local ERP 30115 '+
-'(Almoxarifado Geral da Fazenda Chuá)</b>. O CDI recebe os materiais, reserva a necessidade de consumo próprio da Chuá '+
-'e programa a distribuição para as demais fazendas. Não é compra direta para cada unidade; não há emissão automática de pedidos.</p></div>'+
+view.innerHTML='<div class="pc-head"><h2>Compra Única · Abastecimento do CDI para 2 meses</h2>'+
+'<p>Fazer <b>um único pedido agora para cobrir o consumo previsto dos próximos dois meses</b>, com recebimento centralizado '+
+'no CDI de Peças (ERP 30115, Fazenda Chuá). <b>Dois meses são o período de estoque a atender, não o prazo de entrega.</b> '+
+'O CDI reserva o necessário à Chuá e distribui o restante às outras fazendas. O pedido não é emitido automaticamente.</p></div>'+
 '<div class="pc-filters"><span class="pc-filter-label">Filtro em cascata · 1. Fazenda → 2. Grupo → 3. Produto</span>'+
 '<label class="pc-cascade">1. Fazenda<select id="pc-local"><option value="">Toda a rede</option></select></label>'+
 '<label class="pc-cascade">2. Grupo<select id="pc-group"><option value="">Todos os grupos</option></select></label>'+
 '<label class="pc-cascade pc-product-filter">3. Produto<select id="pc-product"><option value="">Todos os produtos</option></select></label>'+
 '<label class="pc-search">Busca adicional<input id="pc-query" type="search" placeholder="Código, produto ou unidade"></label>'+
 '<button type="button" class="pc-btn" id="pc-clear">Limpar filtros</button>'+
-'<label>Forma de entrega<select id="pc-delivery-mode"><option value="two">Duas entregas (30 + 30 dias)</option>'+
-'<option value="single">Entrega única (60 dias)</option></select></label>'+
-'<label id="pc-date1-wrap"><span id="pc-date1-label">Entrega 1</span><input id="pc-date1" type="date"></label>'+
-'<label id="pc-date2-wrap" class="pc-second-delivery">Entrega 2<input id="pc-date2" type="date"></label>'+
+'<label>Recebimento previsto (opcional)<input id="pc-receipt-date" type="date" title="Data negociada com o fornecedor; não é calculada como 60 dias"></label>'+
 '<label class="pc-toggle"><input id="pc-other" type="checkbox" checked> Usar excedentes confiáveis de outras fazendas</label>'+
 '<label class="pc-toggle"><input id="pc-urgent-only" type="checkbox"> Somente itens prioritários</label>'+
 '<button type="button" class="pc-btn pc-primary" id="pc-export">Exportar pedido para CDI 30115</button>'+
@@ -116,14 +110,7 @@ view.innerHTML='<div class="pc-head"><h2>Compras Programadas · CDI de Peças</h
 '<button type="button" class="pc-btn" id="pc-export-transfer">Exportar transferências de saldos atuais</button></div>'+
 '<div id="pc-overview"></div><div id="pc-details"></div>';
 const $=s=>view.querySelector(s);
-$('#pc-date1').value=state.date1;$('#pc-date2').value=state.date2;
-function syncDeliveryForm(){
-  $('#pc-delivery-mode').value=state.deliveryMode;
-  $('#pc-date1-label').textContent=state.deliveryMode==='single'?'Entrega única':'Entrega 1';
-  view.classList.toggle('pc-single-delivery',state.deliveryMode==='single');
-  $('#pc-date2').disabled=state.deliveryMode==='single';
-}
-syncDeliveryForm();
+$('#pc-receipt-date').value=state.receiptDate;
 const ready=()=>typeof STOCK!=='undefined'&&Array.isArray(STOCK)&&
   typeof MOVEMENTS_YEARLY!=='undefined'&&Array.isArray(MOVEMENTS_YEARLY)&&
   !!window.CURRENT_STOCK_META&&window.MOVEMENTS_REVISED_META?.forMinimum?.months===22;
@@ -287,17 +274,12 @@ function transferInScope(x){
     (!state.product||x.sku===state.product)&&
     (!needle||norm([x.code,x.product,x.group,x.dest].join(' ')).includes(needle));
 }
-// A cobertura continua sendo de 60 dias. A escolha altera apenas o
-// fracionamento das entregas, nunca a quantidade líquida total a comprar.
-const isSingleDelivery=()=>state.deliveryMode==='single';
-const firstQty=x=>isSingleDelivery()?x.buy:x.first;
-const secondQty=x=>isSingleDelivery()?0:x.second;
+// Compra única: o consumo de dois meses define quantidade, não data de entrega.
 const edited=e=>{
   const checked=state.selected.get(e.id)!==false;
   const q=checked?(state.override.has(e.id)?state.override.get(e.id):e.buy):0;
   const final=Math.max(0,round(q,e.un));
-  const first=isSingleDelivery()?final:Math.min(final,e.first);
-  return {checked,final,first,second:Math.max(0,round(final-first,e.un)),value:final*e.price};
+  return {checked,final,value:final*e.price};
 };
 
 const CENTRAL_CDI_LOCAL='30115';
@@ -314,22 +296,16 @@ function allocationFor(e){
     y.buy-x.buy||x.local.localeCompare(y.local,'pt-BR'));
   const rows=dest.map(x=>({id:x.id,sku:e.id,code:e.code,product:e.product,group:e.group,
     local:x.local,localCode:x.codeLocal,unit:e.un,kind:x.codeLocal==='30115'?'RESERVA INTERNA CHUA':'DISTRIBUIR DO CDI',
-    first:0,second:0,total:0,planned:x.buy,price:e.price,historyMonths:x.active,
+    total:0,planned:x.buy,price:e.price,historyMonths:x.active,
     currentStock:x.stock,localTarget:x.target60}));
-  let remainingFirst=a.first,remainingSecond=a.second;
+  let remaining=a.final;
   for(let i=0;i<dest.length;i++){
-    const capacity=isSingleDelivery()?dest[i].buy:dest[i].first;
-    const q=Math.max(0,round(Math.min(remainingFirst,capacity),e.un));
-    rows[i].first=q;remainingFirst=round(remainingFirst-q,e.un);
+    const q=Math.max(0,round(Math.min(remaining,dest[i].buy),e.un));
+    rows[i].total=q;remaining=round(remaining-q,e.un);
   }
-  for(let i=0;i<dest.length;i++){
-    const q=Math.max(0,round(Math.min(remainingSecond,dest[i].second),e.un));
-    rows[i].second=q;remainingSecond=round(remainingSecond-q,e.un);
-    rows[i].total=round(rows[i].first+rows[i].second,e.un);
-  }
-  // Compra acima da demanda calculada fica no CDI como saldo a alocar,
-  // NUNCA e distribuida automaticamente.
-  const surplus=round(remainingFirst+remainingSecond,e.un);
+  // Quantidade comprada acima da necessidade distribuivel permanece no CDI,
+  // sem transferência automática ou segunda remessa.
+  const surplus=round(remaining,e.un);
   const reserve=round(rows.filter(x=>x.localCode==='30115').reduce((v,x)=>v+x.total,0),e.un);
   const distribute=round(rows.filter(x=>x.localCode!=='30115').reduce((v,x)=>v+x.total,0),e.un);
   const uncovered=round(dest.reduce((v,x,i)=>v+Math.max(0,round(x.buy-rows[i].total,e.un)),0),e.un);
