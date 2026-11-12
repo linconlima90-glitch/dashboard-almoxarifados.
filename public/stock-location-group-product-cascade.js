@@ -159,7 +159,10 @@ function paint(){
 function mount(){
   view=document.querySelector('#view-estoque');if(!view)return false;
   const headings=[...view.querySelectorAll('h2,h3')];
-  const header=headings.find(h=>norm(h.textContent).includes('ONDE EXISTE CADA PRODUTO E REFERENCIA DE PRECOS'));
+  // Evitar selecionar nosso proprio titulo quando mount() for chamado novamente.
+  // Caso contrario a cascata se esconderia ao tentar ocultar a tabela antiga.
+  const header=headings.find(h=>!h.closest('#db-stock-cascade')&&
+    norm(h.textContent).includes('ONDE EXISTE CADA PRODUTO E REFERENCIA DE PRECOS'));
   if(!header)return false;
   const panel=header.closest('.tablepanel')||header.closest('.panel');
   if(!panel)return false;
