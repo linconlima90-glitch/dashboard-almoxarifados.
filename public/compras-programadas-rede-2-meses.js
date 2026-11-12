@@ -454,11 +454,13 @@ function redraw(){
     return '<details class="pc-location"><summary>'+esc(l.name)+
     '<small>'+integer(rows.length)+' códigos com demanda · compra projetada '+cash(purchase)+'</small></summary>'+
     '<div class="pc-scroll"><table><thead><tr><th>Código</th><th>Produto</th><th>UN</th><th>Média/mês</th><th>Saldo</th>'+
-    '<th>Meta 60d</th><th>Falta 60d</th><th>Receber CDI</th><th>Outras transf.</th><th>Compra</th><th>1ª entrega</th><th>2ª entrega</th></tr></thead><tbody>'+
+    '<th>Meta 60d</th><th>Falta 60d</th><th>Receber CDI</th><th>Outras transf.</th><th>Compra</th>'+
+    '<th>'+(single?'Entrega única':'1ª entrega')+'</th><th class="pc-second-delivery">2ª entrega</th></tr></thead><tbody>'+
     rows.map(x=>'<tr><td>'+esc(x.code)+'</td><td>'+esc(x.product)+'</td><td>'+esc(x.un)+'</td>'+
       '<td class="num">'+fmt(x.average)+'</td><td class="num">'+fmt(x.stock)+'</td><td class="num">'+fmt(x.target60)+'</td>'+
       '<td class="num">'+fmt(x.needed)+'</td><td class="num">'+fmt(x.receivedChua)+'</td><td class="num">'+fmt(x.receivedOther)+'</td>'+
-      '<td class="num"><b>'+fmt(x.buy)+'</b></td><td class="num">'+fmt(x.first)+'</td><td class="num">'+fmt(x.second)+'</td></tr>').join('')+
+      '<td class="num"><b>'+fmt(x.buy)+'</b></td><td class="num">'+fmt(firstQty(x))+
+    '</td><td class="num pc-second-delivery">'+fmt(secondQty(x))+'</td></tr>').join('')+
     '</tbody></table></div></details>';
   }).join('');
   const audit=p.review.filter(x=>(!state.local||x.local===state.local)&&(!state.group||x.group===state.group)&&
@@ -475,7 +477,7 @@ function redraw(){
   const destHtml=destRows.slice(0,500).map(x=>'<tr><td>'+esc(x.kind)+'</td>'+
     '<td>'+esc(x.localCode)+'</td><td>'+esc(x.local)+'</td><td>'+esc(x.code)+'</td>'+
     '<td>'+esc(x.product)+'</td><td>'+esc(x.unit)+'</td>'+
-    '<td class="num">'+fmt(x.first)+'</td><td class="num">'+fmt(x.second)+'</td>'+
+    '<td class="num">'+fmt(x.first)+'</td><td class="num pc-second-delivery">'+fmt(x.second)+'</td>'+
     '<td class="num"><b>'+fmt(x.total)+'</b></td>'+
     '<td class="num">'+cash(x.total*x.price)+'</td></tr>').join('');
   $('#pc-details').innerHTML='<div class="pc-panel"><div class="pc-title"><h3>1. Pedido centralizado para CDI · local 30115</h3>'+
@@ -486,7 +488,8 @@ function redraw(){
     '<div class="pc-panel"><div class="pc-title"><h3>2. Destinação do material comprado no CDI</h3>'+
     '<small>'+integer(destRows.length)+' alocações previstas · '+integer(reserveCount)+' reservas internas da Chuá</small></div>'+
     '<div class="pc-scroll"><table><thead><tr><th>Tipo</th><th>Local destino</th><th>Fazenda</th><th>Código</th>'+
-    '<th>Produto</th><th>UN</th><th>1ª entrega</th><th>2ª entrega</th><th>Total previsto</th><th>Valor ref.</th>'+
+    '<th>Produto</th><th>UN</th><th>'+(single?'Entrega única':'1ª entrega')+
+    '</th><th class="pc-second-delivery">2ª entrega</th><th>Total previsto</th><th>Valor ref.</th>'+
     '</tr></thead><tbody>'+destHtml+'</tbody></table></div>'+
     '<div class="pc-footer">Compra recebida no CDI 30115. A reserva Chuá permanece no próprio saldo; distribuição às fazendas somente após entrada e transferência formal. '+ 
     'Exibidas até 500 alocações. Exportar CSV para lista integral.</div></div>'+
@@ -503,7 +506,10 @@ function redraw(){
     months:2,stockDate:p.stockDate,sourceMonths:22,closedThrough:'31/10/2026',physicalChuaOnlyOnce:p.cdiUnique,
     localChuaReserved:true,otherTransfers:state.otherTransfers,automaticOrders:false,
     grossValue:t.gross,chuaTransferValue:t.chua,otherTransferValue:t.others,purchaseValue:t.buy,
-    firstDeliveryValue:t.first,secondDeliveryValue:t.second,firstDate:state.date1,secondDate:state.date2,
+    firstDeliveryValue:plannedFirst,secondDeliveryValue:plannedSecond,
+    firstDate:state.date1,secondDate:secondDate,deliveryMode:state.deliveryMode,
+    deliveryCount:single?1:2,deliveryHorizonMonths:2,oneDeliveryIncludesFull60Days:single,
+    calculatedPurchaseValueUnchanged:t.buy,
     chosenValue:chosen.value,items:p.lines.length,urgentItems:t.urgent,historyReviewItems:t.review,
     centralPurchaseDestination:'CDI DE PECAS',centralPurchaseLocal:'30115',centralPurchaseFiscalCompany:'003',
     purchaseReceivingOnlyAtCDI:true,transferAfterReceipt:true,internalChuaReservation:true,
@@ -520,7 +526,9 @@ function redraw(){
     purchaseHierarchy:['Grupo','Item'],groupedPurchaseView:true,
     purchaseGroups:purchaseGroups.length,groupedPurchaseItemCount:filtered.length,
     groupedPurchaseValue:purchaseGroups.reduce((v,g)=>v+g.planned,0),
-    purchaseOpenedGroups:[...state.purchaseOpen].filter(n=>purchaseMap.has(n))};
+    purchaseOpenedGroups:[...state.purchaseOpen].filter(n=>purchaseMap.has(n)),
+    selectedFirstDeliveryValue:p.lines.reduce((v,e)=>v+edited(e).first*e.price,0),
+    selectedSecondDeliveryValue:p.lines.reduce((v,e)=>v+edited(e).second*e.price,0)};
 }
 function exportPlan(mode){
   const p=state.plan;if(!p)return;
@@ -532,7 +540,7 @@ function exportPlan(mode){
       'Compra CDI ajustada','1ª entrega no CDI','2ª entrega no CDI','Destinar compra à Chuá',
       'Destinar compra às outras unidades','Saldo não alocado no CDI','Custo referência ERP (R$)',
       'Fonte do custo','Valor estimado (R$)','Prioridade','Unidades atendidas pelo CDI',
-      'Data entrega 1','Data entrega 2','Data posição ERP','Fluxo']];
+      'Data entrega 1','Data entrega 2','Data posição ERP','Fluxo','Modalidade de entrega']];
     for(const e of p.lines.filter(inScope)){const a=edited(e);if(!a.checked||a.final<=0)continue;
       const allocation=allocationFor(e);
       rows.push([CENTRAL_CDI_LOCAL,CENTRAL_CDI_FISCAL,e.code,e.product,e.group,e.un,
@@ -540,7 +548,9 @@ function exportPlan(mode){
         e.buy,allocation.final,allocation.first,allocation.second,allocation.reserve,allocation.distribute,
         allocation.surplus,e.price,e.priceSource,allocation.value,e.urgent?'PRIORITÁRIO':'PROGRAMADO',
         allocation.rows.filter(x=>x.total>0).map(x=>x.local+' ('+x.kind+')').join(' | '),
-        state.date1,state.date2,p.stockDate,'Receber tudo no CDI 30115; reservar Chuá e distribuir por TOP 94']);}
+        state.date1,isSingleDelivery()?'':state.date2,p.stockDate,
+        'Receber tudo no CDI 30115; reservar Chuá e distribuir por TOP 94',
+        isSingleDelivery()?'ENTREGA ÚNICA - 60 DIAS':'DUAS ENTREGAS - 30 + 30 DIAS']);}
     csv(name+'_pedido_compra_recebimento_CDI.csv',rows);return;
   }
   if(mode==='fazenda'){
@@ -553,7 +563,7 @@ function exportPlan(mode){
         rows.push([CENTRAL_CDI_LOCAL,x.localCode,x.local,x.kind,x.code,x.product,x.group,x.unit,x.planned,
           x.first,x.second,x.total,x.price,x.total*x.price,
           x.kind==='RESERVA INTERNA CHUA'?'Reservar em 30115, sem nova entrada':'Após entrada em 30115, emitir TOP 94 se aplicável',
-          state.date1,state.date2,p.stockDate]);
+          state.date1,isSingleDelivery()?'':state.date2,p.stockDate]);
       }
     }
     csv(name+'_distribuicao_destinos.csv',rows);return;
@@ -577,6 +587,11 @@ $('#pc-clear').addEventListener('click',()=>{state.local='';state.group='';state
 $('#pc-other').addEventListener('change',e=>{state.otherTransfers=e.target.checked;state.dirty=true;state.limit=100;redraw()});
 $('#pc-urgent-only').addEventListener('change',e=>{state.onlyUrgent=e.target.checked;state.limit=100;redraw()});
 for(const k of ['1','2'])$('#pc-date'+k).addEventListener('change',e=>{state['date'+k]=e.target.value;redraw()});
+$('#pc-delivery-mode').addEventListener('change',e=>{
+  state.deliveryMode=e.target.value==='single'?'single':'two';
+  syncDeliveryForm();
+  redraw();
+});
 $('#pc-export').addEventListener('click',()=>exportPlan('consolidado'));
 $('#pc-export-farm').addEventListener('click',()=>exportPlan('fazenda'));
 $('#pc-export-transfer').addEventListener('click',()=>exportPlan('transferencias'));
@@ -609,5 +624,5 @@ const refresh=()=>{state.dirty=true;if(view.classList.contains('active'))redraw(
 for(const event of ['stock-position-updated','movements-updated','minimum-policy-updated'])window.addEventListener(event,refresh);
 window.DB_PROGRAMMED_PURCHASES={open:()=>tab.click(),refresh,getPlan:()=>state.plan,
   allocationFor:sku=>{const e=state.plan?.lines.find(x=>x.id===sku);return e?allocationFor(e):null},
-  meta:null,version:'20261112-cdi-compras-grupo-item-v4'};
+  meta:null,version:'20261112-cdi-entrega-unica-ou-dupla-v5'};
 })();
