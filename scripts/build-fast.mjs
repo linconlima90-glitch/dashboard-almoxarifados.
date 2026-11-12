@@ -6,7 +6,7 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 import assert from 'node:assert/strict';
 import { applyPurchaseAnalyticsPolicy } from './purchase-analytics-policy.mjs';
 import { applyBaixasNegociacao20261106 } from './apply-baixas-negociacao-20261106.mjs';
-import { applyStock20261110 } from './apply-stock-20261110.mjs';
+import { applyStock20261112 } from './apply-stock-20261112.mjs';
 
 const root = process.cwd(), input = path.join(root, 'public'), out = path.join(root, 'dist');
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
@@ -106,7 +106,7 @@ fs.rmSync(out, { recursive: true, force: true });
 fs.cpSync(input, out, { recursive: true });
 const baixasAudit=applyBaixasNegociacao20261106(root,out);
 report.baixasRetificadas=baixasAudit;
-const stockAudit=applyStock20261110(root,out);
+const stockAudit=applyStock20261112(root,out);
 report.estoqueAtualizado=stockAudit;
 const buyPack=JSON.parse(gunzipSync(Buffer.from(read('data/purchases-changes-20261110.b64').trim(),'base64')).toString('utf8'));
 assert.equal(buyPack.meta.sourceSHA256,'9ed21525bbab94802abd56ddf8260c9706f5b15f4a7295d20577b66b8db75405');
