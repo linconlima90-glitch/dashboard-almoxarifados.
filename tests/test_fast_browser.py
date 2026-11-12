@@ -781,133 +781,38 @@ with sync_playwright() as p:
 
             # Planejamento de 2 meses: cada saldo fiscal entra uma vez, com
             # reserva da Chua, transferencias propostas e compra liquida.
+            # Controle das solicitacoes Sankhya: nao confundir solicitacao emitida
+            # com pedido aprovado ou entrega ao estoque.
             purchase_tab=page.locator('.tab[data-view="compras-programadas"]')
-            assert purchase_tab.count()==1, 'Aba Compras Programadas ausente'
+            assert purchase_tab.count()==1
             purchase_tab.evaluate('(el)=>el.click()')
-            page.wait_for_function("document.querySelector('.clean-sub-btn[data-view=\"compras-programadas\"]')!==null", timeout=15000)
-            page.wait_for_function("window.DB_PROGRAMMED_PURCHASES?.meta?.months===2", timeout=15000)
-            programmed=page.evaluate("window.DB_PROGRAMMED_PURCHASES.meta")
-            assert programmed['physicalChuaOnlyOnce'] and programmed['localChuaReserved'], programmed
-            assert programmed['sourceMonths']==22 and programmed['closedThrough']=='31/10/2026'
-            assert not programmed['automaticOrders'] and programmed['items']>0, programmed
-            # Compra e recebimento somente no CDI (ERP local 30115).
-            assert programmed['centralPurchaseLocal']=='30115', programmed
-            assert programmed['centralPurchaseFiscalCompany']=='003', programmed
-            assert programmed['purchaseReceivingOnlyAtCDI'] is True, programmed
-            assert programmed['internalChuaReservation'] is True, programmed
-            assert programmed['transferAfterReceipt'] is True, programmed
-            assert abs(programmed['centralToChuaValue']+
-                       programmed['centralToNetworkValue']-programmed['purchaseValue'])<0.05, programmed
-            assert abs(programmed['editedCentralReserveValue']+
-                       programmed['editedCentralNetworkValue']+
-                       programmed['editedCentralUnallocatedValue']-programmed['chosenValue'])<0.05, programmed
-            allocations=page.evaluate("""() => {
-              const p=window.DB_PROGRAMMED_PURCHASES.getPlan();
-              return p.lines.slice(0,20).map(e=>{
-                const x=window.DB_PROGRAMMED_PURCHASES.allocationFor(e.id);
-                return {ok:x.reconciled,qty:x.final,reserve:x.reserve,distribute:x.distribute,
-                  surplus:x.surplus,rows:x.rows.length,
-                  internal:x.rows.filter(r=>r.localCode==='30115').every(r=>r.kind==='RESERVA INTERNA CHUA'),
-                  external:x.rows.filter(r=>r.localCode!=='30115').every(r=>r.kind==='DISTRIBUIR DO CDI')}
-              });
-            }""")
-            assert allocations and all(x['ok'] and x['internal'] and x['external'] for x in allocations),allocations
-            assert page.get_by_text('1. Pedido centralizado para CDI · local 30115').count()==1
-            purchase_hierarchy=page.evaluate("""() => {
-              const m=window.DB_PROGRAMMED_PURCHASES.meta;
-              const groups=[...document.querySelectorAll('#view-compras-programadas [data-pc-purchase-group]')];
-              const items=window.DB_PROGRAMMED_PURCHASES.getPlan().lines;
-              const total=items.reduce((v,x)=>v+x.buy*x.price,0);
-              return {hierarchy:m.purchaseHierarchy,groups:m.purchaseGroups,itemCount:m.groupedPurchaseItemCount,
-                value:m.groupedPurchaseValue,networkValue:m.purchaseValue,groupElements:groups.length,
-                oneOpen:groups.some(g=>g.querySelector('[data-pc-purchase-toggle]')?.getAttribute('aria-expanded')==='true'),
-                expected:total};
-            }""")
-            assert purchase_hierarchy['hierarchy']==['Grupo','Item'],purchase_hierarchy
-            assert purchase_hierarchy['groups']==purchase_hierarchy['groupElements']>0,purchase_hierarchy
-            assert purchase_hierarchy['itemCount']>0 and purchase_hierarchy['oneOpen'],purchase_hierarchy
-            assert abs(purchase_hierarchy['value']-purchase_hierarchy['expected'])<0.05,purchase_hierarchy
-            first_group=page.locator('#view-compras-programadas [data-pc-purchase-group]').first
-            first_group.locator('[data-pc-purchase-toggle]').click()
-            assert first_group.locator('[data-pc-purchase-toggle]').get_attribute('aria-expanded')=='false'
-            assert first_group.locator('[data-pc-qty]').count()==0
-            first_group.locator('[data-pc-purchase-toggle]').click()
-            assert first_group.locator('[data-pc-purchase-toggle]').get_attribute('aria-expanded')=='true'
-            assert first_group.locator('[data-pc-qty]').count()>0
-            assert page.get_by_text('2. Destinação do material comprado no CDI').count()==1
-            assert page.locator('#view-compras-programadas .pc-central-flow .pc-flow-step').count()==3
-            assert abs(programmed['grossValue']-programmed['chuaTransferValue']-
-                       programmed['otherTransferValue']-programmed['purchaseValue'])<0.1, programmed
-            assert programmed['purchaseOrderCount']==1 and programmed['deliveryCount']==1,programmed
-            assert programmed['purchaseCoverageMonths']==2,programmed
-            assert programmed['receiptDateDependsOnSupplier'] is True,programmed
-            assert programmed['deliveryDeadlineNotDerivedFromCoverage'] is True,programmed
-            assert programmed['receiptDate'] is None,programmed
-            assert page.locator('#pc-receipt-date').count()==1
-            assert page.locator('#pc-date1').count()==0 and page.locator('#pc-date2').count()==0
-            assert page.locator('#pc-delivery-mode').count()==0
-            assert page.get_by_text('Compra Única · Abastecimento do CDI para 2 meses').count()==1
-            assert page.locator('#pc-export').count()==1
-            assert page.locator('#pc-export-farm').count()==1
-            assert page.locator('#pc-export-transfer').count()==1
-            assert page.locator('#view-compras-programadas .pc-location').count()>0
-            assert page.locator('#view-compras-programadas [data-pc-qty]').count()>0
-            page.locator('#pc-other').uncheck()
-            page.wait_for_function("window.DB_PROGRAMMED_PURCHASES?.meta?.otherTransfers===false")
-            no_other=page.evaluate("window.DB_PROGRAMMED_PURCHASES.meta")
-            assert abs(no_other['otherTransferValue'])<0.01
-            assert no_other['purchaseValue']+0.1>=programmed['purchaseValue']
-            page.locator('#pc-other').check()
-            page.wait_for_function("window.DB_PROGRAMMED_PURCHASES?.meta?.otherTransfers===true")
-            page.locator('#pc-receipt-date').fill('2026-11-20')
-            assert page.evaluate("window.DB_PROGRAMMED_PURCHASES.meta.receiptDate")=='2026-11-20'
-            assert page.evaluate("window.DB_PROGRAMMED_PURCHASES.meta.purchaseValue")==programmed['purchaseValue']
-            allocations_single=page.evaluate("""() => {
-              const plan=window.DB_PROGRAMMED_PURCHASES.getPlan();
-              return plan.lines.slice(0,30).map(e=>{
-                const x=window.DB_PROGRAMMED_PURCHASES.allocationFor(e.id);
-                return {ok:x.reconciled,total:x.final,sum:x.reserve+x.distribute+x.surplus,
-                  allRowsSingle:x.rows.every(r=>r.total>=0)};
-              });
-            }""")
-            assert allocations_single and all(a['ok'] and a['allRowsSingle'] and
-              abs(a['total']-a['sum'])<0.02 for a in allocations_single),allocations_single
-            # Cascata: Fazenda determina grupos; grupo determina produtos.
-            local_select=page.locator('#pc-local')
-            group_select=page.locator('#pc-group')
-            product_select=page.locator('#pc-product')
-            assert local_select.count()==1 and group_select.count()==1 and product_select.count()==1
-            assert local_select.locator('option').count()>1
-            network_before=page.evaluate('window.DB_PROGRAMMED_PURCHASES.meta.purchaseValue')
-            selected_local=local_select.locator('option').nth(1).get_attribute('value')
-            assert selected_local
-            local_select.select_option(selected_local)
-            selected_meta=page.evaluate('window.DB_PROGRAMMED_PURCHASES.meta')
-            assert selected_meta['cascadeLocal']==selected_local
-            assert selected_meta['cascadeGroup']=='' and selected_meta['cascadeProduct']==''
-            assert selected_meta['networkTotalsUnaffectedByCascade'] is True
-            assert selected_meta['purchaseValue']==network_before
-            assert selected_meta['cascadeSequence']==['Fazenda','Grupo','Produto']
-            assert page.locator('#pc-cascade-summary .pc-scope').count()==1
-            assert page.locator('#view-compras-programadas .pc-location').count()==1
-            assert group_select.locator('option').count()>1
-            selected_group=group_select.locator('option').nth(1).get_attribute('value')
-            group_select.select_option(selected_group)
-            group_meta=page.evaluate('window.DB_PROGRAMMED_PURCHASES.meta')
-            assert group_meta['cascadeLocal']==selected_local and group_meta['cascadeGroup']==selected_group
-            assert product_select.locator('option').count()>1
-            selected_product=product_select.locator('option').nth(1).get_attribute('value')
-            product_select.select_option(selected_product)
-            product_meta=page.evaluate('window.DB_PROGRAMMED_PURCHASES.meta')
-            assert product_meta['cascadeProduct']==selected_product
-            assert product_meta['cascadeVisibleItems']==1
-            assert product_meta['purchaseValue']==network_before
-            assert product_meta['cascadeScopedPurchaseValue']<=network_before+0.01
-            page.locator('#pc-clear').click()
-            cleared_meta=page.evaluate('window.DB_PROGRAMMED_PURCHASES.meta')
-            assert cleared_meta['cascadeLocal']=='' and cleared_meta['cascadeGroup']=='' and cleared_meta['cascadeProduct']==''
-            assert page.locator('#pc-cascade-summary .pc-scope').count()==0
-
+            page.wait_for_function("window.DB_CDI_ORDER_TRACKER?.meta?.documents>=1", timeout=15000)
+            tracker=page.evaluate("window.DB_CDI_ORDER_TRACKER.meta")
+            assert tracker['groups']==1 and tracker['documents']==1,tracker
+            assert tracker['lines']==18 and tracker['products']==18,tracker
+            assert tracker['latestRequest']=='110998' and tracker['latestDate']=='2026-11-12',tracker
+            assert tracker['cadenceMonths']==2 and tracker['alertBeforeDays']==15,tracker
+            assert tracker['centralLocal']=='30115' and tracker['source']=='SANKHYA',tracker
+            assert tracker['purchasedConfirmed'] is False and tracker['receivedConfirmed'] is False
+            assert tracker['groupedBy']==['Grupo','Solicitação','Item'],tracker
+            assert tracker['externalNotifications'] is False
+            due=tracker['nextDue']
+            assert len(due)==1 and due[0]['group']=='CORREIAS',due
+            assert due[0]['date']=='2027-01-12',due
+            assert page.locator('#view-compras-programadas [data-sc-group="CORREIAS"]').count()==1
+            assert page.locator('#view-compras-programadas .sc-scroll tbody tr').count()==18
+            assert page.get_by_text('Solicitação 110998',exact=False).count()>=1
+            assert page.locator('#sc-export').count()==1
+            page.locator('#sc-search').fill('105098')
+            assert page.locator('#view-compras-programadas [data-sc-group="CORREIAS"]').count()==1
+            page.locator('#sc-search').fill('inexistente000000')
+            assert page.locator('#view-compras-programadas [data-sc-group="CORREIAS"]').count()==0
+            page.locator('#sc-search').fill('')
+            group=page.locator('#view-compras-programadas [data-sc-group="CORREIAS"]')
+            group.locator('[data-sc-toggle]').click()
+            assert group.locator('[data-sc-toggle]').get_attribute('aria-expanded')=='false'
+            group.locator('[data-sc-toggle]').click()
+            assert group.locator('[data-sc-toggle]').get_attribute('aria-expanded')=='true'
             # A aba e criada dinamicamente antes do layout e usa o historico reconciliado.
             assert page.locator('.clean-sub-btn[data-view="sem-baixas"]').count() >= 0
             page.locator('.tab[data-view="sem-baixas"]').evaluate('(el)=>el.click()')
