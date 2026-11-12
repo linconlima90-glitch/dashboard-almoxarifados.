@@ -430,7 +430,7 @@ function redraw(){
     editedCentralReserveValue:chosen.chua,editedCentralNetworkValue:chosen.network,
     editedCentralUnallocatedValue:chosen.surplus,editedUncoveredDemandValue:chosen.uncovered,
     centralAllocationRows:destRows.length,
-    priceMissingItems:t.missing,exportFormats:['consolidado','por-fazenda','transferencias'],
+    priceMissingItems:t.missing,exportFormats:['pedido-compra-recebimento-CDI','distribuicao-destinos','transferencias-saldo-existente'],
     cascadeLocal:state.local,cascadeGroup:state.group,cascadeProduct:state.product,
     cascadeSequence:['Fazenda','Grupo','Produto'],cascadeVisibleItems:filtered.length,
     cascadeScopedPurchaseValue:scope.buy,cascadeScopedGrossValue:scope.gross,
@@ -439,31 +439,44 @@ function redraw(){
 }
 function exportPlan(mode){
   const p=state.plan;if(!p)return;
-  const date=isoDate(new Date()),name='compras_programadas_rede_'+date;
+  const date=isoDate(new Date()),name='compras_programadas_CDI_30115_'+date;
   if(mode==='consolidado'){
-    const rows=[['Código','Produto','Grupo','UN','Falta bruta 60 dias','Reserva Chuá 60 dias','Saldo Chuá',
-      'Saldo livre Chuá para CDI','Transferência Chuá/CDI','Transferência outras fazendas',
-      'Compra calculada 60 dias','Comprar ajustado','Entrega 1 quantidade','Entrega 2 quantidade','Custo referência ERP (R$)',
-      'Fonte do custo','Valor estimado (R$)','Prioridade','Destinos','Data entrega 1','Data entrega 2','Data posição ERP']];
+    const rows=[['Local de COMPRA/RECEBIMENTO','Destino fiscal a confirmar','Código','Produto','Grupo','UN',
+      'Falta bruta 60 dias','Reserva histórica Chuá 60 dias','Saldo físico 30115','Saldo livre CDI anterior',
+      'Transferência de saldo anterior Chuá/CDI','Transferências de outras fazendas','Compra CDI calculada 60 dias',
+      'Compra CDI ajustada','1ª entrega no CDI','2ª entrega no CDI','Destinar compra à Chuá',
+      'Destinar compra às outras unidades','Saldo não alocado no CDI','Custo referência ERP (R$)',
+      'Fonte do custo','Valor estimado (R$)','Prioridade','Unidades atendidas pelo CDI',
+      'Data entrega 1','Data entrega 2','Data posição ERP','Fluxo']];
     for(const e of p.lines.filter(inScope)){const a=edited(e);if(!a.checked||a.final<=0)continue;
-      rows.push([e.code,e.product,e.group,e.un,e.gross,e.chuaReserve,e.chuaStock,e.chuaFree,e.fromChua,e.fromOther,
-        e.buy,a.final,a.first,a.second,e.price,e.priceSource,a.value,e.urgent?'PRIORITÁRIO':'PROGRAMADO',
-        e.needLocations.map(x=>x.local).join(' | '),state.date1,state.date2,p.stockDate]);}
-    csv(name+'_consolidado.csv',rows);return;
+      const allocation=allocationFor(e);
+      rows.push([CENTRAL_CDI_LOCAL,CENTRAL_CDI_FISCAL,e.code,e.product,e.group,e.un,
+        e.gross,e.chuaReserve,e.chuaStock,e.chuaFree,e.fromChua,e.fromOther,
+        e.buy,allocation.final,allocation.first,allocation.second,allocation.reserve,allocation.distribute,
+        allocation.surplus,e.price,e.priceSource,allocation.value,e.urgent?'PRIORITÁRIO':'PROGRAMADO',
+        allocation.rows.filter(x=>x.total>0).map(x=>x.local+' ('+x.kind+')').join(' | '),
+        state.date1,state.date2,p.stockDate,'Receber tudo no CDI 30115; reservar Chuá e distribuir por TOP 94']);}
+    csv(name+'_pedido_compra_recebimento_CDI.csv',rows);return;
   }
   if(mode==='fazenda'){
-    const rows=[['Fazenda','Código','Produto','Grupo','UN','Média por mês','Meses com baixas','Saldo atual',
-      'Meta 30 dias','Meta 60 dias','Falta 60 dias','Receber Chuá/CDI','Receber outras fazendas',
-      'Compra 60 dias','Entrega 1','Entrega 2','Data posição ERP']];
-    for(const l of p.localSummary)for(const x of l.rows.filter(localInScope))
-      rows.push([x.local,x.code,x.product,x.group,x.un,x.average,x.active,x.stock,x.target30,x.target60,
-        x.needed,x.receivedChua,x.receivedOther,x.buy,x.first,x.second,p.stockDate]);
-    csv(name+'_por_fazenda.csv',rows);return;
+    const rows=[['Local de recebimento da COMPRA','Código local destino','Fazenda destino','Tipo de destinação',
+      'Código','Produto','Grupo','UN','Quantidade calculada antes de ajustes','1ª entrega programada',
+      '2ª entrega programada','Total a reservar/distribuir','Custo referência ERP','Valor de destino previsto',
+      'Procedimento de movimentação','Data entrega CDI 1','Data entrega CDI 2','Posição ERP']];
+    for(const e of p.lines.filter(inScope)){
+      for(const x of allocationFor(e).rows.filter(x=>x.total>0&&localInScope(x))){
+        rows.push([CENTRAL_CDI_LOCAL,x.localCode,x.local,x.kind,x.code,x.product,x.group,x.unit,x.planned,
+          x.first,x.second,x.total,x.price,x.total*x.price,
+          x.kind==='RESERVA INTERNA CHUA'?'Reservar em 30115, sem nova entrada':'Após entrada em 30115, emitir TOP 94 se aplicável',
+          state.date1,state.date2,p.stockDate]);
+      }
+    }
+    csv(name+'_distribuicao_destinos.csv',rows);return;
   }
   const rows=[['Origem','Destino','Código','Produto','UN','Quantidade sugerida','Custo referência (R$)','Tipo','Observação']];
   for(const x of p.transfers.filter(transferInScope))rows.push([x.source,x.dest,x.code,x.product,x.un,x.q,x.price,x.kind,
-    'Conferir disponibilidade, unidade fiscal e TOP 94; não registrar como economia realizada']);
-  csv(name+'_transferencias.csv',rows);
+    'Movimentação sugerida sobre SALDO ATUAL, independente das novas compras CDI. Conferir disponibilidade, empresa fiscal e TOP 94; não registrar economia realizada']);
+  csv(name+'_transferencias_saldo_existente.csv',rows);
 }
 $('#pc-query').addEventListener('input',e=>{state.query=e.target.value;state.limit=100;redraw()});
 $('#pc-local').addEventListener('change',e=>{state.local=e.target.value;state.group='';state.product='';
@@ -493,5 +506,7 @@ tab.addEventListener('click',()=>{
 });
 const refresh=()=>{state.dirty=true;if(view.classList.contains('active'))redraw()};
 for(const event of ['stock-position-updated','movements-updated','minimum-policy-updated'])window.addEventListener(event,refresh);
-window.DB_PROGRAMMED_PURCHASES={open:()=>tab.click(),refresh,getPlan:()=>state.plan,meta:null,version:'20261112-rede-60d-cascata-v2'};
+window.DB_PROGRAMMED_PURCHASES={open:()=>tab.click(),refresh,getPlan:()=>state.plan,
+  allocationFor:sku=>{const e=state.plan?.lines.find(x=>x.id===sku);return e?allocationFor(e):null},
+  meta:null,version:'20261112-cdi-central-compras-60d-v3'};
 })();
