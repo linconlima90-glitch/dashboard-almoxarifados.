@@ -230,7 +230,7 @@ function redraw(){
     '<td class="'+(e.urgent?'pc-urgent':'')+'">'+(e.urgent?'PRIORITÁRIO':'PROGRAMADO')+'</td></tr>';
   }).join('');
   const locs=p.localSummary.map(l=>'<details class="pc-location"><summary>'+esc(l.name)+
-    '<small>Transferências '+fmt(l.received)+' · compra projetada '+cash(l.value)+'</small></summary>'+
+    '<small>'+integer(l.rows.length)+' códigos com demanda · compra projetada '+cash(l.value)+'</small></summary>'+
     '<div class="pc-scroll"><table><thead><tr><th>Código</th><th>Produto</th><th>UN</th><th>Média/mês</th><th>Saldo</th>'+
     '<th>Meta 60d</th><th>Falta 60d</th><th>Receber CDI</th><th>Outras transf.</th><th>Compra</th><th>1ª entrega</th><th>2ª entrega</th></tr></thead><tbody>'+
     l.rows.sort((a,b)=>b.buy-a.buy).map(x=>'<tr><td>'+esc(x.code)+'</td><td>'+esc(x.product)+'</td><td>'+esc(x.un)+'</td>'+
