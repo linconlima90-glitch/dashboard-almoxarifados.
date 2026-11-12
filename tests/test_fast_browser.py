@@ -783,8 +783,8 @@ with sync_playwright() as p:
             # reserva da Chua, transferencias propostas e compra liquida.
             purchase_tab=page.locator('.tab[data-view="compras-programadas"]')
             assert purchase_tab.count()==1, 'Aba Compras Programadas ausente'
-            assert page.locator('.clean-sub-btn[data-view="compras-programadas"]').count()==1
             purchase_tab.evaluate('(el)=>el.click()')
+            page.wait_for_function("document.querySelector('.clean-sub-btn[data-view=\"compras-programadas\"]')!==null", timeout=15000)
             page.wait_for_function("window.DB_PROGRAMMED_PURCHASES?.meta?.months===2", timeout=15000)
             programmed=page.evaluate("window.DB_PROGRAMMED_PURCHASES.meta")
             assert programmed['physicalChuaOnlyOnce'] and programmed['localChuaReserved'], programmed
