@@ -838,8 +838,15 @@ with sync_playwright() as p:
             assert page.locator('#view-compras-programadas .pc-central-flow .pc-flow-step').count()==3
             assert abs(programmed['grossValue']-programmed['chuaTransferValue']-
                        programmed['otherTransferValue']-programmed['purchaseValue'])<0.1, programmed
-            assert abs(programmed['firstDeliveryValue']+programmed['secondDeliveryValue']-
-                       programmed['purchaseValue'])<0.1, programmed
+            assert programmed['purchaseOrderCount']==1 and programmed['deliveryCount']==1,programmed
+            assert programmed['purchaseCoverageMonths']==2,programmed
+            assert programmed['receiptDateDependsOnSupplier'] is True,programmed
+            assert programmed['deliveryDeadlineNotDerivedFromCoverage'] is True,programmed
+            assert programmed['receiptDate'] is None,programmed
+            assert page.locator('#pc-receipt-date').count()==1
+            assert page.locator('#pc-date1').count()==0 and page.locator('#pc-date2').count()==0
+            assert page.locator('#pc-delivery-mode').count()==0
+            assert page.get_by_text('Compra Única · Abastecimento do CDI para 2 meses').count()==1
             assert page.locator('#pc-export').count()==1
             assert page.locator('#pc-export-farm').count()==1
             assert page.locator('#pc-export-transfer').count()==1
@@ -852,44 +859,19 @@ with sync_playwright() as p:
             assert no_other['purchaseValue']+0.1>=programmed['purchaseValue']
             page.locator('#pc-other').check()
             page.wait_for_function("window.DB_PROGRAMMED_PURCHASES?.meta?.otherTransfers===true")
-            page.locator('#pc-date2').fill('2026-12-21')
-            assert page.evaluate("window.DB_PROGRAMMED_PURCHASES.meta.secondDate")=='2026-12-21'
-            assert page.locator('#pc-delivery-mode option').count()==2
-            assert page.locator('#pc-delivery-mode').input_value()=='two'
-            assert programmed['deliveryMode']=='two' and programmed['deliveryCount']==2
-            assert abs(programmed['firstDeliveryValue']+programmed['secondDeliveryValue']-
-                       programmed['purchaseValue'])<0.05,programmed
-            page.locator('#pc-delivery-mode').select_option('single')
-            single=page.evaluate("window.DB_PROGRAMMED_PURCHASES.meta")
-            assert single['deliveryMode']=='single' and single['deliveryCount']==1,single
-            assert single['oneDeliveryIncludesFull60Days'] is True,single
-            assert single['secondDate']=='' and single['secondDeliveryValue']==0,single
-            assert abs(single['firstDeliveryValue']-single['purchaseValue'])<0.05,single
-            assert abs(single['selectedFirstDeliveryValue']-single['chosenValue'])<0.05,single
-            assert single['selectedSecondDeliveryValue']==0,single
-            assert abs(single['calculatedPurchaseValueUnchanged']-programmed['purchaseValue'])<0.05,single
-            assert page.locator('#pc-date2').is_disabled()
-            assert page.locator('#pc-date2-wrap').is_hidden()
-            assert page.locator('#pc-date1-label').inner_text()=='Entrega única'
-            assert page.locator('#view-compras-programadas .pc-group .pc-group-values').first.get_by_text('Entrega única:',exact=False).count()==1
+            page.locator('#pc-receipt-date').fill('2026-11-20')
+            assert page.evaluate("window.DB_PROGRAMMED_PURCHASES.meta.receiptDate")=='2026-11-20'
+            assert page.evaluate("window.DB_PROGRAMMED_PURCHASES.meta.purchaseValue")==programmed['purchaseValue']
             allocations_single=page.evaluate("""() => {
               const plan=window.DB_PROGRAMMED_PURCHASES.getPlan();
               return plan.lines.slice(0,30).map(e=>{
                 const x=window.DB_PROGRAMMED_PURCHASES.allocationFor(e.id);
-                return {ok:x.reconciled,total:x.final,first:x.first,second:x.second,
-                  allFirst:x.rows.every(r=>r.second===0),
-                  sum:x.reserve+x.distribute+x.surplus};
+                return {ok:x.reconciled,total:x.final,sum:x.reserve+x.distribute+x.surplus,
+                  allRowsSingle:x.rows.every(r=>r.total>=0)};
               });
             }""")
-            assert allocations_single and all(a['ok'] and a['allFirst'] and
-              abs(a['total']-a['first'])<0.02 and a['second']==0 and
+            assert allocations_single and all(a['ok'] and a['allRowsSingle'] and
               abs(a['total']-a['sum'])<0.02 for a in allocations_single),allocations_single
-            page.locator('#pc-delivery-mode').select_option('two')
-            restored=page.evaluate("window.DB_PROGRAMMED_PURCHASES.meta")
-            assert restored['deliveryMode']=='two' and restored['deliveryCount']==2,restored
-            assert restored['secondDate']=='2026-12-21'
-            assert not page.locator('#pc-date2').is_disabled()
-            assert page.locator('#pc-date2-wrap').is_visible()
             # Cascata: Fazenda determina grupos; grupo determina produtos.
             local_select=page.locator('#pc-local')
             group_select=page.locator('#pc-group')
