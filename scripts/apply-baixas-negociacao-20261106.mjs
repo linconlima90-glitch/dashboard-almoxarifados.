@@ -249,7 +249,7 @@ export function applyBaixasNegociacao20261106(root,out) {
     " baixas. 2026: "+byYear['2026'].records+
     " baixas ate 11/11. Fonte integral substituída pela data de negociação, sem duplicidade. "+
     "Estoque minimo: 22 meses completos (2025 e janeiro-outubro/2026), cobertura de 2 meses; "+
-    "novembro parcial fora da média. Saldo físico preservado da posição ERP 10/11/2026, sem subtração adicional.</div>';summary.prepend(box);");
+    "novembro parcial fora da média. Saldo físico preservado da fotografia ERP mais recente, sem subtração adicional; consultar a data da posição no quadro de estoque.</div>';summary.prepend(box);");
   replace('2024 meta',/window\.MOVEMENTS_2024_META=\{[^;]+;/,
     "window.MOVEMENTS_2024_META={from:'14/03/2024',to:'31/12/2024',records:"+byYear['2024'].records+",value:"+money(byYear['2024'].cents)+",forMinimum:false};");
   reconcile=reconcile.replace("sourceSHA256:meta.sha256,","sourceSHA256:meta.sha256,dateBasis:meta.dateBasis,");
