@@ -779,6 +779,36 @@ with sync_playwright() as p:
             panel.locator('#dbmx-mode').select_option('all')
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.integrated") is True
 
+            # Planejamento de 2 meses: cada saldo fiscal entra uma vez, com
+            # reserva da Chua, transferencias propostas e compra liquida.
+            purchase_tab=page.locator('.tab[data-view="compras-programadas"]')
+            assert purchase_tab.count()==1, 'Aba Compras Programadas ausente'
+            assert page.locator('.clean-sub-btn[data-view="compras-programadas"]').count()==1
+            purchase_tab.evaluate('(el)=>el.click()')
+            page.wait_for_function("window.DB_PROGRAMMED_PURCHASES?.meta?.months===2", timeout=15000)
+            programmed=page.evaluate("window.DB_PROGRAMMED_PURCHASES.meta")
+            assert programmed['physicalChuaOnlyOnce'] and programmed['localChuaReserved'], programmed
+            assert programmed['sourceMonths']==22 and programmed['closedThrough']=='31/10/2026'
+            assert not programmed['automaticOrders'] and programmed['items']>0, programmed
+            assert abs(programmed['grossValue']-programmed['chuaTransferValue']-
+                       programmed['otherTransferValue']-programmed['purchaseValue'])<0.1, programmed
+            assert abs(programmed['firstDeliveryValue']+programmed['secondDeliveryValue']-
+                       programmed['purchaseValue'])<0.1, programmed
+            assert page.locator('#pc-export').count()==1
+            assert page.locator('#pc-export-farm').count()==1
+            assert page.locator('#pc-export-transfer').count()==1
+            assert page.locator('#view-compras-programadas .pc-location').count()>0
+            assert page.locator('#view-compras-programadas [data-pc-qty]').count()>0
+            page.locator('#pc-other').uncheck()
+            page.wait_for_function("window.DB_PROGRAMMED_PURCHASES?.meta?.otherTransfers===false")
+            no_other=page.evaluate("window.DB_PROGRAMMED_PURCHASES.meta")
+            assert abs(no_other['otherTransferValue'])<0.01
+            assert no_other['purchaseValue']+0.1>=programmed['purchaseValue']
+            page.locator('#pc-other').check()
+            page.wait_for_function("window.DB_PROGRAMMED_PURCHASES?.meta?.otherTransfers===true")
+            page.locator('#pc-date2').fill('2026-12-21')
+            assert page.evaluate("window.DB_PROGRAMMED_PURCHASES.meta.secondDate")=='2026-12-21'
+
             # A aba e criada dinamicamente antes do layout e usa o historico reconciliado.
             assert page.locator('.clean-sub-btn[data-view="sem-baixas"]').count() >= 0
             page.locator('.tab[data-view="sem-baixas"]').evaluate('(el)=>el.click()')
