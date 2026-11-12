@@ -320,10 +320,7 @@ function redraw(){
   if(!ready()){$('#pc-overview').innerHTML='<div class="pc-note">Preparando histórico e estoque. Reabra esta aba após carregar a plataforma.</div>';return}
   if(state.dirty||!state.plan){state.plan=compute();state.dirty=false;refreshCascade()}
   const p=state.plan,t=p.totals,filtered=p.lines.filter(inScope);
-  const single=isSingleDelivery();
-  const plannedFirst=single?t.buy:t.first,plannedSecond=single?0:t.second;
-  const firstLabel=single?'Entrega única · 60 dias':'1ª entrega · primeiro mês';
-  const secondDate=single?'':state.date2;
+  const purchaseForTwoMonths=t.buy;
   const localRows=p.localSummary.flatMap(l=>l.rows).filter(localInScope);
   const scope=localRows.reduce((a,x)=>{a.gross+=x.needed*x.price;a.chua+=x.receivedChua*x.price;
     a.other+=x.receivedOther*x.price;a.buy+=x.buy*x.price;a.first+=x.first*x.price;
@@ -341,20 +338,18 @@ function redraw(){
     card('Atendimento pelo estoque livre Chuá/CDI',cash(t.chua),'Reserva própria da Chuá preservada')+
     card('Excedentes confiáveis de outras unidades',cash(t.others),'Transferências sugeridas')+
     card('Comprar e receber no CDI 30115 · 60 dias',cash(t.buy),integer(p.lines.length)+' produtos para cotar',true)+
-    card(firstLabel,cash(plannedFirst),esc(state.date1))+
-    '<div class="pc-second-delivery">'+card('2ª entrega · completar 60 dias',cash(plannedSecond),esc(state.date2))+'</div>'+
+    card('Compra única para 2 meses',cash(purchaseForTwoMonths),'Recebimento conforme prazo do fornecedor')+
     card('Compra ao CDI após ajustes',cash(chosen.value),integer(chosen.items)+' produtos selecionados',true)+
     card('Pendências para análise',integer(t.review),integer(t.missing)+' produtos sem custo de referência')+
     '</div><div class="pc-central-flow">'+
     '<div class="pc-flow-step"><b>1. Compra e recebimento central</b><span>Pedido único destinado ao CDI de Peças · ERP 30115. '+
-    (single?'Uma entrega para toda a cobertura de 60 dias.':'Duas entregas previstas.')+'</span><strong>'+cash(t.buy)+'</strong></div>'+
+    'Uma compra para repor o CDI por 2 meses. O recebimento depende do prazo negociado com o fornecedor.</span><strong>'+cash(t.buy)+'</strong></div>'+
     '<div class="pc-flow-step"><b>2. Reserva para consumo da Chuá</b><span>Parte da compra que recompõe a demanda local, sem transferir para outra empresa.</span><strong>'+cash(t.reserveChua)+'</strong></div>'+
     '<div class="pc-flow-step"><b>3. Distribuição às demais fazendas</b><span>Parcela comprada para posterior transferência a partir do CDI, sujeita à TOP 94.</span><strong>'+cash(t.distributeNetwork)+'</strong></div>'+
-    '</div><div class="pc-delivery-policy"><b>Programação:</b> '+(single?
-    'Entrega única: 100% da necessidade calculada para 60 dias será recebida no CDI na data selecionada. '+
-    'A segunda remessa fica desativada.':
-    'Duas entregas: a primeira cobre o primeiro mês e a segunda completa os 60 dias.')+
-    ' O valor total da compra permanece igual nos dois modos.</div>'+
+    '</div><div class="pc-delivery-policy"><b>Compra única:</b> o pedido é fechado de uma vez para atender '+
+    'dois meses de consumo do CDI e de toda a rede. <b>Não significa entrega após 60 dias.</b> '+
+    'A data de recebimento é opcional e será definida de acordo com a negociação com o fornecedor. '+
+    'Nenhuma segunda entrega é calculada.</div>'+
     '<div class="pc-note"><b>Após ajustes manuais:</b> reserva Chuá '+cash(chosen.chua)+
     ' · distribuição às outras unidades '+cash(chosen.network)+
     ' · saldo a alocar no CDI '+cash(chosen.surplus)+
@@ -383,17 +378,15 @@ function redraw(){
     '<td class="num">'+fmt(e.gross)+'</td><td class="num">'+fmt(e.chuaReserve)+'</td><td class="num">'+fmt(e.fromChua)+'</td>'+
     '<td class="num">'+fmt(e.fromOther)+'</td><td class="num"><b>'+fmt(e.buy)+'</b></td>'+
     '<td><input class="pc-qty" type="number" min="0" step="'+(continuous.has(e.un)?'0.01':'1')+
-    '" data-pc-qty="'+esc(e.id)+'" value="'+a.final+'"></td><td class="num">'+fmt(a.first)+
-    '</td><td class="num pc-second-delivery">'+fmt(a.second)+'</td>'+
+    '" data-pc-qty="'+esc(e.id)+'" value="'+a.final+'"></td>'+
     '<td class="num">'+(e.price?cash(e.price):'Cotar')+'</td><td class="num"><b>'+cash(a.value)+'</b></td>'+
     '<td class="'+(e.urgent?'pc-urgent':'')+'">'+(e.urgent?'PRIORITÁRIO':'PROGRAMADO')+'</td></tr>';
   };
   const purchaseMap=new Map();
   for(const e of filtered){
     let g=purchaseMap.get(e.group);
-    if(!g){g={name:e.group,items:[],planned:0,selected:0,first:0,second:0};purchaseMap.set(e.group,g)}
+    if(!g){g={name:e.group,items:[],planned:0,selected:0};purchaseMap.set(e.group,g)}
     const a=edited(e);g.items.push(e);g.planned+=e.buy*e.price;g.selected+=a.value;
-    g.first+=a.first*e.price;g.second+=a.second*e.price;
   }
   const purchaseGroups=[...purchaseMap.values()].sort((a,b)=>b.planned-a.planned||a.name.localeCompare(b.name,'pt-BR'));
   if(!state.purchaseInitialized&&purchaseGroups.length){
@@ -401,7 +394,6 @@ function redraw(){
   }
   const purchaseHeader='<thead><tr><th>Incluir</th><th>Código</th><th>Produto</th><th>UN</th><th>Falta 60d</th>'+
     '<th>Reserva Chuá</th><th>Transferir CDI</th><th>Outras transf.</th><th>Compra sugerida</th><th>Comprar</th>'+
-    '<th>'+(single?'Entrega única':'1ª entrega')+'</th><th class="pc-second-delivery">2ª entrega</th>'+
     '<th>Custo ref.</th><th>Valor</th><th>Prioridade</th></tr></thead>';
   const purchaseGroupHtml=purchaseGroups.map(g=>{
     const open=state.purchaseOpen.has(g.name),sorted=g.items.slice().sort((a,b)=>
@@ -420,8 +412,7 @@ function redraw(){
       '<span class="pc-group-label"><span class="pc-group-arrow">'+(open?'▾':'▸')+'</span>'+
       '<b>'+esc(g.name)+'</b><span class="pc-group-count">'+integer(g.items.length)+' itens</span></span>'+
       '<span class="pc-group-values"><span>Compra CDI: <strong>'+cash(g.planned)+'</strong></span>'+
-      '<span>Selecionado: '+cash(g.selected)+'</span><span>'+(single?'Entrega única: ':'1ª entrega: ')+cash(g.first)+'</span>'+
-      '<span class="pc-second-delivery">2ª entrega: '+cash(g.second)+'</span></span></button>'+body+'</section>';
+      '<span>Selecionado: '+cash(g.selected)+'</span></span></button>'+body+'</section>';
   }).join('');
   const locs=p.localSummary.filter(l=>!state.local||l.name===state.local).map(l=>{
     const rows=l.rows.filter(localInScope).sort((a,b)=>b.buy*b.price-a.buy*a.price);
@@ -430,13 +421,11 @@ function redraw(){
     return '<details class="pc-location"><summary>'+esc(l.name)+
     '<small>'+integer(rows.length)+' códigos com demanda · compra projetada '+cash(purchase)+'</small></summary>'+
     '<div class="pc-scroll"><table><thead><tr><th>Código</th><th>Produto</th><th>UN</th><th>Média/mês</th><th>Saldo</th>'+
-    '<th>Meta 60d</th><th>Falta 60d</th><th>Receber CDI</th><th>Outras transf.</th><th>Compra</th>'+
-    '<th>'+(single?'Entrega única':'1ª entrega')+'</th><th class="pc-second-delivery">2ª entrega</th></tr></thead><tbody>'+
+    '<th>Meta 60d</th><th>Falta 60d</th><th>Receber CDI</th><th>Outras transf.</th><th>Compra única</th></tr></thead><tbody>'+
     rows.map(x=>'<tr><td>'+esc(x.code)+'</td><td>'+esc(x.product)+'</td><td>'+esc(x.un)+'</td>'+
       '<td class="num">'+fmt(x.average)+'</td><td class="num">'+fmt(x.stock)+'</td><td class="num">'+fmt(x.target60)+'</td>'+
       '<td class="num">'+fmt(x.needed)+'</td><td class="num">'+fmt(x.receivedChua)+'</td><td class="num">'+fmt(x.receivedOther)+'</td>'+
-      '<td class="num"><b>'+fmt(x.buy)+'</b></td><td class="num">'+fmt(firstQty(x))+
-    '</td><td class="num pc-second-delivery">'+fmt(secondQty(x))+'</td></tr>').join('')+
+      '<td class="num"><b>'+fmt(x.buy)+'</b></td></tr>').join('')+
     '</tbody></table></div></details>';
   }).join('');
   const audit=p.review.filter(x=>(!state.local||x.local===state.local)&&(!state.group||x.group===state.group)&&
@@ -453,7 +442,6 @@ function redraw(){
   const destHtml=destRows.slice(0,500).map(x=>'<tr><td>'+esc(x.kind)+'</td>'+
     '<td>'+esc(x.localCode)+'</td><td>'+esc(x.local)+'</td><td>'+esc(x.code)+'</td>'+
     '<td>'+esc(x.product)+'</td><td>'+esc(x.unit)+'</td>'+
-    '<td class="num">'+fmt(x.first)+'</td><td class="num pc-second-delivery">'+fmt(x.second)+'</td>'+
     '<td class="num"><b>'+fmt(x.total)+'</b></td>'+
     '<td class="num">'+cash(x.total*x.price)+'</td></tr>').join('');
   $('#pc-details').innerHTML='<div class="pc-panel"><div class="pc-title"><h3>1. Pedido centralizado para CDI · local 30115</h3>'+
@@ -464,8 +452,7 @@ function redraw(){
     '<div class="pc-panel"><div class="pc-title"><h3>2. Destinação do material comprado no CDI</h3>'+
     '<small>'+integer(destRows.length)+' alocações previstas · '+integer(reserveCount)+' reservas internas da Chuá</small></div>'+
     '<div class="pc-scroll"><table><thead><tr><th>Tipo</th><th>Local destino</th><th>Fazenda</th><th>Código</th>'+
-    '<th>Produto</th><th>UN</th><th>'+(single?'Entrega única':'1ª entrega')+
-    '</th><th class="pc-second-delivery">2ª entrega</th><th>Total previsto</th><th>Valor ref.</th>'+
+    '<th>Produto</th><th>UN</th><th>Total previsto</th><th>Valor ref.</th>'+
     '</tr></thead><tbody>'+destHtml+'</tbody></table></div>'+
     '<div class="pc-footer">Compra recebida no CDI 30115. A reserva Chuá permanece no próprio saldo; distribuição às fazendas somente após entrada e transferência formal. '+ 
     'Exibidas até 500 alocações. Exportar CSV para lista integral.</div></div>'+
@@ -482,10 +469,9 @@ function redraw(){
     months:2,stockDate:p.stockDate,sourceMonths:22,closedThrough:'31/10/2026',physicalChuaOnlyOnce:p.cdiUnique,
     localChuaReserved:true,otherTransfers:state.otherTransfers,automaticOrders:false,
     grossValue:t.gross,chuaTransferValue:t.chua,otherTransferValue:t.others,purchaseValue:t.buy,
-    firstDeliveryValue:plannedFirst,secondDeliveryValue:plannedSecond,
-    firstDate:state.date1,secondDate:secondDate,deliveryMode:state.deliveryMode,
-    deliveryCount:single?1:2,deliveryHorizonMonths:2,oneDeliveryIncludesFull60Days:single,
-    calculatedPurchaseValueUnchanged:t.buy,
+    purchaseOrderCount:1,purchaseCoverageMonths:2,deliveryCount:1,
+    receiptDate:state.receiptDate||null,receiptDateDependsOnSupplier:true,
+    deliveryDeadlineNotDerivedFromCoverage:true,calculatedPurchaseValueUnchanged:t.buy,
     chosenValue:chosen.value,items:p.lines.length,urgentItems:t.urgent,historyReviewItems:t.review,
     centralPurchaseDestination:'CDI DE PECAS',centralPurchaseLocal:'30115',centralPurchaseFiscalCompany:'003',
     purchaseReceivingOnlyAtCDI:true,transferAfterReceipt:true,internalChuaReservation:true,
@@ -502,9 +488,7 @@ function redraw(){
     purchaseHierarchy:['Grupo','Item'],groupedPurchaseView:true,
     purchaseGroups:purchaseGroups.length,groupedPurchaseItemCount:filtered.length,
     groupedPurchaseValue:purchaseGroups.reduce((v,g)=>v+g.planned,0),
-    purchaseOpenedGroups:[...state.purchaseOpen].filter(n=>purchaseMap.has(n)),
-    selectedFirstDeliveryValue:p.lines.reduce((v,e)=>v+edited(e).first*e.price,0),
-    selectedSecondDeliveryValue:p.lines.reduce((v,e)=>v+edited(e).second*e.price,0)};
+    purchaseOpenedGroups:[...state.purchaseOpen].filter(n=>purchaseMap.has(n))};
 }
 function exportPlan(mode){
   const p=state.plan;if(!p)return;
@@ -513,33 +497,33 @@ function exportPlan(mode){
     const rows=[['Local de COMPRA/RECEBIMENTO','Destino fiscal a confirmar','Código','Produto','Grupo','UN',
       'Falta bruta 60 dias','Reserva histórica Chuá 60 dias','Saldo físico 30115','Saldo livre CDI anterior',
       'Transferência de saldo anterior Chuá/CDI','Transferências de outras fazendas','Compra CDI calculada 60 dias',
-      'Compra CDI ajustada','1ª entrega no CDI','2ª entrega no CDI','Destinar compra à Chuá',
+      'Compra CDI ajustada','Destinar compra à Chuá',
       'Destinar compra às outras unidades','Saldo não alocado no CDI','Custo referência ERP (R$)',
       'Fonte do custo','Valor estimado (R$)','Prioridade','Unidades atendidas pelo CDI',
-      'Data entrega 1','Data entrega 2','Data posição ERP','Fluxo','Modalidade de entrega']];
+      'Recebimento previsto (informado)','Data posição ERP','Fluxo','Horizonte de cobertura']];
     for(const e of p.lines.filter(inScope)){const a=edited(e);if(!a.checked||a.final<=0)continue;
       const allocation=allocationFor(e);
       rows.push([CENTRAL_CDI_LOCAL,CENTRAL_CDI_FISCAL,e.code,e.product,e.group,e.un,
         e.gross,e.chuaReserve,e.chuaStock,e.chuaFree,e.fromChua,e.fromOther,
-        e.buy,allocation.final,allocation.first,allocation.second,allocation.reserve,allocation.distribute,
+        e.buy,allocation.final,allocation.reserve,allocation.distribute,
         allocation.surplus,e.price,e.priceSource,allocation.value,e.urgent?'PRIORITÁRIO':'PROGRAMADO',
         allocation.rows.filter(x=>x.total>0).map(x=>x.local+' ('+x.kind+')').join(' | '),
-        state.date1,isSingleDelivery()?'':state.date2,p.stockDate,
-        'Receber tudo no CDI 30115; reservar Chuá e distribuir por TOP 94',
-        isSingleDelivery()?'ENTREGA ÚNICA - 60 DIAS':'DUAS ENTREGAS - 30 + 30 DIAS']);}
+        state.receiptDate||'',p.stockDate,
+        'Pedido unico agora para cobrir 2 meses; data de recebimento depende do fornecedor; reservar Chua e distribuir por TOP 94',
+        '2 MESES DE CONSUMO']);}
     csv(name+'_pedido_compra_recebimento_CDI.csv',rows);return;
   }
   if(mode==='fazenda'){
     const rows=[['Local de recebimento da COMPRA','Código local destino','Fazenda destino','Tipo de destinação',
-      'Código','Produto','Grupo','UN','Quantidade calculada antes de ajustes','1ª entrega programada',
-      '2ª entrega programada','Total a reservar/distribuir','Custo referência ERP','Valor de destino previsto',
-      'Procedimento de movimentação','Data entrega CDI 1','Data entrega CDI 2','Posição ERP']];
+      'Código','Produto','Grupo','UN','Quantidade calculada antes de ajustes',
+      'Total a reservar/distribuir','Custo referência ERP','Valor de destino previsto',
+      'Procedimento de movimentação','Recebimento previsto CDI','Posição ERP']];
     for(const e of p.lines.filter(inScope)){
       for(const x of allocationFor(e).rows.filter(x=>x.total>0&&localInScope(x))){
         rows.push([CENTRAL_CDI_LOCAL,x.localCode,x.local,x.kind,x.code,x.product,x.group,x.unit,x.planned,
-          x.first,x.second,x.total,x.price,x.total*x.price,
+          x.total,x.price,x.total*x.price,
           x.kind==='RESERVA INTERNA CHUA'?'Reservar em 30115, sem nova entrada':'Após entrada em 30115, emitir TOP 94 se aplicável',
-          state.date1,isSingleDelivery()?'':state.date2,p.stockDate]);
+          state.receiptDate||'',p.stockDate]);
       }
     }
     csv(name+'_distribuicao_destinos.csv',rows);return;
@@ -562,10 +546,8 @@ $('#pc-clear').addEventListener('click',()=>{state.local='';state.group='';state
   $('#pc-urgent-only').checked=false;refreshCascade();redraw()});
 $('#pc-other').addEventListener('change',e=>{state.otherTransfers=e.target.checked;state.dirty=true;state.limit=100;redraw()});
 $('#pc-urgent-only').addEventListener('change',e=>{state.onlyUrgent=e.target.checked;state.limit=100;redraw()});
-for(const k of ['1','2'])$('#pc-date'+k).addEventListener('change',e=>{state['date'+k]=e.target.value;redraw()});
-$('#pc-delivery-mode').addEventListener('change',e=>{
-  state.deliveryMode=e.target.value==='single'?'single':'two';
-  syncDeliveryForm();
+$('#pc-receipt-date').addEventListener('change',e=>{
+  state.receiptDate=e.target.value||'';
   redraw();
 });
 $('#pc-export').addEventListener('click',()=>exportPlan('consolidado'));
@@ -600,5 +582,5 @@ const refresh=()=>{state.dirty=true;if(view.classList.contains('active'))redraw(
 for(const event of ['stock-position-updated','movements-updated','minimum-policy-updated'])window.addEventListener(event,refresh);
 window.DB_PROGRAMMED_PURCHASES={open:()=>tab.click(),refresh,getPlan:()=>state.plan,
   allocationFor:sku=>{const e=state.plan?.lines.find(x=>x.id===sku);return e?allocationFor(e):null},
-  meta:null,version:'20261112-cdi-entrega-unica-ou-dupla-v5'};
+  meta:null,version:'20261112-cdi-compra-unica-cobertura-bimestral-v6'};
 })();
