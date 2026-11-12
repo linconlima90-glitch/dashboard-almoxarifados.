@@ -808,6 +808,41 @@ with sync_playwright() as p:
             page.wait_for_function("window.DB_PROGRAMMED_PURCHASES?.meta?.otherTransfers===true")
             page.locator('#pc-date2').fill('2026-12-21')
             assert page.evaluate("window.DB_PROGRAMMED_PURCHASES.meta.secondDate")=='2026-12-21'
+            # Cascata: Fazenda determina grupos; grupo determina produtos.
+            local_select=page.locator('#pc-local')
+            group_select=page.locator('#pc-group')
+            product_select=page.locator('#pc-product')
+            assert local_select.count()==1 and group_select.count()==1 and product_select.count()==1
+            assert local_select.locator('option').count()>1
+            network_before=page.evaluate('window.DB_PROGRAMMED_PURCHASES.meta.purchaseValue')
+            selected_local=local_select.locator('option').nth(1).get_attribute('value')
+            assert selected_local
+            local_select.select_option(selected_local)
+            selected_meta=page.evaluate('window.DB_PROGRAMMED_PURCHASES.meta')
+            assert selected_meta['cascadeLocal']==selected_local
+            assert selected_meta['cascadeGroup']=='' and selected_meta['cascadeProduct']==''
+            assert selected_meta['networkTotalsUnaffectedByCascade'] is True
+            assert selected_meta['purchaseValue']==network_before
+            assert selected_meta['cascadeSequence']==['Fazenda','Grupo','Produto']
+            assert page.locator('#pc-cascade-summary .pc-scope').count()==1
+            assert page.locator('#view-compras-programadas .pc-location').count()==1
+            assert group_select.locator('option').count()>1
+            selected_group=group_select.locator('option').nth(1).get_attribute('value')
+            group_select.select_option(selected_group)
+            group_meta=page.evaluate('window.DB_PROGRAMMED_PURCHASES.meta')
+            assert group_meta['cascadeLocal']==selected_local and group_meta['cascadeGroup']==selected_group
+            assert product_select.locator('option').count()>1
+            selected_product=product_select.locator('option').nth(1).get_attribute('value')
+            product_select.select_option(selected_product)
+            product_meta=page.evaluate('window.DB_PROGRAMMED_PURCHASES.meta')
+            assert product_meta['cascadeProduct']==selected_product
+            assert product_meta['cascadeVisibleItems']==1
+            assert product_meta['purchaseValue']==network_before
+            assert product_meta['cascadeScopedPurchaseValue']<=network_before+0.01
+            page.locator('#pc-clear').click()
+            cleared_meta=page.evaluate('window.DB_PROGRAMMED_PURCHASES.meta')
+            assert cleared_meta['cascadeLocal']=='' and cleared_meta['cascadeGroup']=='' and cleared_meta['cascadeProduct']==''
+            assert page.locator('#pc-cascade-summary .pc-scope').count()==0
 
             # A aba e criada dinamicamente antes do layout e usa o historico reconciliado.
             assert page.locator('.clean-sub-btn[data-view="sem-baixas"]').count() >= 0
