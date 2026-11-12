@@ -82,7 +82,6 @@ view.innerHTML='<div class="pc-head"><h2>Compras Programadas · Rede DB</h2>'+
 '<label class="pc-cascade pc-product-filter">3. Produto<select id="pc-product"><option value="">Todos os produtos</option></select></label>'+
 '<label class="pc-search">Busca adicional<input id="pc-query" type="search" placeholder="Código, produto ou unidade"></label>'+
 '<button type="button" class="pc-btn" id="pc-clear">Limpar filtros</button>'+
-'<label>Grupo<select id="pc-group"><option value="">Todos os grupos</option></select></label>'+
 '<label>Entrega 1<input id="pc-date1" type="date"></label><label>Entrega 2<input id="pc-date2" type="date"></label>'+
 '<label class="pc-toggle"><input id="pc-other" type="checkbox" checked> Usar excedentes confiáveis de outras fazendas</label>'+
 '<label class="pc-toggle"><input id="pc-urgent-only" type="checkbox"> Somente itens prioritários</label>'+
