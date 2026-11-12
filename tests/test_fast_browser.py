@@ -790,6 +790,31 @@ with sync_playwright() as p:
             assert programmed['physicalChuaOnlyOnce'] and programmed['localChuaReserved'], programmed
             assert programmed['sourceMonths']==22 and programmed['closedThrough']=='31/10/2026'
             assert not programmed['automaticOrders'] and programmed['items']>0, programmed
+            # Compra e recebimento somente no CDI (ERP local 30115).
+            assert programmed['centralPurchaseLocal']=='30115', programmed
+            assert programmed['centralPurchaseFiscalCompany']=='003', programmed
+            assert programmed['purchaseReceivingOnlyAtCDI'] is True, programmed
+            assert programmed['internalChuaReservation'] is True, programmed
+            assert programmed['transferAfterReceipt'] is True, programmed
+            assert abs(programmed['centralToChuaValue']+
+                       programmed['centralToNetworkValue']-programmed['purchaseValue'])<0.05, programmed
+            assert abs(programmed['editedCentralReserveValue']+
+                       programmed['editedCentralNetworkValue']+
+                       programmed['editedCentralUnallocatedValue']-programmed['chosenValue'])<0.05, programmed
+            allocations=page.evaluate("""() => {
+              const p=window.DB_PROGRAMMED_PURCHASES.getPlan();
+              return p.lines.slice(0,20).map(e=>{
+                const x=window.DB_PROGRAMMED_PURCHASES.allocationFor(e.id);
+                return {ok:x.reconciled,qty:x.final,reserve:x.reserve,distribute:x.distribute,
+                  surplus:x.surplus,rows:x.rows.length,
+                  internal:x.rows.filter(r=>r.localCode==='30115').every(r=>r.kind==='RESERVA INTERNA CHUA'),
+                  external:x.rows.filter(r=>r.localCode!=='30115').every(r=>r.kind==='DISTRIBUIR DO CDI')}
+              });
+            }""")
+            assert allocations and all(x['ok'] and x['internal'] and x['external'] for x in allocations),allocations
+            assert page.get_by_text('1. Pedido centralizado para CDI · local 30115').count()==1
+            assert page.get_by_text('2. Destinação do material comprado no CDI').count()==1
+            assert page.locator('#view-compras-programadas .pc-central-flow .pc-flow-step').count()==3
             assert abs(programmed['grossValue']-programmed['chuaTransferValue']-
                        programmed['otherTransferValue']-programmed['purchaseValue'])<0.1, programmed
             assert abs(programmed['firstDeliveryValue']+programmed['secondDeliveryValue']-
