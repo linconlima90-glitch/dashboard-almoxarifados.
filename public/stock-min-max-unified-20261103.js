@@ -100,7 +100,6 @@
       const minimum=Math.max(0,n(x.minimum)||ceil(avg*2,x.un));
       const balance=vk?n(x.stock):(stock?stock.stock:n(x.stock));
       const cost=vk?n(x.cost):(stock?.cost||Math.max(0,n(x.cost)));
-      const need=ceil(Math.max(0,minimum-balance),x.un);
       const months=vk?activity.network.get(str(x.codigo)):activity.locals.get(key(x));
       const perUnit=vk?activity.networkQty.get(str(x.codigo)):activity.localQty.get(key(x));
       const withdrawals=!assignedWithdrawals.has(sourceKey)&&perUnit?
@@ -110,24 +109,30 @@
       if(withdrawals.length)assignedWithdrawals.add(sourceKey);
       const count=months?.size??Math.max(0,n(x.active_month_buckets));
       const mixed=!vk&&activity.mix.has(key(x));
-      // Um item com poucas baixas ou unidade divergente nao gera alerta automatico de maximo.
-      const reliable=avg>0&&n(x.total)>0&&count>=3&&!mixed;
+      // Menos de 3 meses com baixas: saldo classificado como excedente
+      // PROVISORIO, sem gerar pedido ou transferencia automatica.
+      const historyInsufficient=!(avg>0&&n(x.total)>0&&count>=3);
+      const reliable=!historyInsufficient&&!mixed;
+      const provisionalExcess=!vk&&historyInsufficient&&balance>0;
       const maximum=reliable?ceil(avg*config.months,x.un):null;
-      const excess=reliable&&balance>maximum
-        ?Math.max(0,remaining(balance-maximum,x.un)):0;
-      const condition=need>0?'REPOR':excess>0?'ACIMA DO MÁXIMO':
+      const need=historyInsufficient||mixed?0:ceil(Math.max(0,minimum-balance),x.un);
+      const excess=provisionalExcess?Math.max(0,remaining(balance,x.un)):
+        reliable&&balance>maximum?Math.max(0,remaining(balance-maximum,x.un)):0;
+      const condition=provisionalExcess?'EXCEDENTE SEM HISTÓRICO':
+        need>0?'REPOR':excess>0?'ACIMA DO MÁXIMO':
         !reliable?'REVISAR HISTÓRICO':(balance<minimum*1.25?'ATENÇÃO':'DENTRO DA FAIXA');
       const item={
         local:str(x.local),codigo_local:str(x.codigo_local),grupo:str(x.grupo||'SEM GRUPO'),
         codigo:str(x.codigo),produto:str(x.produto),un:str(x.un),
         avg,minimum,stock:balance,maximum,need,excess,cost,
         purchaseValue:need*cost,excessValue:excess*cost,condition,reliable,
+        historyInsufficient,provisionalExcess,
         active:count,withdrawals,hasCost:cost>0,network:vk,mixed,transfer:[]
       };
       result.set(k,item);
     }
     for(const x of Array.isArray(chosen)?chosen:[])push(x);
-    // Posicoes sem baixa tambem precisam de visibilidade: sem teto automatico.
+    // Posicoes sem baixa entram no excedente a revisar, sem inventar teto de consumo.
     for(const [k,s] of snapshots){
       if(result.has(k))continue;
       push({local:s.local,codigo_local:s.codigo_local,codigo:s.codigo,produto:s.produto,
@@ -142,7 +147,7 @@
       demand.get(k).push(row);
     }
     for(const row of all){
-      if(row.network||row.excess<=0)continue;
+      if(row.network||row.excess<=0||row.provisionalExcess)continue;
       row.transfer=(demand.get(matchKey(row))||[])
         .filter(x=>x.local!==row.local).sort((a,b)=>b.need-a.need).slice(0,3)
         .map(x=>({local:x.local,qty:Math.min(row.excess,x.need)}));
@@ -173,13 +178,17 @@
       const s=local?Math.max(0,n(local.stock)):0;
       const minLocal=local?Math.max(0,n(local.minimum)):0;
       const maxLocal=local?(local.reliable&&local.maximum!==null?Math.max(minLocal,n(local.maximum)):minLocal):0;
-      const localShortMin=Math.max(0,minLocal-s),freeMin=Math.max(0,s-minLocal);
-      const localShortMax=Math.max(0,maxLocal-s),freeMax=Math.max(0,s-maxLocal);
+      // Chuá preserva sua reserva de consumo mesmo quando a serie e curta.
+      // Historico insuficiente nao cria pedido de compra automatico.
+      const localShortMin=local?.historyInsufficient||local?.mixed?0:Math.max(0,minLocal-s);
+      const freeMin=Math.max(0,s-minLocal);
+      const localShortMax=local?.historyInsufficient||local?.mixed?0:Math.max(0,maxLocal-s);
+      const freeMax=Math.max(0,s-maxLocal);
       let othersMin=0,othersMax=0,eligibleMin=0,eligibleMax=0;
       for(const o of entry.others){
-        const needMin=Math.max(0,n(o.minimum)-n(o.stock));
+        const needMin=Math.max(0,n(o.need));
         const top=o.reliable&&o.maximum!==null?Math.max(n(o.minimum),n(o.maximum)):n(o.minimum);
-        const needMax=Math.max(0,top-n(o.stock));
+        const needMax=o.historyInsufficient||o.mixed?0:Math.max(0,top-n(o.stock));
         othersMin+=needMin;othersMax+=needMax;
         if(!o.mixed){eligibleMin+=needMin;eligibleMax+=needMax;}
       }
@@ -243,6 +252,8 @@
       '*Na simulação de '+months+' meses, reservas e metas máximas exigem 3 meses com baixas e unidade compatível; casos não validados mantêm mínimo de 2 meses. '+
       'Não redistribuir automaticamente códigos com unidades divergentes ('+int(total.unverifiedUnitProducts)+' sob revisão). '+
       'Referências monetárias usam custo ERP disponível; '+int(total.missingPriceProducts)+' produtos em demanda não têm referência e não entram no valor. '+
+      'Itens sem 3 meses com baixas são excedentes provisórios na análise física e não geram compra automática; '+
+      'a reserva de consumo da Chuá é mantida até validação. '+
       'Transferências dependem de confirmação da disponibilidade e formalização fiscal. Valores são projeções, não economia realizada.</p></section>';
     return {summary:{minGrossValue:total.minGrossValue,minCoverValue:total.coveredValue,
       minPurchaseValue:total.minBuyValue,maxGrossValue:total.maxGrossValue,
@@ -307,8 +318,9 @@
   function statusLabel(row){
     const kind=statusKind(row);
     if(kind==='need')return 'REPOR';
+    if(row.provisionalExcess)return 'EXCEDENTE · HISTÓRICO INSUFICIENTE';
     if(kind==='excess')return 'EXCEDENTE DISPONÍVEL';
-    if(kind==='history')return row.active===0?'SEM BAIXAS':'HISTÓRICO INSUFICIENTE';
+    if(kind==='history')return row.mixed?'REVISAR UNIDADE':(row.active===0?'SEM BAIXAS':'HISTÓRICO INSUFICIENTE');
     return 'ESTOQUE ADEQUADO';
   }
   function statusCounts(rows){
@@ -380,13 +392,17 @@
         const note=x.transfer.length?' · Possível transferência para '+x.transfer
           .map(o=>o.local+' ('+qty(o.qty)+' '+x.un+')').join('; '):'';
         const kind=statusKind(x);
-        const warning=x.mixed?'Unidade de medida divergente. ':
-          (!x.reliable&&x.need>0?'Estoque máximo depende de revisão do histórico. ':'');
+        const warning=x.provisionalExcess?
+          'Saldo integral considerado excedente provisório: menos de 3 meses com baixas. Confirmar uso antes de transferir. '+
+          (x.mixed?'Unidade de medida divergente. ':''):
+          (x.mixed?'Unidade de medida divergente. ':
+          (!x.reliable&&x.need>0?'Estoque máximo depende de revisão do histórico. ':''));
         const explanation=kind==='ok'&&x.condition==='ATENÇÃO'?
           'Próximo do mínimo, mas sem compra necessária. ':(
             kind==='history'?'Não gerar alerta automático de máximo sem consumo suficiente. ':'');
         return '<tr class="dbmx-state-'+kind+'" data-dbmx-situation="'+esc(x.condition)+
-          '" data-dbmx-color="'+kind+'" data-dbmx-withdrawal-sort="'+withdrawalSortQuantity(x)+'">'+
+          '" data-dbmx-color="'+kind+'" data-dbmx-provisional="'+(x.provisionalExcess?'true':'false')+
+          '" data-dbmx-withdrawal-sort="'+withdrawalSortQuantity(x)+'">'+
           cell('Código',esc(x.codigo),'dbmx-code')+
           cell('Produto',esc(x.produto),'dbmx-product')+
           cell('UN',esc(x.un))+
@@ -684,8 +700,12 @@
     const physical=all.filter(x=>!x.network);
     const low=physical.filter(x=>x.need>0),high=physical.filter(x=>x.excess>0);
     const manual=physical.filter(x=>!x.reliable&&x.stock>0);
+    const provisional=high.filter(x=>x.provisionalExcess);
+    const confirmed=high.filter(x=>!x.provisionalExcess);
     const needValue=low.reduce((v,x)=>v+x.purchaseValue,0);
     const excessValue=high.reduce((v,x)=>v+x.excessValue,0);
+    const provisionalValue=provisional.reduce((v,x)=>v+x.excessValue,0);
+    const confirmedValue=confirmed.reduce((v,x)=>v+x.excessValue,0);
     const missingNeed=low.filter(x=>!x.hasCost).length;
     const missingExcess=high.filter(x=>!x.hasCost).length;
     const shared=sharedChuaPlan(physical,config.months);
@@ -716,11 +736,14 @@
       '<div class="dbmx-kpis">'+
       '<div class="dbmx-kpi need"><span>Produtos abaixo do mínimo · físico</span><strong>'+int(low.length)+'</strong></div>'+
       '<div class="dbmx-kpi need"><span>Valor estimado de reposição</span><strong>'+brl(needValue)+'</strong></div>'+
-      '<div class="dbmx-kpi excess"><span>Produtos acima do máximo · físico</span><strong>'+int(high.length)+'</strong></div>'+
-      '<div class="dbmx-kpi excess"><span>Valor estimado do excedente</span><strong>'+brl(excessValue)+'</strong></div>'+
+      '<div class="dbmx-kpi excess"><span>Produtos com excedente · físico</span><strong>'+int(high.length)+'</strong>'+
+      '<small>Confirmados: '+int(confirmed.length)+' · a revisar: '+int(provisional.length)+'</small></div>'+
+      '<div class="dbmx-kpi excess"><span>Valor do excedente (inclui revisão)</span><strong>'+brl(excessValue)+'</strong>'+
+      '<small>'+brl(provisionalValue)+' sem histórico suficiente</small></div>'+
       '<div class="dbmx-kpi"><span>Almoxarifados com compra ou excedente</span><strong>'+
       int(locals.filter(x=>!x.network&&(x.needCount>0||x.excessCount>0)).length)+'</strong></div>'+
-      '<div class="dbmx-kpi"><span>Itens com saldo que exigem revisão do histórico</span><strong>'+int(manual.length)+'</strong></div>'+
+      '<div class="dbmx-kpi"><span>Excedentes por histórico insuficiente</span><strong>'+int(provisional.length)+'</strong>'+
+      '<small>Sem 3 meses com baixas; revisar antes de realocar</small></div>'+
       '</div>'+shared.html+'<div class="dbmx-list"><div class="dbmx-list-heading"><h3>1. Almoxarifados</h3>'+
       '<span>Clique no almoxarifado para abrir os grupos e produtos.</span></div>'+
       '<div class="dbmx-legend">'+
@@ -751,11 +774,13 @@
           '<span>Clique para abrir os itens</span></div>'+
           expandedGroups+'</div></div>';
       }).join('')+'</div>'+
-      '<div class="dbmx-note"><b>Critérios:</b> mínimo = média das baixas × 2 meses; máximo = média × '+
-      config.months+' meses; necessidade = máximo entre zero e (mínimo − saldo); excedente = máximo entre zero e '+
-      '(saldo − máximo). Os valores são estimativas pelo custo unitário ERP, não economia já realizada. '+
-      'O máximo automático exige pelo menos 3 meses com baixas e unidade consistente. Itens sem histórico '+
-      'confiável permanecem visíveis para revisão, sem alerta automático de excesso. Pneus, câmaras e cimento '+
+      '<div class="dbmx-note"><b>Critérios:</b> mínimo de referência = média das baixas × 2 meses; máximo = média × '+
+      config.months+' meses somente com histórico suficiente; a compra automática exige série confiável. '+
+      'Excedente confirmado = máximo entre zero e (saldo − máximo); excedente a revisar = saldo físico quando o histórico tiver menos de 3 meses com baixas. '+
+      'Valores são estimativas pelo custo unitário ERP, não economia já realizada. '+
+      'Excedente confirmado = saldo acima do teto de '+config.months+' meses (com 3 ou mais meses com baixas e unidade consistente). '+
+      'Com menos de 3 meses com baixas, todo saldo físico é sinalizado como excedente <b>provisório</b>: entra nos indicadores de excedente, '+
+      'mas não gera compra nem transferência automática. Unidade divergente exige conferência. Pneus, câmaras e cimento '+
       'continuam excluídos. 2024 e novembro/2026 (parcial) não entram nas médias. '+
       'CDI de Peças Chuá usa demanda consolidada da rede e não integra os totais físicos, evitando dupla contagem. '+
       'Possíveis transferências são sugestões sujeitas a conferência de unidade, empresa fiscal e disponibilidade. '+
@@ -775,6 +800,10 @@
       warehouseCount:locals.length,networkExcludedFromTotals:true,
       physicalNeedItems:low.length,physicalNeedValue:needValue,
       physicalExcessItems:high.length,physicalExcessValue:excessValue,
+      provisionalExcessItems:provisional.length,provisionalExcessValue:provisionalValue,
+      verifiedExcessItems:confirmed.length,verifiedExcessValue:confirmedValue,
+      provisionalExcessNeedsValidation:true,provisionalExcessAutoTransfers:false,
+      minimumHistoryActiveMonths:3,
       warehousesWithExcess:locals.filter(x=>!x.network&&x.excessCount>0).length,
       insufficientHistoryItems:manual.length,missingCostItems:missingExcess,
       minimumMonths:2,integrated:true,inlineCascade:true,colorCoding:true,brandPalette:'DB verde/amarelo',
@@ -796,7 +825,7 @@
   }
 
   function schedule(){clearTimeout(timer);timer=setTimeout(render,90);}
-  const api={render,refresh:schedule,meta:null,version:'20261103-status-column-filter-v8'};
+  const api={render,refresh:schedule,meta:null,version:'20261112-excedente-historico-curto-v1'};
   window.DB_STOCK_UNIFIED=api;
   window.DB_STOCK_MAXIMUM=api; // Retem os pontos de observacao da versao anterior.
   window.addEventListener('movements-updated',schedule);
