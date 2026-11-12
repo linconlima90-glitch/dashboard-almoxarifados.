@@ -150,6 +150,108 @@
     return all;
   }
 
+
+  // Regra aprovada em 12/11: ERP 30115 e um unico estoque fisico, dividido
+  // operacionalmente entre a reserva para consumo local Chua e saldo CDI.
+  // Nao usar as linhas virtuais de demanda da rede como outro estoque.
+  function sharedChuaPlan(physical,months){
+    const byItem=new Map();
+    for(const x of physical){
+      if(!x||x.network||outOfScopeLocal(x.local)||exclude(x))continue;
+      const k=matchKey(x);
+      let entry=byItem.get(k);
+      if(!entry){entry={codigo:str(x.codigo),un:norm(x.un),produto:str(x.produto),chua:null,others:[]};byItem.set(k,entry);}
+      if(str(x.codigo_local)==='30115')entry.chua=x;
+      else entry.others.push(x);
+    }
+    const total={minGross:0,minCover:0,minBuy:0,maxGross:0,maxCover:0,maxBuy:0,
+      coveredProducts:0,missingPriceProducts:0,unverifiedUnitProducts:0,coveredLocations:new Set(),
+      coveredValue:0,minGrossValue:0,minBuyValue:0,maxCoverValue:0,maxGrossValue:0,maxBuyValue:0};
+    const lines=[];
+    for(const entry of byItem.values()){
+      const local=entry.chua;
+      const s=local?Math.max(0,n(local.stock)):0;
+      const minLocal=local?Math.max(0,n(local.minimum)):0;
+      const maxLocal=local?(local.reliable&&local.maximum!==null?Math.max(minLocal,n(local.maximum)):minLocal):0;
+      const localShortMin=Math.max(0,minLocal-s),freeMin=Math.max(0,s-minLocal);
+      const localShortMax=Math.max(0,maxLocal-s),freeMax=Math.max(0,s-maxLocal);
+      let othersMin=0,othersMax=0,eligibleMin=0,eligibleMax=0;
+      for(const o of entry.others){
+        const needMin=Math.max(0,n(o.minimum)-n(o.stock));
+        const top=o.reliable&&o.maximum!==null?Math.max(n(o.minimum),n(o.maximum)):n(o.minimum);
+        const needMax=Math.max(0,top-n(o.stock));
+        othersMin+=needMin;othersMax+=needMax;
+        if(!o.mixed){eligibleMin+=needMin;eligibleMax+=needMax;}
+      }
+      // Historico misto KG/FD, PC/MT etc. impede transferencia automatica.
+      const compatible=!(local&&local.mixed);
+      const coverMin=compatible?Math.min(freeMin,eligibleMin):0;
+      const coverMax=compatible?Math.min(freeMax,eligibleMax):0;
+      const buyMin=localShortMin+othersMin-coverMin;
+      const buyMax=localShortMax+othersMax-coverMax;
+      const itemPrice=local&&n(local.cost)>0?n(local.cost):
+        (entry.others.find(o=>n(o.cost)>0)?.cost||0);
+      if((buyMin>0||buyMax>0)&&!(itemPrice>0))total.missingPriceProducts++;
+      if(local?.mixed||entry.others.some(o=>o.mixed))total.unverifiedUnitProducts++;
+      total.minGross+=localShortMin+othersMin;total.minCover+=coverMin;total.minBuy+=buyMin;
+      total.maxGross+=localShortMax+othersMax;total.maxCover+=coverMax;total.maxBuy+=buyMax;
+      total.minGrossValue+=(localShortMin+othersMin)*itemPrice;
+      total.minBuyValue+=buyMin*itemPrice;total.coveredValue+=coverMin*itemPrice;
+      total.maxGrossValue+=(localShortMax+othersMax)*itemPrice;
+      total.maxBuyValue+=buyMax*itemPrice;total.maxCoverValue+=coverMax*itemPrice;
+      if(coverMin>0){
+        total.coveredProducts++;
+        for(const o of entry.others)if(n(o.need)>0&&!o.mixed)total.coveredLocations.add(str(o.local));
+      }
+      if(buyMin>1e-9||coverMin>1e-9||buyMax>1e-9||coverMax>1e-9){
+        lines.push({codigo:entry.codigo,produto:entry.produto,un:entry.un,
+          stockChua:s,minChua:minLocal,freeMin,shortOthers:othersMin,coverMin,buyMin,
+          maxChua:maxLocal,freeMax,shortOtherMax:othersMax,coverMax,buyMax,price:itemPrice,
+          score:Math.max(buyMin*itemPrice,coverMin*itemPrice,buyMax*itemPrice/2)});
+      }
+    }
+    // Quantidades de diferentes unidades nao sao somadas para exibir totais:
+    // apenas valores monetarios com referencias existentes e quantidade de codigos.
+    lines.sort((a,b)=>b.score-a.score||a.codigo.localeCompare(b.codigo,'pt-BR'));
+    const top=lines.slice(0,100);
+    const money=x=>brl(x);
+    const cells=top.map(x=>'<tr><td>'+esc(x.codigo)+'</td><td>'+esc(x.produto)+'</td>'+
+      '<td>'+esc(x.un)+'</td><td class="num">'+qty(x.stockChua)+'</td>'+
+      '<td class="num">'+qty(x.minChua)+'</td><td class="num">'+qty(x.freeMin)+'</td>'+
+      '<td class="num">'+qty(x.shortOthers)+'</td><td class="num">'+qty(x.coverMin)+'</td>'+
+      '<td class="num">'+qty(x.buyMin)+'</td><td class="num">'+qty(x.maxChua)+'</td>'+
+      '<td class="num">'+qty(x.freeMax)+'</td><td class="num">'+qty(x.coverMax)+'</td>'+
+      '<td class="num">'+qty(x.buyMax)+'</td></tr>').join('');
+    const html='<section class="dbmx-chua-projection" aria-label="Projecao Chuá CDI">'+
+      '<div class="dbmx-chua-head"><h3>Projeção integrada · Chuá + CDI</h3>'+
+      '<p>O saldo físico 30115 é único. Primeiro reservamos '+(config.year?'o consumo medio filtrado':'o consumo medio de 2025 + jan–out/2026')+
+      ' da Fazenda Chuá; só o excedente fica disponível para atender faltas das outras unidades. <b>Não se soma um segundo estoque para o CDI.</b></p></div>'+
+      '<div class="dbmx-chua-kpis">'+
+      '<div><span>Faltas brutas da rede · mínimo 2 meses</span><strong>'+money(total.minGrossValue)+'</strong></div>'+
+      '<div><span>Atendimento pelo saldo livre da Chuá</span><strong>'+money(total.coveredValue)+'</strong><small>'+int(total.coveredProducts)+' códigos/unidades</small></div>'+
+      '<div><span>Compra líquida · mínimo 2 meses</span><strong>'+money(total.minBuyValue)+'</strong></div>'+
+      '<div><span>Projeção até máximo '+months+' meses*</span><strong>'+money(total.maxBuyValue)+'</strong></div>'+
+      '</div><details class="dbmx-chua-detail"><summary>Conferir reservas, saldo CDI e compras por código · '+int(lines.length)+' itens com demanda</summary>'+
+      '<div class="dbmx-chua-scroll"><table><thead><tr><th>Código</th><th>Produto</th><th>UN</th>'+
+      '<th>Saldo Chuá</th><th>Reserva Chuá 2m</th><th>Disponível CDI 2m</th><th>Faltas demais unidades 2m</th>'+
+      '<th>Coberto CDI 2m</th><th>Comprar 2m</th><th>Reserva Chuá '+months+'m*</th>'+
+      '<th>Disponível CDI '+months+'m*</th><th>Coberto CDI '+months+'m*</th><th>Comprar '+months+'m*</th></tr></thead>'+
+      '<tbody>'+cells+'</tbody></table></div><p>Exibidos os '+int(top.length)+
+      ' itens de maior impacto; detalhamento integral disponível na auditoria por produto.</p></details>'+
+      '<p class="dbmx-chua-note"><b>Regra:</b> reserva Chuá = mínimo local, 2 meses; CDI disponível = máx(0, saldo 30115 − reserva Chuá); '+
+      'compra líquida = falta local Chuá + faltas das demais unidades − volume coberto pelo saldo livre CDI (mesmo código e unidade). '+
+      '*Na simulação de '+months+' meses, reservas e metas máximas exigem 3 meses com baixas e unidade compatível; casos não validados mantêm mínimo de 2 meses. '+
+      'Não redistribuir automaticamente códigos com unidades divergentes ('+int(total.unverifiedUnitProducts)+' sob revisão). '+
+      'Referências monetárias usam custo ERP disponível; '+int(total.missingPriceProducts)+' produtos em demanda não têm referência e não entram no valor. '+
+      'Transferências dependem de confirmação da disponibilidade e formalização fiscal. Valores são projeções, não economia realizada.</p></section>';
+    return {summary:{minGrossValue:total.minGrossValue,minCoverValue:total.coveredValue,
+      minPurchaseValue:total.minBuyValue,maxGrossValue:total.maxGrossValue,
+      maxCoverValue:total.maxCoverValue,maxPurchaseValue:total.maxBuyValue,
+      coveredProducts:total.coveredProducts,missingPriceProducts:total.missingPriceProducts,
+      mixedUnitProducts:total.unverifiedUnitProducts,physical30115Only:true,
+      minimumMonths:2,maximumMonths:months,productRows:lines.length},html};
+  }
+
   function aggregates(rows){
     const map=new Map();
     if(typeof STOCK!=='undefined'&&Array.isArray(STOCK)){
@@ -445,6 +547,28 @@
         '#db-stock-maximum select:focus,#db-stock-maximum input:focus{border-color:var(--db-green,#1e8747);outline:2px solid #c5e9d0}',
         '#db-stock-maximum .dbmx-kpi{background:#fff;border-color:var(--db-line,#d8e4dc);border-top:3px solid var(--db-green,#1e8747)}',
         '#db-stock-maximum .dbmx-kpi:nth-child(2n){border-top-color:var(--db-yellow,#faca04)}',
+        '#db-stock-maximum .dbmx-chua-projection{margin:0 22px 20px;border:1px solid #cbded1;border-radius:11px;overflow:hidden;background:#fff}',
+        '#db-stock-maximum .dbmx-chua-head{background:#edf7ef;padding:15px 18px;color:#215a37}',
+        '#db-stock-maximum .dbmx-chua-head h3{margin:0 0 4px;font-size:16px;color:#125c31}',
+        '#db-stock-maximum .dbmx-chua-head p{margin:0;font-size:11px;line-height:1.6}',
+        '#db-stock-maximum .dbmx-chua-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:13px 15px}',
+        '#db-stock-maximum .dbmx-chua-kpis>div{padding:10px 12px;background:#f8fbf9;border:1px solid #e0ebe2;border-top:3px solid #1e8747;border-radius:7px;min-width:0}',
+        '#db-stock-maximum .dbmx-chua-kpis>div:nth-child(3){border-top-color:#faca04}',
+        '#db-stock-maximum .dbmx-chua-kpis span{display:block;font-size:10px;line-height:1.5;color:#557060}',
+        '#db-stock-maximum .dbmx-chua-kpis strong{display:block;font-size:17px;color:#125c31;margin-top:5px;overflow-wrap:anywhere}',
+        '#db-stock-maximum .dbmx-chua-kpis small{display:block;font-size:10px;color:#59715e;margin-top:3px}',
+        '#db-stock-maximum .dbmx-chua-detail{padding:0 15px 12px}',
+        '#db-stock-maximum .dbmx-chua-detail summary{cursor:pointer;padding:12px 3px;color:#125c31;font-weight:800}',
+        '#db-stock-maximum .dbmx-chua-scroll{overflow-x:auto;max-height:410px;overflow-y:auto}',
+        '#db-stock-maximum .dbmx-chua-scroll table{border-collapse:collapse;width:100%;min-width:1350px;font-size:10px}',
+        '#db-stock-maximum .dbmx-chua-scroll th,#db-stock-maximum .dbmx-chua-scroll td{padding:8px;border-bottom:1px solid #e5ede7;text-align:left}',
+        '#db-stock-maximum .dbmx-chua-scroll th{background:#f0f7f2;position:sticky;top:0;z-index:1}',
+        '#db-stock-maximum .dbmx-chua-scroll td.num{text-align:right;white-space:nowrap}',
+        '#db-stock-maximum .dbmx-chua-detail p{font-size:10px;color:#66766d}',
+        '#db-stock-maximum .dbmx-chua-note{margin:0;padding:12px 17px;background:#f7faf8;border-top:1px solid #e2eae4;color:#54705d;font-size:10px;line-height:1.65}',
+        '@media(max-width:950px){#db-stock-maximum .dbmx-chua-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
+        '@media(max-width:620px){#db-stock-maximum .dbmx-chua-projection{margin:0 9px 14px}#db-stock-maximum .dbmx-chua-kpis{grid-template-columns:1fr}}',
+
         '#db-stock-maximum .dbmx-kpi strong{color:var(--db-green-dark,#125c31)}',
         '#db-stock-maximum .dbmx-kpi.need strong,#db-stock-maximum .dbmx-kpi.excess strong{color:var(--db-green-dark,#125c31)}',
         '#db-stock-maximum .dbmx-local:hover,#db-stock-maximum .dbmx-group:hover,#db-stock-maximum button[aria-expanded="true"]{background:var(--db-green-pale,#f3f9f5)}',
@@ -564,6 +688,7 @@
     const excessValue=high.reduce((v,x)=>v+x.excessValue,0);
     const missingNeed=low.filter(x=>!x.hasCost).length;
     const missingExcess=high.filter(x=>!x.hasCost).length;
+    const shared=sharedChuaPlan(physical,config.months);
     const found=locals.find(x=>x.local===config.local);
     const included=found?groups(found.rows):[];
     if(config.group&&!included.some(x=>x.name===config.group))config.group='';
@@ -596,7 +721,7 @@
       '<div class="dbmx-kpi"><span>Almoxarifados com compra ou excedente</span><strong>'+
       int(locals.filter(x=>!x.network&&(x.needCount>0||x.excessCount>0)).length)+'</strong></div>'+
       '<div class="dbmx-kpi"><span>Itens com saldo que exigem revisão do histórico</span><strong>'+int(manual.length)+'</strong></div>'+
-      '</div><div class="dbmx-list"><div class="dbmx-list-heading"><h3>1. Almoxarifados</h3>'+
+      '</div>'+shared.html+'<div class="dbmx-list"><div class="dbmx-list-heading"><h3>1. Almoxarifados</h3>'+
       '<span>Clique no almoxarifado para abrir os grupos e produtos.</span></div>'+
       '<div class="dbmx-legend">'+
       '<span><b class="dbmx-legend--need"></b>Amarelo: Repor</span>'+
@@ -653,6 +778,7 @@
       warehousesWithExcess:locals.filter(x=>!x.network&&x.excessCount>0).length,
       insufficientHistoryItems:manual.length,missingCostItems:missingExcess,
       minimumMonths:2,integrated:true,inlineCascade:true,colorCoding:true,brandPalette:'DB verde/amarelo',
+      sharedChua:shared.summary,
       compactSummary:true,withdrawalDetailOnly:true,sortedByWithdrawalsDesc:true,fullWidthProducts:true,
       columnStatusFilter:true,columnStatusOptions:['all','need','excess'],
       screenshotCardLayout:true,tabLabel:'Estoque mínimo / Estoque máximo',
