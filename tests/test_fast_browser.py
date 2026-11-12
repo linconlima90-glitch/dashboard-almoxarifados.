@@ -669,8 +669,31 @@ with sync_playwright() as p:
                 .map(row => ({kind:row.dataset.dbmxColor,label:row.querySelector('.dbmx-status')?.textContent||''}))
                 .filter(row=>row.kind)""")
             assert all(x['kind'] in ['need','excess','ok','history'] for x in statuses),statuses
-            assert all(x['label'] in ['REPOR','EXCEDENTE DISPONÍVEL','ESTOQUE ADEQUADO',
-                'SEM BAIXAS','HISTÓRICO INSUFICIENTE'] for x in statuses),statuses
+            assert all(x['label'] in ['REPOR','EXCEDENTE DISPONÍVEL',
+                'EXCEDENTE · HISTÓRICO INSUFICIENTE','ESTOQUE ADEQUADO',
+                'SEM BAIXAS','HISTÓRICO INSUFICIENTE','REVISAR UNIDADE'] for x in statuses),statuses
+            # Estoque com menos de 3 meses com baixas entra em excedente
+            # provisório: aparece no filtro, mas não gera transferência automática.
+            provisional_audit=page.evaluate("""() => {
+              const meta=window.DB_STOCK_UNIFIED.meta||{};
+              return {
+                total:meta.physicalExcessItems,
+                provisional:meta.provisionalExcessItems,
+                confirmed:meta.verifiedExcessItems,
+                amount:meta.physicalExcessValue,
+                provisionalValue:meta.provisionalExcessValue,
+                confirmedValue:meta.verifiedExcessValue,
+                noAutoTransfers:meta.provisionalExcessAutoTransfers===false,
+                needsReview:meta.provisionalExcessNeedsValidation===true,
+                historyMonths:meta.minimumHistoryActiveMonths
+              };
+            }""")
+            assert provisional_audit['provisional']>0, provisional_audit
+            assert provisional_audit['total']==provisional_audit['provisional']+provisional_audit['confirmed'], provisional_audit
+            assert abs(provisional_audit['amount']-provisional_audit['provisionalValue']-provisional_audit['confirmedValue'])<0.02, provisional_audit
+            assert provisional_audit['noAutoTransfers'] and provisional_audit['needsReview'], provisional_audit
+            assert provisional_audit['historyMonths']==3, provisional_audit
+            assert page.locator('#db-stock-maximum .dbmx-kpi',has_text='Excedentes por histórico insuficiente').count()==1
             # Os produtos devem expandir abaixo do respectivo grupo, sem painel de detalhe apartado.
             panel.locator('.dbmx-group').first.click()
             assert panel.locator('.dbmx-products').count()==0
