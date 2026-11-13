@@ -4,7 +4,7 @@
   // nunca substituir solicitacoes anteriores. Identificar por numero unico.
   window.DB_CDI_REQUESTS_DATA = {
     schemaVersion: 1,
-    lastImport: '2026-11-12',
+    lastImport: '2026-11-13',
     destination: {
       companyCode: '003',
       company: 'DECIO BRUXEL E OUTROS - FAZENDA CHUA',
@@ -49,6 +49,35 @@
           {code:'110147',description:'CORREIA B-69',unit:'PC',quantity:3},
           {code:'104388',description:'CORREIA B-79',unit:'PC',quantity:3},
           {code:'124144',description:'CORREIA B-83',unit:'PC',quantity:2}
+        ]
+      },
+      {
+        requestNumber: '111044',
+        uniqueNumber: '2720710',
+        quotationNumber: '106424',
+        issuedAt: '2026-11-12',
+        group: 'FERRAMENTAS',
+        requestedBy: 'LINCON',
+        buyer: 'ALMIR SOARES',
+        purchaseType: 'NORMAL',
+        documentType: 'SOLICITACAO DE COMPRA',
+        sourceFile: 'reposição feramentas.pdf',
+        destinationLocal: '30115',
+        destinationCompany: '003',
+        status: 'SOLICITACAO EMITIDA',
+        note: 'REF. MATERIAL PARA REPOSICAO ESTOQUE CDI DE PECAS FAZ. CHUA.',
+        pricesReported: false,
+        items: [
+          {code:'107243',description:'DISCO CORTE 7 X 1.6 X 22.2MM',unit:'UN',quantity:400},
+          {code:'135275',description:'DISCO DE CORTE DIAMANTADO TURBO DIAMANTE AZUL 7"',unit:'UN',quantity:5},
+          {code:'146099',description:'DISCO DE CORTE TURBO PORCELANATO 4.1/2"',unit:'UN',quantity:5},
+          {code:'119543',description:'DISCO DE CORTE TURBO SECO DIAMANTE AZUL 4.1/2"',unit:'UN',quantity:8},
+          {code:'115403',description:'DISCO DE CORTE 10" X 1/8 X 5/8',unit:'UN',quantity:25},
+          {code:'136301',description:'DISCO DE DESBASTE 7 X 1/4 X 7/8"',unit:'UN',quantity:50},
+          {code:'101192',description:'DISCO DIAMANTADO TURBO SECO 4.3/8" - 110MM',unit:'UN',quantity:3},
+          {code:'136300',description:'DISCO FLAP CONICO 7/8 X 4.1/2" GRAO 40',unit:'UN',quantity:20},
+          {code:'137140',description:'DISCO FLAP CONICO 7/8 X 7" GRAO 60',unit:'UN',quantity:40},
+          {code:'105551',description:'FITA ISOLANTE 10MT',unit:'PC',quantity:20}
         ]
       }
     ]
