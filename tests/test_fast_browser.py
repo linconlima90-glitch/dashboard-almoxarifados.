@@ -338,6 +338,22 @@ with sync_playwright() as p:
             assert all(cascade['productTotals'][i]>=cascade['productTotals'][i+1]-0.001
                        for i in range(len(cascade['productTotals'])-1)),cascade
             assert any('Valor' not in x and ' ' in x for x in cascade['groupLabels']),cascade
+            assert cascade['meta']['visualCascade'] is True,cascade
+            visual=page.evaluate("""() => {
+              const nodes=[...document.querySelectorAll('#cu-rows > .cu-group')];
+              const values=nodes.map(x=>Number(x.dataset.cuStockValue));
+              return {groups:nodes.length,open:nodes.filter(x=>x.querySelector('[data-cu-toggle-group]').getAttribute('aria-expanded')==='true').length,
+                sorted:values.every((x,i)=>i===0||values[i-1]>=x-0.00001),
+                detailRows:document.querySelectorAll('#cu-rows tr[data-cu-stock-value]').length};
+            }""")
+            assert visual['groups']>3 and visual['open']==0 and visual['sorted'] and visual['detailRows']==0,visual
+            first_group=page.locator('#cu-rows > .cu-group').first
+            first_group.locator('[data-cu-toggle-group]').click()
+            assert first_group.locator('.cu-product').count()>0
+            product_values=first_group.locator('.cu-product').evaluate_all("(nodes)=>nodes.map(n=>Number(n.dataset.cuStockValue))")
+            assert all(product_values[i]>=product_values[i+1]-0.001 for i in range(len(product_values)-1)),product_values
+            first_group.locator('.cu-product [data-cu-toggle-product]').first.click()
+            assert first_group.locator('tr[data-cu-stock-value]').count()>=1
             page.locator('#cu-group').select_option(cascade['groupValues'][0])
             assert page.locator('#cu-product option').count()>1
             page.locator('#cu-product').select_option(index=1)
