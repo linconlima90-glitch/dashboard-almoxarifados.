@@ -21,6 +21,8 @@ const fmtTotal=x=>totalMoney.format(number(x));
 const dateKey=x=>{const s=str(x);return /^\d{2}\/\d{2}\/\d{4}$/.test(s)?s.slice(6)+s.slice(3,5)+s.slice(0,2):s};
 const storageKey='db-cost-update-drafts-v1';
 const state={local:'',group:'',product:'',query:'',only:'all',page:0};
+const expandedGroups=new Set(),expandedProducts=new Set();
+const productKey=r=>JSON.stringify([r.group,r.code,r.unit]);
 let records=[],known=new Map(),editing=null,loaded=false,dirty=true;
 let drafts=[];
 try{const saved=JSON.parse(localStorage.getItem(storageKey)||'[]');if(Array.isArray(saved))drafts=saved.filter(x=>x&&x.code&&x.unit&&x.scope&&x.proposed>0).slice(0,2000)}catch(_){}
@@ -63,6 +65,26 @@ style.textContent=[
 '#view-atualizacao-custos .cu-source small{display:block;color:#657b69}',
 '#view-atualizacao-custos .cu-source strong{display:block;color:#1a6038;font-size:16px;margin:4px 0}',
 '#view-atualizacao-custos .cu-edit[hidden]{display:none}',
+'#view-atualizacao-custos .cu-tree-tools{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin:13px 0 10px}',
+'#view-atualizacao-custos .cu-tree-tools strong{font-size:12px;color:#235d39}',
+'#view-atualizacao-custos .cu-tree{display:flex;flex-direction:column;gap:9px;max-height:610px;overflow:auto;padding:3px 3px 10px}',
+'#view-atualizacao-custos .cu-group{border:1px solid #d1e2d7;border-radius:10px;background:#fff;overflow:hidden}',
+'#view-atualizacao-custos .cu-node{display:flex;width:100%;align-items:center;justify-content:space-between;gap:13px;text-align:left;border:0;cursor:pointer;color:#194d2e;font:700 12px Arial;background:#f5faf6;padding:13px 14px}',
+'#view-atualizacao-custos .cu-node:hover{background:#eaf5ed}',
+'#view-atualizacao-custos .cu-node:focus-visible{outline:3px solid #e5bd1c;outline-offset:-3px}',
+'#view-atualizacao-custos .cu-node-left{display:flex;gap:9px;align-items:center;min-width:0}',
+'#view-atualizacao-custos .cu-node-left .cu-arrow{width:15px;flex-shrink:0;font-size:13px;color:#13743d}',
+'#view-atualizacao-custos .cu-node-label{display:flex;flex-direction:column;gap:4px;min-width:0}',
+'#view-atualizacao-custos .cu-node-label small{font-size:10px;font-weight:400;color:#668470}',
+'#view-atualizacao-custos .cu-node-value{white-space:nowrap;font-size:13px;color:#0e6036}',
+'#view-atualizacao-custos .cu-group-products{padding:8px 10px 12px;background:#fbfdfb;display:flex;flex-direction:column;gap:7px}',
+'#view-atualizacao-custos .cu-product{border:1px solid #e2ebe5;border-radius:8px;overflow:hidden;background:white}',
+'#view-atualizacao-custos .cu-product .cu-node{background:white;padding:10px 12px;font-size:11px}',
+'#view-atualizacao-custos .cu-product .cu-node:hover{background:#f1f8f3}',
+'#view-atualizacao-custos .cu-product .cu-node-value{font-size:12px}',
+'#view-atualizacao-custos .cu-details-scroll{overflow:auto;max-height:340px;border-top:1px solid #e3ece5}',
+'#view-atualizacao-custos .cu-details-scroll table{min-width:1020px}',
+'#view-atualizacao-custos .cu-tree-empty{background:#f9fcfa;padding:25px;border:1px solid #dce8df;border-radius:8px;text-align:center;color:#697e70}',
 '@media(max-width:920px){#view-atualizacao-custos .cu-stats{grid-template-columns:repeat(3,minmax(0,1fr))}#view-atualizacao-custos .cu-source{grid-template-columns:1fr}}',
 '@media(max-width:600px){#view-atualizacao-custos .cu-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}'
 ].join('\n');
@@ -72,7 +94,7 @@ view.innerHTML=[
 '<p>Confira qual preço está sendo usado em cada análise: <b>custo do estoque ERP</b>, <b>última compra por nota fiscal</b> e <b>maior referência gerencial da Tabela Custo</b>.</p></header>',
 '<div class="cu-note"><b>Controle de alterações:</b> os novos valores lançados aqui ficam como <b>propostas pendentes de conferência, salvas somente neste navegador</b>. Não modificam o Sankhya, o estoque físico, a Tabela Custo ou os indicadores de economia. Exporte o CSV para auditar e incorporar as correções aprovadas à base oficial.</div>',
 '<div id="cu-stats" class="cu-stats" aria-live="polite"></div>',
-'<section class="cu-card"><h3>Filtro em cascata · Grupo → Produto</h3><div class="cu-fields">',
+'<section class="cu-card"><h3>Filtro em cascata · Grupo → Produto → Almoxarifado</h3><div class="cu-fields">',
 '<label>1. Grupo (maior valor primeiro)<select id="cu-group"></select></label>',
 '<label>2. Produto (maior valor primeiro)<select id="cu-product"></select></label>',
 '<label>Almoxarifado (opcional)<select id="cu-local"></select></label>',
@@ -83,11 +105,11 @@ view.innerHTML=[
 '<button id="cu-template" class="cu-btn" type="button">Baixar modelo de atualização</button></div>',
 '<p class="cu-hint"><b>Critério de ordenação:</b> valor total do estoque físico no ERP (saldo × custo unitário). Grupos e produtos sem estoque físico ficam ao final. O custo unitário e a referência gerencial permanecem visíveis para conferência.</p>',
 '<p class="cu-hint" id="cu-asof">Os preços de compras são conferidos por código e unidade; a Tabela Custo pode não identificar a unidade na fonte original. Custos de estoque e compras não devem ser substituídos automaticamente pelo maior preço.</p>',
-'<div class="cu-scroll" style="margin-top:14px"><table><thead><tr>',
-'<th>Código / produto</th><th>Local</th><th>Grupo</th><th>Saldo físico</th><th>Valor em estoque (R$)</th><th>Custo unit. estoque ERP</th>',
-'<th>Última compra (R$/un.)</th><th>Maior referência Tabela Custo</th><th>Origem / data</th><th>Revisão</th>',
-'</tr></thead><tbody id="cu-rows"></tbody></table></div>',
-'<div class="cu-pagination"><span id="cu-count"></span><button class="cu-btn" id="cu-prev" type="button">Anterior</button><button class="cu-btn" id="cu-next" type="button">Próxima</button></div></section>',
+'<p class="cu-hint"><b>Como consultar:</b> clique no grupo para abrir os produtos em ordem de maior valor. Clique no produto para conferir cada almoxarifado, o custo ERP, a última compra e a referência gerencial.</p>',
+'<div class="cu-tree-tools"><strong id="cu-count" aria-live="polite">Carregando grupos...</strong>',
+'<div class="cu-buttons" style="margin:0"><button type="button" class="cu-btn" id="cu-expand-groups">Abrir todos os grupos</button>',
+'<button type="button" class="cu-btn" id="cu-collapse-all">Recolher tudo</button></div></div>',
+'<div id="cu-rows" class="cu-tree" aria-label="Grupos, produtos e almoxarifados ordenados por valor em estoque"></div></section>',
 '<section class="cu-card cu-edit" id="cu-edit" hidden><h3>Registrar proposta de correção</h3>',
 '<p id="cu-selected" class="cu-hint"></p><div id="cu-sources" class="cu-source"></div>',
 '<div class="cu-fields">',
@@ -237,16 +259,44 @@ function renderDrafts(){
     '<tr><td colspan="9">Nenhuma proposta pendente.</td></tr>';
   $('cu-export-drafts').disabled=!sorted.length;
 }
+function groupTree(rows){
+  const groups=new Map();
+  for(const r of rows){
+    let group=groups.get(r.group);
+    if(!group){group={name:r.group,total:0,positions:0,products:new Map()};groups.set(r.group,group)}
+    group.total+=r.stockValue;group.positions++;
+    const key=productKey(r);
+    let product=group.products.get(key);
+    if(!product){
+      product={key,code:r.code,name:r.product,unit:r.unit,total:0,rows:[]};
+      group.products.set(key,product);
+    }
+    product.total+=r.stockValue;
+    product.rows.push(r);
+  }
+  return [...groups.values()].sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name,'pt-BR'));
+}
+function detailRow(r,hasDraft){
+  const last=r.last;
+  const origin=r.refOverride||(r.reference>0?'Tabela Custo · linha '+(r.refLine||'não informada')+
+    (r.refDate?' · '+r.refDate:''):'Sem referência válida na Tabela Custo');
+  return '<tr data-cu-stock-value="'+r.stockValue+'">'+
+    '<td><b>'+esc(r.code)+'</b><div>'+esc(r.product)+'</div><div class="light">'+esc(r.unit)+'</div></td>'+
+    '<td>'+esc(r.local)+'</td>'+
+    '<td class="num">'+(r.hasStock?whole.format(r.balance):'—')+'</td>'+
+    '<td class="num"><b>'+fmtTotal(r.stockValue)+'</b></td>'+
+    '<td class="num">'+fmt(r.stockCost)+'</td>'+
+    '<td class="num">'+(last?fmt(last.price)+'<div class="light">'+esc(last.date)+' · NF '+esc(last.invoice)+'</div>':'—')+'</td>'+
+    '<td class="num">'+fmt(r.reference)+'</td>'+
+    '<td>'+esc(origin)+'<div class="light">'+(last?'Fornecedor: '+esc(last.supplier):'')+'</div></td>'+
+    '<td>'+(hasDraft?'<div class="light">Revisão pendente</div>':'')+
+    '<button class="cu-btn" type="button" data-cu-edit="'+esc(keyOf(r))+'">Conferir / atualizar</button></td></tr>';
+}
 function paint(){
   if(!view.classList.contains('active'))return;
   if(dirty||!loaded)build();
   filters();
-  const shown=visible().sort((a,b)=>b.stockValue-a.stockValue||
-    number(b.stockCost)-number(a.stockCost)||a.code.localeCompare(b.code,'pt-BR')||
-    a.local.localeCompare(b.local,'pt-BR')),pageSize=75,
-    pages=Math.max(1,Math.ceil(shown.length/pageSize));
-  state.page=Math.min(state.page,pages-1);
-  const slice=shown.slice(state.page*pageSize,(state.page+1)*pageSize);
+  const shown=visible(), groups=groupTree(shown), draftKeys=new Set(drafts.map(x=>x.code+'|'+x.unit));
   $('cu-stats').innerHTML=[
     stat('Posições e referências consultáveis',whole.format(records.length)),
     stat('Com custo físico ERP',whole.format(records.filter(r=>r.hasStock&&r.stockCost>0).length)),
@@ -257,31 +307,55 @@ function paint(){
   $('cu-asof').textContent='Custo físico: '+stockSource()+' · '+stockDate()+
     '. Compras: '+(window.LATEST_PURCHASE_META?.source||'histórico ERP')+
     '. Maior referência gerencial: Tabela Custo.xlsx (5.374 registros), com correções aprovadas. A fonte original não contém unidade de medida.';
-  $('cu-count').textContent=whole.format(shown.length)+' resultados · página '+(state.page+1)+' de '+pages;
-  $('cu-prev').disabled=state.page<=0;$('cu-next').disabled=state.page>=pages-1;
-  const dk=new Set(drafts.map(x=>x.code+'|'+x.unit));
-  $('cu-rows').innerHTML=slice.length?slice.map(r=>{
-    const latest=r.last;
-    const origin=r.refOverride||((r.reference>0?'Tabela Custo · linha '+(r.refLine||'não informada')+
-      (r.refDate?' · '+r.refDate:''):'Sem referência válida na Tabela Custo'));
-    return '<tr data-cu-stock-value="'+r.stockValue+'"><td><b>'+esc(r.code)+'</b><div>'+esc(r.product)+'</div><div class="light">'+esc(r.unit)+'</div></td>'+
-      '<td>'+esc(r.local)+'</td><td>'+esc(r.group)+'</td><td class="num">'+(r.hasStock?whole.format(r.balance):'—')+'</td>'+
-      '<td class="num"><b>'+fmtTotal(r.stockValue)+'</b></td>'+
-      '<td class="num">'+fmt(r.stockCost)+'</td>'+
-      '<td class="num">'+(latest?fmt(latest.price)+'<div class="light">'+esc(latest.date)+' · NF '+esc(latest.invoice)+'</div>':'—')+'</td>'+
-      '<td class="num">'+fmt(r.reference)+'</td>'+
-      '<td>'+esc(origin)+'<div class="light">'+(latest?'Último fornecedor: '+esc(latest.supplier):'')+'</div></td>'+
-      '<td>'+(dk.has(r.code+'|'+r.unit)?'<div class="light">Revisão pendente</div>':'')+
-      '<button class="cu-btn" type="button" data-cu-edit="'+esc(keyOf(r))+'">Conferir / atualizar</button></td></tr>'
-  }).join(''):'<tr><td colspan="10">Nenhum produto corresponde aos filtros.</td></tr>';
+  const productCount=groups.reduce((sum,g)=>sum+g.products.size,0);
+  $('cu-count').textContent=whole.format(groups.length)+' grupos · '+whole.format(productCount)+
+    ' produtos por grupo · '+whole.format(shown.length)+' posições · '+fmtTotal(shown.reduce((sum,r)=>sum+r.stockValue,0));
+  let detailsCount=0;
+  $('cu-rows').innerHTML=groups.length?groups.map(g=>{
+    const opened=expandedGroups.has(g.name);
+    const products=[...g.products.values()].sort((a,b)=>b.total-a.total||
+      a.name.localeCompare(b.name,'pt-BR')||a.code.localeCompare(b.code,'pt-BR'));
+    return '<section class="cu-group" data-cu-group="'+esc(g.name)+'" data-cu-stock-value="'+g.total+'">'+
+      '<button type="button" class="cu-node" data-cu-toggle-group="'+esc(g.name)+
+      '" aria-expanded="'+opened+'"><span class="cu-node-left">'+
+      '<span class="cu-arrow">'+(opened?'▾':'▸')+'</span><span class="cu-node-label"><b>'+esc(g.name)+'</b>'+
+      '<small>'+whole.format(products.length)+' produtos · '+whole.format(g.positions)+' posições</small></span></span>'+
+      '<strong class="cu-node-value">'+fmtTotal(g.total)+'</strong></button>'+
+      (opened?'<div class="cu-group-products">'+products.map(p=>{
+        const productOpened=expandedProducts.has(p.key);
+        if(productOpened)detailsCount+=p.rows.length;
+        const rows=p.rows.slice().sort((a,b)=>b.stockValue-a.stockValue||
+          a.local.localeCompare(b.local,'pt-BR'));
+        return '<section class="cu-product" data-cu-product="'+esc(p.key)+'" data-cu-stock-value="'+p.total+'">'+
+          '<button type="button" class="cu-node" data-cu-toggle-product="'+esc(p.key)+
+          '" aria-expanded="'+productOpened+'"><span class="cu-node-left"><span class="cu-arrow">'+
+          (productOpened?'▾':'▸')+'</span><span class="cu-node-label"><b>'+esc(p.code)+' · '+esc(p.name||'Produto sem descrição')+
+          '</b><small>'+esc(p.unit)+' · '+whole.format(rows.length)+' almoxarifado(s)/posição(ões)</small></span></span>'+
+          '<strong class="cu-node-value">'+fmtTotal(p.total)+'</strong></button>'+
+          (productOpened?'<div class="cu-details-scroll"><table><thead><tr>'+
+            '<th>Código / produto</th><th>Almoxarifado</th><th>Saldo físico</th>'+
+            '<th>Valor em estoque</th><th>Custo unit. ERP</th><th>Última compra</th>'+
+            '<th>Maior Tabela Custo</th><th>Origem / data</th><th>Revisão</th>'+
+            '</tr></thead><tbody>'+rows.map(r=>detailRow(r,draftKeys.has(r.code+'|'+r.unit))).join('')+
+            '</tbody></table></div>':'')+'</section>';
+      }).join('')+'</div>':'')+'</section>';
+  }).join(''):'<div class="cu-tree-empty">Nenhum grupo ou produto corresponde aos filtros.</div>';
   renderDrafts();
   window.DB_COST_UPDATE.meta={loaded:true,rows:records.length,filtered:shown.length,
-    filterOrder:['Grupo','Produto','Almoxarifado (opcional)'],
-    sortBy:'valor_estoque_desc',cascade:true,
+    filterOrder:['Grupo','Produto','Almoxarifado (opcional)'],sortBy:'valor_estoque_desc',
+    cascade:true,visualCascade:true,groups:groups.length,products:productCount,
+    visibleDetailRows:detailsCount,
     physicalWithCost:records.filter(r=>r.hasStock&&r.stockCost>0).length,
     gerencialWithReference:records.filter(r=>r.reference>0).length,drafts:drafts.length,
     stockDate:stockDate(),purchaseSource:window.LATEST_PURCHASE_META?.source||null,
     officialCostsChanged:false,source:'ERP / Tabela Custo',autoPublish:false};
+}
+function expandMatchingProducts(){
+  expandedGroups.clear();expandedProducts.clear();
+  const rows=visible();
+  if(rows.length<=24){
+    for(const r of rows){expandedGroups.add(r.group);expandedProducts.add(productKey(r))}
+  }else if(state.group){expandedGroups.add(state.group)}
 }
 function feedback(message,error){
   const target=$('cu-feedback');target.textContent=message;target.classList.toggle('error',!!error);
@@ -344,6 +418,18 @@ function exportDrafts(){
   download('propostas_atualizacao_custos_DB.csv',[header,...rows]);
 }
 view.addEventListener('click',e=>{
+  const groupBtn=e.target.closest('[data-cu-toggle-group]');
+  if(groupBtn){
+    const key=groupBtn.dataset.cuToggleGroup;
+    if(expandedGroups.has(key))expandedGroups.delete(key);else expandedGroups.add(key);
+    paint();return;
+  }
+  const productBtn=e.target.closest('[data-cu-toggle-product]');
+  if(productBtn){
+    const key=productBtn.dataset.cuToggleProduct;
+    if(expandedProducts.has(key))expandedProducts.delete(key);else expandedProducts.add(key);
+    paint();return;
+  }
   const editBtn=e.target.closest('[data-cu-edit]');
   if(editBtn){edit(editBtn.dataset.cuEdit);return}
   const del=e.target.closest('[data-cu-remove]');
@@ -352,15 +438,33 @@ view.addEventListener('click',e=>{
     $('cu-message').textContent='Proposta excluída apenas deste navegador.';return;
   }
 });
-$('cu-local').addEventListener('change',e=>{state.local=e.target.value;state.product='';state.page=0;paint()});
-$('cu-group').addEventListener('change',e=>{state.group=e.target.value;state.product='';state.page=0;paint()});
-$('cu-product').addEventListener('change',e=>{state.product=e.target.value;state.page=0;paint()});
-$('cu-search').addEventListener('input',e=>{state.query=e.target.value;state.page=0;paint()});
-$('cu-only').addEventListener('change',e=>{state.only=e.target.value;state.page=0;paint()});
-$('cu-prev').addEventListener('click',()=>{if(state.page>0){state.page--;paint()}});
-$('cu-next').addEventListener('click',()=>{state.page++;paint()});
+$('cu-local').addEventListener('change',e=>{
+  state.local=e.target.value;state.product='';expandMatchingProducts();paint();
+});
+$('cu-group').addEventListener('change',e=>{
+  state.group=e.target.value;state.product='';expandedGroups.clear();expandedProducts.clear();
+  if(state.group)expandedGroups.add(state.group);
+  paint();
+});
+$('cu-product').addEventListener('change',e=>{
+  state.product=e.target.value;expandMatchingProducts();paint();
+});
+$('cu-search').addEventListener('input',e=>{
+  state.query=e.target.value;expandMatchingProducts();paint();
+});
+$('cu-only').addEventListener('change',e=>{
+  state.only=e.target.value;expandMatchingProducts();paint();
+});
+$('cu-expand-groups').addEventListener('click',()=>{
+  for(const r of visible())expandedGroups.add(r.group);
+  paint();
+});
+$('cu-collapse-all').addEventListener('click',()=>{
+  expandedGroups.clear();expandedProducts.clear();paint();
+});
 $('cu-clear').addEventListener('click',()=>{
   Object.assign(state,{local:'',group:'',product:'',query:'',only:'all',page:0});
+  expandedGroups.clear();expandedProducts.clear();
   $('cu-search').value='';$('cu-only').value='all';paint();
 });
 $('cu-scope').addEventListener('change',presentEditing);
@@ -435,5 +539,5 @@ for(const event of ['purchases-updated','stock-position-updated','cost-reference
 window.DB_COST_UPDATE={open:()=>tab.click(),refresh:()=>{dirty=true;paint()},
   getRows:()=>records.slice(),getDrafts:()=>drafts.map(x=>({...x})),
   meta:{loaded:false,rows:0,drafts:drafts.length,officialCostsChanged:false,autoPublish:false},
-  version:'20261113-cascade-grupo-produto-valor-desc-v1'};
+  version:'20261113-cascata-visual-grupo-produto-v2'};
 })();
