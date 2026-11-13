@@ -15,7 +15,9 @@ const esc=x=>str(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"
 const number=x=>Number(x)||0;
 const money=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:4});
 const whole=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0});
+const totalMoney=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:2});
 const fmt=x=>x==null||!Number.isFinite(Number(x))?'—':money.format(Number(x));
+const fmtTotal=x=>totalMoney.format(number(x));
 const dateKey=x=>{const s=str(x);return /^\d{2}\/\d{2}\/\d{4}$/.test(s)?s.slice(6)+s.slice(3,5)+s.slice(0,2):s};
 const storageKey='db-cost-update-drafts-v1';
 const state={local:'',group:'',product:'',query:'',only:'all',page:0};
@@ -70,18 +72,19 @@ view.innerHTML=[
 '<p>Confira qual preço está sendo usado em cada análise: <b>custo do estoque ERP</b>, <b>última compra por nota fiscal</b> e <b>maior referência gerencial da Tabela Custo</b>.</p></header>',
 '<div class="cu-note"><b>Controle de alterações:</b> os novos valores lançados aqui ficam como <b>propostas pendentes de conferência, salvas somente neste navegador</b>. Não modificam o Sankhya, o estoque físico, a Tabela Custo ou os indicadores de economia. Exporte o CSV para auditar e incorporar as correções aprovadas à base oficial.</div>',
 '<div id="cu-stats" class="cu-stats" aria-live="polite"></div>',
-'<section class="cu-card"><h3>Consultar custos por local, grupo e produto</h3><div class="cu-fields">',
-'<label>1. Almoxarifado<select id="cu-local"></select></label>',
-'<label>2. Grupo<select id="cu-group"></select></label>',
-'<label>3. Produto<select id="cu-product"></select></label>',
+'<section class="cu-card"><h3>Filtro em cascata · Grupo → Produto</h3><div class="cu-fields">',
+'<label>1. Grupo (maior valor primeiro)<select id="cu-group"></select></label>',
+'<label>2. Produto (maior valor primeiro)<select id="cu-product"></select></label>',
+'<label>Almoxarifado (opcional)<select id="cu-local"></select></label>',
 '<label class="wide">Busca adicional<input id="cu-search" type="search" placeholder="Código, descrição, nota ou fornecedor"></label>',
 '<label>Situação<select id="cu-only"><option value="all">Todos</option><option value="noref">Sem Tabela Custo</option><option value="draft">Com proposta pendente</option></select></label>',
 '</div><div class="cu-buttons"><button id="cu-clear" class="cu-btn" type="button">Limpar filtros</button>',
 '<button id="cu-export-reference" class="cu-btn" type="button">Exportar custos consultados (CSV)</button>',
 '<button id="cu-template" class="cu-btn" type="button">Baixar modelo de atualização</button></div>',
+'<p class="cu-hint"><b>Critério de ordenação:</b> valor total do estoque físico no ERP (saldo × custo unitário). Grupos e produtos sem estoque físico ficam ao final. O custo unitário e a referência gerencial permanecem visíveis para conferência.</p>',
 '<p class="cu-hint" id="cu-asof">Os preços de compras são conferidos por código e unidade; a Tabela Custo pode não identificar a unidade na fonte original. Custos de estoque e compras não devem ser substituídos automaticamente pelo maior preço.</p>',
 '<div class="cu-scroll" style="margin-top:14px"><table><thead><tr>',
-'<th>Código / produto</th><th>Local</th><th>Grupo</th><th>Saldo físico</th><th>Custo unit. estoque ERP</th>',
+'<th>Código / produto</th><th>Local</th><th>Grupo</th><th>Saldo físico</th><th>Valor em estoque (R$)</th><th>Custo unit. estoque ERP</th>',
 '<th>Última compra (R$/un.)</th><th>Maior referência Tabela Custo</th><th>Origem / data</th><th>Revisão</th>',
 '</tr></thead><tbody id="cu-rows"></tbody></table></div>',
 '<div class="cu-pagination"><span id="cu-count"></span><button class="cu-btn" id="cu-prev" type="button">Anterior</button><button class="cu-btn" id="cu-next" type="button">Próxima</button></div></section>',
@@ -191,15 +194,29 @@ function preserve(id,options,placeholder,chosen){
   return el.value;
 }
 function filters(){
+  // O local e opcional. Grupo -> Produto e a cascata principal, ambos
+  // classificados pelo valor total em estoque (sem contar compras como saldo).
   const localNames=[...new Set(records.map(r=>r.local))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
   state.local=preserve('cu-local',localNames.map(x=>[x,x]),'Todos os almoxarifados',state.local);
-  const byLocal=records.filter(x=>!state.local||x.local===state.local);
-  const groups=[...new Set(byLocal.map(r=>r.group))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
-  state.group=preserve('cu-group',groups.map(x=>[x,x]),'Todos os grupos',state.group);
-  const map=new Map();
-  for(const r of byLocal)if(!state.group||r.group===state.group)map.set(r.code+'|'+r.unit,r.code+' · '+r.product+' ('+r.unit+')');
-  const opts=[...map].sort((a,b)=>a[1].localeCompare(b[1],'pt-BR'));
-  state.product=preserve('cu-product',opts,'Todos os produtos',state.product);
+  const byLocal=records.filter(r=>!state.local||r.local===state.local);
+  const groupTotals=new Map();
+  for(const r of byLocal)groupTotals.set(r.group,(groupTotals.get(r.group)||0)+r.stockValue);
+  const orderedGroups=[...groupTotals].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'pt-BR'));
+  state.group=preserve('cu-group',orderedGroups.map(([name,total])=>
+    [name,name+' · '+fmtTotal(total)]),'Todos os grupos',state.group);
+  const products=new Map();
+  for(const r of byLocal){
+    if(state.group&&r.group!==state.group)continue;
+    const key=r.code+'|'+r.unit;
+    const item=products.get(key)||{code:r.code,product:r.product,unit:r.unit,total:0};
+    item.total+=r.stockValue;
+    products.set(key,item);
+  }
+  const orderedProducts=[...products].sort((a,b)=>b[1].total-a[1].total||
+    a[1].product.localeCompare(b[1].product,'pt-BR')||a[0].localeCompare(b[0],'pt-BR'));
+  state.product=preserve('cu-product',orderedProducts.map(([key,item])=>
+    [key,item.code+' · '+item.product+' ('+item.unit+') · '+fmtTotal(item.total)]),
+    'Todos os produtos',state.product);
 }
 function visible(){
   const q=norm(state.query);
@@ -224,7 +241,10 @@ function paint(){
   if(!view.classList.contains('active'))return;
   if(dirty||!loaded)build();
   filters();
-  const shown=visible(),pageSize=75, pages=Math.max(1,Math.ceil(shown.length/pageSize));
+  const shown=visible().sort((a,b)=>b.stockValue-a.stockValue||
+    number(b.stockCost)-number(a.stockCost)||a.code.localeCompare(b.code,'pt-BR')||
+    a.local.localeCompare(b.local,'pt-BR')),pageSize=75,
+    pages=Math.max(1,Math.ceil(shown.length/pageSize));
   state.page=Math.min(state.page,pages-1);
   const slice=shown.slice(state.page*pageSize,(state.page+1)*pageSize);
   $('cu-stats').innerHTML=[
@@ -244,17 +264,20 @@ function paint(){
     const latest=r.last;
     const origin=r.refOverride||((r.reference>0?'Tabela Custo · linha '+(r.refLine||'não informada')+
       (r.refDate?' · '+r.refDate:''):'Sem referência válida na Tabela Custo'));
-    return '<tr><td><b>'+esc(r.code)+'</b><div>'+esc(r.product)+'</div><div class="light">'+esc(r.unit)+'</div></td>'+
+    return '<tr data-cu-stock-value="'+r.stockValue+'"><td><b>'+esc(r.code)+'</b><div>'+esc(r.product)+'</div><div class="light">'+esc(r.unit)+'</div></td>'+
       '<td>'+esc(r.local)+'</td><td>'+esc(r.group)+'</td><td class="num">'+(r.hasStock?whole.format(r.balance):'—')+'</td>'+
+      '<td class="num"><b>'+fmtTotal(r.stockValue)+'</b></td>'+
       '<td class="num">'+fmt(r.stockCost)+'</td>'+
       '<td class="num">'+(latest?fmt(latest.price)+'<div class="light">'+esc(latest.date)+' · NF '+esc(latest.invoice)+'</div>':'—')+'</td>'+
       '<td class="num">'+fmt(r.reference)+'</td>'+
       '<td>'+esc(origin)+'<div class="light">'+(latest?'Último fornecedor: '+esc(latest.supplier):'')+'</div></td>'+
       '<td>'+(dk.has(r.code+'|'+r.unit)?'<div class="light">Revisão pendente</div>':'')+
       '<button class="cu-btn" type="button" data-cu-edit="'+esc(keyOf(r))+'">Conferir / atualizar</button></td></tr>'
-  }).join(''):'<tr><td colspan="9">Nenhum produto corresponde aos filtros.</td></tr>';
+  }).join(''):'<tr><td colspan="10">Nenhum produto corresponde aos filtros.</td></tr>';
   renderDrafts();
   window.DB_COST_UPDATE.meta={loaded:true,rows:records.length,filtered:shown.length,
+    filterOrder:['Grupo','Produto','Almoxarifado (opcional)'],
+    sortBy:'valor_estoque_desc',cascade:true,
     physicalWithCost:records.filter(r=>r.hasStock&&r.stockCost>0).length,
     gerencialWithReference:records.filter(r=>r.reference>0).length,drafts:drafts.length,
     stockDate:stockDate(),purchaseSource:window.LATEST_PURCHASE_META?.source||null,
@@ -329,7 +352,7 @@ view.addEventListener('click',e=>{
     $('cu-message').textContent='Proposta excluída apenas deste navegador.';return;
   }
 });
-$('cu-local').addEventListener('change',e=>{state.local=e.target.value;state.group='';state.product='';state.page=0;paint()});
+$('cu-local').addEventListener('change',e=>{state.local=e.target.value;state.product='';state.page=0;paint()});
 $('cu-group').addEventListener('change',e=>{state.group=e.target.value;state.product='';state.page=0;paint()});
 $('cu-product').addEventListener('change',e=>{state.product=e.target.value;state.page=0;paint()});
 $('cu-search').addEventListener('input',e=>{state.query=e.target.value;state.page=0;paint()});
@@ -412,5 +435,5 @@ for(const event of ['purchases-updated','stock-position-updated','cost-reference
 window.DB_COST_UPDATE={open:()=>tab.click(),refresh:()=>{dirty=true;paint()},
   getRows:()=>records.slice(),getDrafts:()=>drafts.map(x=>({...x})),
   meta:{loaded:false,rows:0,drafts:drafts.length,officialCostsChanged:false,autoPublish:false},
-  version:'20261113-cost-reference-drafts-v1'};
+  version:'20261113-cascade-grupo-produto-valor-desc-v1'};
 })();
