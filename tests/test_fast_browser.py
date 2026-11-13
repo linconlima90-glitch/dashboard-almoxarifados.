@@ -297,7 +297,11 @@ with sync_playwright() as p:
             # indicadores gerenciais sem auditoria e publicacao oficial.
             cost_tab=page.locator('.tab[data-view="atualizacao-custos"]')
             assert cost_tab.count()==1
-            cost_tab.evaluate('(el)=>el.click()')
+            page.locator('.clean-primary-btn[data-group="compras"]').click()
+            visible_cost=page.locator('.clean-sub-btn[data-view="atualizacao-custos"]')
+            assert visible_cost.count()==1 and visible_cost.is_visible()
+            visible_cost.click()
+            assert page.locator('#view-atualizacao-custos.active').count()==1
             page.wait_for_function("window.DB_COST_UPDATE?.meta?.loaded===true",timeout=20000)
             cost_state=page.evaluate("""() => ({
                 meta:window.DB_COST_UPDATE.meta,
