@@ -291,7 +291,9 @@ with sync_playwright() as p:
             assert economy['cost']['purchaseCents']==23737560, economy
             assert nov13['records']==8 and nov13['cents']==401105, economy
             assert nov13['matchedReference']+nov13['missingReference']==8, economy
-            assert economy['cost']['netCents']==9289159+nov13['netCents'], economy
+            correction=economy['cost']['approvedProductCostCorrections']['124928']
+            assert correction['referenceMicro']==7982580000 and correction['originalInvoicesPreserved'] is True,economy
+            assert economy['cost']['netCents']==9289159+nov13['netCents']+correction['netDeltaCents'], economy
             assert economy['unified']['net']==economy['cost']['netCents'], economy
             # A aba de atualizacao consulta tres fontes mas nao edita ERP ou
             # indicadores gerenciais sem auditoria e publicacao oficial.
@@ -307,12 +309,26 @@ with sync_playwright() as p:
                 meta:window.DB_COST_UPDATE.meta,
                 officialReference:window.DB_APPROVED_COST_COMPARISON.getProducts()
                   .find(p=>p[1]==='105090'&&p[4]==='KG')?.[6],
-                stockTotal:STOCK.reduce((s,x)=>s+(Number(x.valor_estoque)||0),0)
+                stockTotal:STOCK.reduce((s,x)=>s+(Number(x.valor_estoque)||0),0),
+                correction:window.DB_APPROVED_PRODUCT_COST_AUDIT,
+                correiaRows:STOCK.filter(x=>String(x.codigo)==='124928').map(x=>({
+                  local:x.local,qty:x.estoque,cost:x.custo_estoque,value:x.valor_estoque,
+                  erpCostOriginal:x.custo_erp_original,erpValueOriginal:x.valor_erp_original
+                })),
+                referenceCorreia:window.DB_APPROVED_COST_COMPARISON.getProducts()
+                  .find(p=>p[1]==='124928'&&p[4]==='PC')?.[6],
+                allPurchaseHistorical:window.DB_APPROVED_COST_COMPARISON.getPurchases().every(
+                  x=>String(x[2])!=='124928'||x[10]!==7982580000)
             })""")
             assert cost_state['meta']['rows']>3000 and cost_state['meta']['gerencialWithReference']>0,cost_state
             assert cost_state['meta']['officialCostsChanged'] is False and cost_state['meta']['autoPublish'] is False,cost_state
             assert cost_state['officialReference']==24235000,cost_state
-            assert abs(cost_state['stockTotal']-2281619.67)<0.01,cost_state
+            assert cost_state['correction']['positions']>=1 and cost_state['correiaRows'],cost_state
+            assert all(abs(r['cost']-7982.58)<0.001 and abs(r['value']-r['qty']*7982.58)<0.01
+                       for r in cost_state['correiaRows']),cost_state
+            assert cost_state['referenceCorreia']==7982580000,cost_state
+            assert abs(cost_state['stockTotal']-
+                       (2281619.67+cost_state['correction']['deltaCents']/100))<0.01,cost_state
             assert page.locator('#cu-local option').count()>2
             # Filtro em cascata: grupos e produtos ordenados pelo valor do
             # saldo fisico, sem confundir referencias de preco com estoque.
@@ -414,10 +430,11 @@ with sync_playwright() as p:
                 total:STOCK.reduce((s,x)=>s+(Number(x.valor_estoque)||0),0),
                 warehouses:new Set(STOCK.map(x=>x.local)).size,
                 preserveHistory:window.MOVEMENTS_REVISED_META?.records>19387,
-                preserveMin:window.STOCK_MINIMUM_MONTHS===2
+                preserveMin:window.STOCK_MINIMUM_MONTHS===2,
+                adjustment:window.DB_APPROVED_PRODUCT_COST_AUDIT?.deltaCents||0
             })""")
             assert stockmeta['emitted']=='12/11/2026 09:35:54', stockmeta
-            assert abs(stockmeta['total']-2281619.67)<0.01 and stockmeta['warehouses']==9, stockmeta
+            assert abs(stockmeta['total']-(2281619.67+stockmeta['adjustment']/100))<0.01 and stockmeta['warehouses']==9, stockmeta
             assert stockmeta['preserveHistory'] and stockmeta['preserveMin'], stockmeta
             october=page.evaluate("""() => ({
                 month:window.MOVEMENTS_OCTOBER_META,
@@ -1319,7 +1336,9 @@ with sync_playwright() as p:
     assert results['fast']['stockRows'] == 4374, 'Unexpected stock positions'
     assert results['fastPilot']['stockRows'] == 4374, 'Unexpected Sao Joao stock positions'
     assert results['fastChuaPilot']['stockRows'] == 4374, 'Unexpected Chua stock positions'
-    assert abs(results['fast']['stockValue'] - 2281619.67) < 0.01, 'Unexpected stock value'
+    expected_adjustment=next((x[1]['deltaCents']/100 for x in [('fast',results['fast'].get('approvedCostAudit'))]
+                              if x[1] is not None),0)
+    assert abs(results['fast']['stockValue'] - (2281619.67 + expected_adjustment)) < 0.01, 'Unexpected stock value'
     if snapshots['legacy'] != snapshots['fast']:
         for field in snapshots['legacy']:
             left, right = snapshots['legacy'][field], snapshots['fast'][field]
