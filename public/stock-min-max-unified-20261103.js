@@ -282,8 +282,8 @@
       if(x.excess>0){a.excessCount++;a.excessValue+=x.excessValue;if(!x.hasCost)a.withoutCost++;}
       if(!x.reliable&&x.stock>0)a.withoutHistory++;
     }
-    return [...map.values()].sort((a,b)=>b.needValue+b.excessValue-a.needValue-a.excessValue||
-      b.needCount+b.excessCount-a.needCount-a.excessCount||a.local.localeCompare(b.local,'pt-BR'));
+    return [...map.values()].sort((a,b)=>b.needValue-a.needValue||
+      b.needCount-a.needCount||b.excessValue-a.excessValue||a.local.localeCompare(b.local,'pt-BR'));
   }
 
   function visible(row){
@@ -304,8 +304,8 @@
       if(x.need>0){a.needCount++;a.needValue+=x.purchaseValue;}
       if(x.excess>0){a.excessCount++;a.excessValue+=x.excessValue;}
     }
-    return [...out.values()].sort((a,b)=>b.needValue+b.excessValue-a.needValue-a.excessValue||
-      b.rows.length-a.rows.length||a.name.localeCompare(b.name,'pt-BR'));
+    return [...out.values()].sort((a,b)=>b.needValue-a.needValue||
+      b.needCount-a.needCount||b.excessValue-a.excessValue||a.name.localeCompare(b.name,'pt-BR'));
   }
 
   // Vermelho: repor; azul: excedente; verde: estoque adequado; roxo: sem baixa/historico insuficiente.
@@ -358,8 +358,8 @@
       '</span>';
   }
 
-  // Baixas determinam a ordem da lista, independentemente do valor do estoque.
-  // Com unidades divergentes, priorizar a unidade do item; nunca somar PC com KG/LT.
+  // Produtos ordenados pelo custo estimado de reposicao: necessidade x custo ERP.
+  // Quantidades baixadas continuam detalhadas por unidade, sem somar PC com KG/LT.
   function withdrawalSortQuantity(row){
     const records=Array.isArray(row.withdrawals)?row.withdrawals:[];
     const sameUnit=records.find(x=>norm(x.un)===norm(row.un));
@@ -368,15 +368,16 @@
   }
   function itemTable(rows){
     const sorted=rows.slice().sort((a,b)=>
-      withdrawalSortQuantity(b)-withdrawalSortQuantity(a)||
+      b.purchaseValue-a.purchaseValue||
+      b.need-a.need||b.excessValue-a.excessValue||
       a.produto.localeCompare(b.produto,'pt-BR')||
       a.codigo.localeCompare(b.codigo,'pt-BR'));
     const columns=[6,18,3,10,6,6,5,6,6,8,6,8,12];
     const colgroup='<colgroup>'+columns.map(width=>'<col style="width:'+width+'%">').join('')+'</colgroup>';
     const cell=(label,html,classes='',attr='')=>
       '<td data-label="'+esc(label)+'" class="'+esc(classes)+'"'+attr+'>'+html+'</td>';
-    return '<div class="dbmx-order-note">Produtos ordenados pela <strong>quantidade baixada: maior → menor</strong> · '+
-      'período selecionado. Valores por unidade de medida. '+
+    return '<div class="dbmx-order-note">Produtos ordenados pelo <strong>valor de reposição: maior → menor</strong> · '+
+      'necessidade de compra × custo unitário ERP. Baixas por unidade de medida. '+
       '<span class="dbmx-filter-count" aria-live="polite"></span></div>'+
       '<div class="dbmx-scroll"><table>'+colgroup+'<thead><tr>'+
       '<th>Código</th><th>Produto</th><th>UN</th><th>Qtd. baixada no período</th><th>Média/mês</th>'+
@@ -745,7 +746,7 @@
       '<div class="dbmx-kpi"><span>Excedentes por histórico insuficiente</span><strong>'+int(provisional.length)+'</strong>'+
       '<small>Sem 3 meses com baixas; revisar antes de realocar</small></div>'+
       '</div>'+shared.html+'<div class="dbmx-list"><div class="dbmx-list-heading"><h3>1. Almoxarifados</h3>'+
-      '<span>Clique no almoxarifado para abrir os grupos e produtos.</span></div>'+
+      '<span>Ordem: maior valor a repor primeiro. Clique para abrir grupos e produtos.</span></div>'+
       '<div class="dbmx-legend">'+
       '<span><b class="dbmx-legend--need"></b>Amarelo: Repor</span>'+
       '<span><b class="dbmx-legend--excess"></b>Verde: Excedente</span></div>'+
@@ -808,7 +809,7 @@
       insufficientHistoryItems:manual.length,missingCostItems:missingExcess,
       minimumMonths:2,integrated:true,inlineCascade:true,colorCoding:true,brandPalette:'DB verde/amarelo',
       sharedChua:shared.summary,
-      compactSummary:true,withdrawalDetailOnly:true,sortedByWithdrawalsDesc:true,fullWidthProducts:true,
+      compactSummary:true,withdrawalDetailOnly:true,sortedByWithdrawalsDesc:false,sortedByReplenishmentValueDesc:true,fullWidthProducts:true,
       columnStatusFilter:true,columnStatusOptions:['all','need','excess'],
       screenshotCardLayout:true,tabLabel:'Estoque mínimo / Estoque máximo',
       allProductColumnsHorizontal:true,purchaseValueColumnHidden:true,
@@ -825,7 +826,7 @@
   }
 
   function schedule(){clearTimeout(timer);timer=setTimeout(render,90);}
-  const api={render,refresh:schedule,meta:null,version:'20261112-excedente-historico-curto-v1'};
+  const api={render,refresh:schedule,meta:null,version:'20261113-ordenar-reposicao-desc-v1'};
   window.DB_STOCK_UNIFIED=api;
   window.DB_STOCK_MAXIMUM=api; // Retem os pontos de observacao da versao anterior.
   window.addEventListener('movements-updated',schedule);
