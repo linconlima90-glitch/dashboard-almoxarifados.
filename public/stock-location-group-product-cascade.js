@@ -7,15 +7,19 @@ const norm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUp
 const str=x=>String(x??'');
 const esc=x=>str(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const val=x=>Number(x)||0;
-const money=x=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(val(x));
-const integer=x=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(val(x));
-const qty=x=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:3}).format(val(x));
+const moneyFormat=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+const integerFormat=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0});
+const qtyFormat=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:3});
+const money=x=>moneyFormat.format(val(x));
+const integer=x=>integerFormat.format(val(x));
+const qty=x=>qtyFormat.format(val(x));
 const sortBR=(a,b)=>str(a).localeCompare(str(b),'pt-BR');
 const state={local:'',group:'',product:'',text:'',openLoc:new Set(),openGroup:new Set(),
   showMore:new Map(),initial:false,installed:false,source:[],sourceTick:0};
 const getKey=x=>str(x.codigo)+'|'+str(x.un||'')+'|'+str(x.produto||'');
 const dollars=x=>val(x.valor_estoque);
 let view=null,legacyPanel=null,section=null,timer=0;
+const perf={paints:0,hiddenSkips:0,lastMs:0,maxMs:0};
 const style=document.createElement('style');style.id='db-stock-cascade-style';style.textContent=[
 '#view-estoque .dbsc-panel{border:1px solid #d9e7dc;background:#fff;border-radius:13px;overflow:hidden;margin:11px 0}',
 '#view-estoque .dbsc-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;background:#f7faf8;border-bottom:1px solid #dce9df;flex-wrap:wrap}',
@@ -97,6 +101,11 @@ function tableRow(x){
 }
 function paint(){
   if(!section||!section.isConnected)return;
+  // Nao consultar/recriar milhares de linhas fora da aba Estoque.
+  if(!document.querySelector('#view-estoque')?.classList.contains('active')){
+    perf.hiddenSkips++;return;
+  }
+  const started=performance.now();
   const all=getSource();
   state.source=all;
   const locals=[...new Set(all.map(x=>x.local||'SEM ALMOXARIFADO'))].sort(sortBR);
@@ -148,6 +157,9 @@ function paint(){
       (expanded?'<div class="dbsc-groups">'+groupsHtml+'</div>':'')+'</section>';
   }).join('');
   section.querySelector('#dbsc-list').innerHTML=markup||'<div class="dbsc-empty">Nenhum produto encontrado com os filtros selecionados.</div>';
+  perf.paints++;
+  perf.lastMs=Math.round((performance.now()-started)*10)/10;
+  perf.maxMs=Math.max(perf.maxMs,perf.lastMs);
   window.DB_STOCK_LOCATION_CASCADE.meta={
     rows:all.length,visiblePositions:filtered.length,visibleValue:filtered.reduce((sum,x)=>sum+dollars(x),0),
     warehouses:warehouses.length,groupCount:warehouses.reduce((v,w)=>v+new Set(w.rows.map(x=>x.grupo||'SEM GRUPO')).size,0),
@@ -224,6 +236,9 @@ function mount(){
   return true;
 }
 function refresh(){
+  if(!document.getElementById('view-estoque')?.classList.contains('active')){
+    perf.hiddenSkips++;return;
+  }
   if(mount())paint();
 }
 let attempts=0;
@@ -240,6 +255,6 @@ document.addEventListener('click',e=>{
   if(e.target.closest('.tab[data-view="estoque"],.clean-sub-btn[data-view="estoque"]'))setTimeout(refresh,30);
 },true);
 for(const event of ['stock-position-updated','purchase-updated','stocks-updated'])window.addEventListener(event,()=>setTimeout(refresh,0));
-window.DB_STOCK_LOCATION_CASCADE={refresh,meta:null,version:'20261112-where-stock-local-group-product-v1'};
+window.DB_STOCK_LOCATION_CASCADE={refresh,meta:null,performance:perf,version:'20261113-lazy-cascade-v1'};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 })();
