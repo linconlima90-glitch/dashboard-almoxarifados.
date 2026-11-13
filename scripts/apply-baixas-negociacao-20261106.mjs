@@ -169,14 +169,62 @@ export function applyBaixasNegociacao20261106(root,out) {
   originalMeta.sourceSHA256+='+'+day11.sourceSHA256;
   originalMeta.years['2026'].records+=day11.records;
   originalMeta.years['2026'].value=Number((originalMeta.years['2026'].value+day11.cents/100).toFixed(2));
+
+  // Nova remessa de baixas de 12/11/2026 (emissao ERP em 13/11).
+  // A chave de deduplicacao na remessa e Nro.Unico + Seq.; data = Dt.Neg.
+  const day12=JSON.parse(gunzipSync(Buffer.from('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','base64')).toString('utf8'));
+  assert.equal(day12.sha256,'0736709eccad88ffe57122c398b3252aeb5e0990b26f6ba1602c3d642ee513bc');
+  assert.equal(day12.basis,'Dt.Neg.');
+  assert.equal(day12.date,'2026-11-12');
+  assert.equal(day12.count,96);
+  assert.equal(day12.cents,808386);
+  assert.equal(day12.rows.length,day12.count);
+  assert.equal(pack.dailyRows.filter(x=>x[0]==='2026-11-12').length,0,'Dia 12/11 ja existente: nao duplicar');
+  const seenDay12=new Set(), groupedDay12=new Map();
+  let checkedDay12Cents=0;
+  for(const item of day12.rows){
+    const [date,company,codeLocal,local,code,product,group,unit,qty,cents,document,seq,comparison]=item;
+    assert.equal(date,'2026-11-12');
+    assert(Number(qty)>0 && Number.isInteger(cents) && cents>=0);
+    assert.equal(comparison,'IGUAL');
+    const documentKey=String(document)+'|'+String(seq);
+    assert(!seenDay12.has(documentKey),'Duplicidade Nro.Unico + Seq.: '+documentKey);
+    seenDay12.add(documentKey);checkedDay12Cents+=cents;
+    const li=getLocalIndex(codeLocal);
+    assert.equal(String(dict.local[li][1]),String(local),'Divergencia local ERP 12/11');
+    const directFi=dict.company.findIndex(v=>Number(v)===Number(company));
+    const existing=pack.dailyRows.find(x=>x[1]===li && String(dict.product[x[3]]?.[0])===String(code));
+    const candidates=majorityCompany.get(li)||new Map();
+    const fi=directFi>=0?directFi:(existing?existing[2]:[...candidates].sort((a,b)=>b[1]-a[1])[0]?.[0]);
+    assert(fi!==undefined&&fi>=0,'Empresa fiscal sem referencia 12/11');
+    const gi=indexOrAppend(dict.group,group);
+    let pi=productIndex.get(String(code));
+    if(pi===undefined){pi=dict.product.length;dict.product.push([String(code),String(product),gi]);productIndex.set(String(code),pi);}
+    const ui=indexOrAppend(dict.unit,unit);
+    const key=[date,li,fi,pi,ui].join('|');
+    const record=groupedDay12.get(key)||[date,li,fi,pi,ui,0,0,0,0];
+    record[5]+=Number(qty);record[6]+=cents;record[7]++;
+    groupedDay12.set(key,record);
+  }
+  assert.equal(checkedDay12Cents,day12.cents);
+  pack.dailyRows.push(...groupedDay12.values());
+  originalMeta.records+=day12.count;
+  originalMeta.cents+=day12.cents;
+  originalMeta.value=originalMeta.cents/100;
+  originalMeta.to='2026-11-12';
+  originalMeta.sourceFile+=' + '+day12.source;
+  originalMeta.sourceSHA256+='+'+day12.sha256;
+  originalMeta.years['2026'].records+=day12.count;
+  originalMeta.years['2026'].value=Number((originalMeta.years['2026'].value+day12.cents/100).toFixed(2));
+
   const source=pack.meta,D=pack.dict,daily=pack.dailyRows;
   const sum=(rows,k)=>rows.reduce((a,x)=>a+Number(x[k]||0),0);
   assert.equal(source.dateBasis,'Dt.Neg.');
   assert(source.sourceSHA256.startsWith('a068fc42ae4e5ce17378da97351d98b1ad1c99fefdc3af26a0b6c795e493f897+'));
-  assert.equal(source.to,'2026-11-11');
-  assert.equal(source.records,22084);
-  assert.equal(sum(daily,7),22084);
-  assert.equal(sum(daily,6),256757651);
+  assert.equal(source.to,'2026-11-12');
+  assert.equal(source.records,22180);
+  assert.equal(sum(daily,7),22180);
+  assert.equal(sum(daily,6),257566037);
   const aggregate=new Map();
   for(const row of daily){
     const mi=D.month.indexOf(row[0].slice(0,7));
@@ -237,17 +285,17 @@ export function applyBaixasNegociacao20261106(root,out) {
     "window.MOVEMENTS_OCTOBER_META={from:'01/10/2026',to:'31/10/2026',records:"+byMonth['2026-10'].records+
     ",value:"+money(byMonth['2026-10'].cents)+"};");
   replace('novembro',/window\.MOVEMENTS_NOVEMBER_META=\{[^;]+;/,
-    "window.MOVEMENTS_NOVEMBER_META={from:'01/11/2026',to:'11/11/2026',records:"+byMonth['2026-11'].records+
+    "window.MOVEMENTS_NOVEMBER_META={from:'01/11/2026',to:'12/11/2026',records:"+byMonth['2026-11'].records+
     ",value:"+money(byMonth['2026-11'].cents)+",partial:true};");
   replace('quantidade minima',/minMonths:2,records:17026/,
     'minMonths:2,records:'+(byYear['2025'].records+byYear['2026'].records-byMonth['2026-11'].records));
   replace('resumo',/box\.innerHTML=[\s\S]*?;\s*summary\.prepend\(box\);/,
-    "box.innerHTML='<b>Baixas ERP (data de negociação): 14/03/2024 a 11/11/2026</b> · "+
+    "box.innerHTML='<b>Baixas ERP (data de negociação): 14/03/2024 a 12/11/2026</b> · "+
     totalCount.toLocaleString('pt-BR')+" lancamentos · <b>R$ "+formatted(totalCents)+
     "</b>.'+'<div style=\"color:#657366;font-size:11px\">"+
     "2024: "+byYear['2024'].records+" baixas (somente consulta). 2025: "+byYear['2025'].records+
     " baixas. 2026: "+byYear['2026'].records+
-    " baixas ate 11/11. Fonte integral substituída pela data de negociação, sem duplicidade. "+
+    " baixas ate 12/11. Fonte integral substituída pela data de negociação, sem duplicidade. "+
     "Estoque minimo: 22 meses completos (2025 e janeiro-outubro/2026), cobertura de 2 meses; "+
     "novembro parcial fora da média. Saldo físico preservado da fotografia ERP mais recente, sem subtração adicional; consultar a data da posição no quadro de estoque.</div>';summary.prepend(box);");
   replace('2024 meta',/window\.MOVEMENTS_2024_META=\{[^;]+;/,
@@ -276,13 +324,13 @@ export function applyBaixasNegociacao20261106(root,out) {
   }
   const historicPrelude='window.DB_WITHDRAWAL_HISTORY_2024_2026='+JSON.stringify({
     localCodes:[...historicKeys],networkCodes:[...networkCodes],
-    from:'14/03/2024',to:'11/11/2026',dateBasis:'Dt.Neg.',records:source.records,
+    from:'14/03/2024',to:'12/11/2026',dateBasis:'Dt.Neg.',records:source.records,
     includes2024:true,excludedFromMinimum:['2024']
   })+';\n';
   const noBaixas=read('public/stock-no-withdrawals-tab-20261015.js')
     .replace('window.MOVEMENTS_REVISED_META?.records === 19387','window.MOVEMENTS_REVISED_META?.records === '+totalCount)
-    .replaceAll('14/03/2024 a 03/11/2026','14/03/2024 a 11/11/2026')
-    .replace("historyEnd:'03/11/2026'","historyEnd:'11/11/2026'")
+    .replaceAll('14/03/2024 a 03/11/2026','14/03/2024 a 12/11/2026')
+    .replace("historyEnd:'03/11/2026'","historyEnd:'12/11/2026'")
     .replace('let sourceRows=[], hasMovementsInNetwork=new Set(), historyByProduct=',"let sourceRows=[], hasMovementsInNetwork=new Set(), allNetwork=new Set((window.DB_WITHDRAWAL_HISTORY_2024_2026?.networkCodes)||[]), historyByProduct=")
     .replace('const movementByLocal=new Map();',"const movementByLocal=new Map();const allHistory=new Set((window.DB_WITHDRAWAL_HISTORY_2024_2026?.localCodes)||[]);")
     .replace('if(movementByLocal.has(stockKey(s)))continue;',"if(movementByLocal.has(stockKey(s))||allHistory.has(localCodeKey(s)))continue;")
