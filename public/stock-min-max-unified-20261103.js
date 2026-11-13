@@ -403,7 +403,8 @@
             kind==='history'?'Não gerar alerta automático de máximo sem consumo suficiente. ':'');
         return '<tr class="dbmx-state-'+kind+'" data-dbmx-situation="'+esc(x.condition)+
           '" data-dbmx-color="'+kind+'" data-dbmx-provisional="'+(x.provisionalExcess?'true':'false')+
-          '" data-dbmx-withdrawal-sort="'+withdrawalSortQuantity(x)+'">'+
+          '" data-dbmx-withdrawal-sort="'+withdrawalSortQuantity(x)+
+           '" data-dbmx-replenishment-sort="'+x.purchaseValue+'">'+
           cell('Código',esc(x.codigo),'dbmx-code')+
           cell('Produto',esc(x.produto),'dbmx-product')+
           cell('UN',esc(x.un))+
