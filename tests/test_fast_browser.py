@@ -835,20 +835,22 @@ with sync_playwright() as p:
             purchase_tab.evaluate('(el)=>el.click()')
             page.wait_for_function("window.DB_CDI_ORDER_TRACKER?.meta?.documents>=1", timeout=15000)
             tracker=page.evaluate("window.DB_CDI_ORDER_TRACKER.meta")
-            assert tracker['groups']==1 and tracker['documents']==1,tracker
-            assert tracker['lines']==18 and tracker['products']==18,tracker
-            assert tracker['latestRequest']=='110998' and tracker['latestDate']=='2026-11-12',tracker
+            assert tracker['groups']==3 and tracker['documents']==3,tracker
+            assert tracker['lines']==34 and tracker['products']==34,tracker
+            assert tracker['latestRequest']=='111044' and tracker['latestDate']=='2026-11-12',tracker
             assert tracker['cadenceMonths']==2 and tracker['alertBeforeDays']==15,tracker
             assert tracker['centralLocal']=='30115' and tracker['source']=='SANKHYA',tracker
             assert tracker['purchasedConfirmed'] is False and tracker['receivedConfirmed'] is False
             assert tracker['groupedBy']==['Grupo','Solicitação','Item'],tracker
             assert tracker['externalNotifications'] is False
             due=tracker['nextDue']
-            assert len(due)==1 and due[0]['group']=='CORREIAS',due
-            assert due[0]['date']=='2027-01-12',due
+            assert len(due)==3 and {x['group']:x['date'] for x in due}=={
+                'CORREIAS':'2027-01-12','FERRAMENTAS':'2027-01-12','ROLAMENTOS':'2027-01-06'},due
             assert page.locator('#view-compras-programadas [data-sc-group="CORREIAS"]').count()==1
-            assert page.locator('#view-compras-programadas .sc-scroll tbody tr').count()==18
-            assert page.get_by_text('Solicitação 110998',exact=False).count()>=1
+            assert page.locator('#view-compras-programadas [data-sc-group="FERRAMENTAS"]').count()==1
+            assert page.locator('#view-compras-programadas [data-sc-group="ROLAMENTOS"]').count()==1
+            assert page.locator('#view-compras-programadas .sc-scroll tbody tr').count()>=6
+            assert page.get_by_text('Solicitação 110546',exact=False).count()>=1
             assert page.locator('#sc-export').count()==1
             page.locator('#sc-search').fill('105098')
             assert page.locator('#view-compras-programadas [data-sc-group="CORREIAS"]').count()==1
@@ -857,9 +859,11 @@ with sync_playwright() as p:
             page.locator('#sc-search').fill('')
             group=page.locator('#view-compras-programadas [data-sc-group="CORREIAS"]')
             group.locator('[data-sc-toggle]').click()
-            assert group.locator('[data-sc-toggle]').get_attribute('aria-expanded')=='false'
-            group.locator('[data-sc-toggle]').click()
             assert group.locator('[data-sc-toggle]').get_attribute('aria-expanded')=='true'
+            assert group.locator('.sc-scroll tbody tr').count()==18
+            assert page.get_by_text('Solicitação 110998',exact=False).count()>=1
+            group.locator('[data-sc-toggle]').click()
+            assert group.locator('[data-sc-toggle]').get_attribute('aria-expanded')=='false'
             # A aba e criada dinamicamente antes do layout e usa o historico reconciliado.
             assert page.locator('.clean-sub-btn[data-view="sem-baixas"]').count() >= 0
             page.locator('.tab[data-view="sem-baixas"]').evaluate('(el)=>el.click()')
