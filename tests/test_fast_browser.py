@@ -286,9 +286,13 @@ with sync_playwright() as p:
                 unified:window.DB_UNIFIED_ECONOMY.summary(),
                 purchaseRows:window.DB_UNIFIED_ECONOMY.getPurchases().length
             })""")
-            assert economy['cost']['purchaseLines']==409, economy
-            assert economy['cost']['purchaseCents']==23336455 and economy['cost']['netCents']==9289159, economy
-            assert economy['purchaseRows']==409 and economy['unified']['net']==9289159, economy
+            nov13=economy['cost']['newPurchasesAudit']
+            assert economy['cost']['purchaseLines']==417 and economy['purchaseRows']==417, economy
+            assert economy['cost']['purchaseCents']==23737560, economy
+            assert nov13['records']==8 and nov13['cents']==401105, economy
+            assert nov13['matchedReference']+nov13['missingReference']==8, economy
+            assert economy['cost']['netCents']==9289159+nov13['netCents'], economy
+            assert economy['unified']['net']==economy['cost']['netCents'], economy
 
         snapshots[name] = page.evaluate(SNAPSHOT)
         results[name] = {
