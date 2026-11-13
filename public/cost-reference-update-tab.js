@@ -203,6 +203,14 @@ function build(){
       r.refOverride=approved&&number(approved.approvedMaxMicro)===number(p[6])?str(approved.source||'Ajuste gerencial aprovado'):'';
       r.referenceSource=r.refOverride?'AJUSTE GERENCIAL APROVADO':'Tabela Custo.xlsx';
     }
+    const manual=window.DB_APPROVED_PRODUCT_COSTS?.[r.code];
+    if(manual&&r.unit===manual.unidade){
+      r.reference=manual.custoUnitario;
+      r.refDate=manual.dataAprovacao;
+      r.refLine='Ajuste gerencial do gestor';
+      r.refOverride=manual.fonte;
+      r.referenceSource='CUSTO GERENCIAL APROVADO';
+    }
   }
   records=[...m.values()].sort((a,b)=>b.stockValue-a.stockValue||a.code.localeCompare(b.code,'pt-BR')||a.local.localeCompare(b.local,'pt-BR'));
   known=new Map(records.map(r=>[keyOf(r),r]));
@@ -308,7 +316,7 @@ function paint(){
   ].join('');
   $('cu-asof').textContent='Custo físico: '+stockSource()+' · '+stockDate()+
     '. Compras: '+(window.LATEST_PURCHASE_META?.source||'histórico ERP')+
-    '. Maior referência gerencial: Tabela Custo.xlsx (5.374 registros), com correções aprovadas. A fonte original não contém unidade de medida.';
+    '. Referências gerenciais: Tabela Custo.xlsx (5.374 registros) e correções aprovadas, incluindo a correia 124928 a R$ 7.982,58/PC. A origem fiscal do ERP e as notas de compra não são regravadas.';
   const productCount=groups.reduce((sum,g)=>sum+g.products.size,0);
   $('cu-count').textContent=whole.format(groups.length)+' grupos · '+whole.format(productCount)+
     ' produtos por grupo · '+whole.format(shown.length)+' posições · '+fmtTotal(shown.reduce((sum,r)=>sum+r.stockValue,0));
@@ -347,6 +355,7 @@ function paint(){
     filterOrder:['Grupo','Produto','Almoxarifado (opcional)'],sortBy:'valor_estoque_desc',
     cascade:true,visualCascade:true,groups:groups.length,products:productCount,
     visibleDetailRows:detailsCount,
+    approvedCorreia124928:records.filter(r=>r.code==='124928'&&r.unit==='PC').every(r=>Math.abs((r.reference||0)-7982.58)<0.001),
     physicalWithCost:records.filter(r=>r.hasStock&&r.stockCost>0).length,
     gerencialWithReference:records.filter(r=>r.reference>0).length,drafts:drafts.length,
     stockDate:stockDate(),purchaseSource:window.LATEST_PURCHASE_META?.source||null,
