@@ -220,16 +220,60 @@
     M.newPurchasesAudit={...pkg.meta,matchedReference:matched,missingReference:missing,
       positiveCents:newPositive,negativeCents:newNegative,netCents:newPositive+newNegative};
   }
+  // Referencia aprovada pelo gestor em 13/11, sem reescrever precos pagos nas NFs.
+  // Recalcular apenas comparativos gerenciais que usam o custo de referencia.
+  function applyApprovedCorreia124928(data){
+    const item=window.DB_APPROVED_PRODUCT_COSTS?.['124928'];
+    if(!item||item.custoUnitario!==7982.58||item.custoMicro!==7982580000||item.unidade!=='PC')
+      throw Error('Custo gerencial aprovado da correia 124928 nao carregado');
+    const M=data.meta,P=data.products,T=data.purchases;
+    let product=P.find(p=>String(p[1])==='124928'&&String(p[4])==='PC');
+    if(!product){
+      product=new Array(20).fill(null);
+      product[0]='CORRECAO|124928|PC';product[1]='124928';product[2]=item.produto;
+      product[3]='CORREIAS';product[4]='PC';product[14]=0;product[15]=0;product[16]=0;
+      P.push(product);
+    }
+    const before=product[6]??null, beforeDate=product[7]??null;
+    let positiveDelta=0,negativeDelta=0,qty=0,lines=0;
+    for(const r of T){
+      if(String(r[2])!=='124928'||String(r[5])!=='PC')continue;
+      const originalPositive=Number(r[11])||0,originalNegative=Number(r[12])||0;
+      const signed=Math.round((item.custoMicro-Number(r[10]))*Number(r[8])/10000);
+      if(!Number.isSafeInteger(signed))throw Error('Comparativo nao verificavel da correia 124928');
+      r[11]=Math.max(0,signed);r[12]=Math.min(0,signed);r[13]=signed;
+      r[19]='REFERENCIA GERENCIAL CORRIGIDA · HISTORICO FISCAL PRESERVADO';
+      positiveDelta+=r[11]-originalPositive;negativeDelta+=r[12]-originalNegative;
+      qty+=Number(r[8]);lines++;
+    }
+    product[6]=item.custoMicro;product[7]=item.dataAprovacao;
+    product[9]='Orientacao de custo 13/11/2026';product[14]=(product[14]||0)+positiveDelta;
+    product[15]=(product[15]||0)+negativeDelta;product[16]=(product[16]||0)+positiveDelta+negativeDelta;
+    M.positiveCents+=positiveDelta;M.negativeCents+=negativeDelta;
+    M.netCents+=positiveDelta+negativeDelta;
+    if(Number.isFinite(M.temporalCents))M.temporalCents+=positiveDelta+negativeDelta;
+    const details={code:'124928',referenceMicro:item.custoMicro,
+      originalReferenceMicro:before,originalReferenceDate:beforeDate,quantity:qty,
+      purchaseLines:lines,positiveDeltaCents:positiveDelta,negativeDeltaCents:negativeDelta,
+      netDeltaCents:positiveDelta+negativeDelta,approvedAt:item.dataAprovacao,
+      source:item.fonte,originalInvoicesPreserved:true};
+    M.approvedProductCostCorrections={...(M.approvedProductCostCorrections||{}),'124928':details};
+    M.confirmation=(M.confirmation||'')+
+      ' Correia 124928: custo de referencia aprovado R$ 7.982,58/PC; notas fiscais originais preservadas.';
+  }
   function show(data){
     aplicarReferenciasAprovadas(data);
     applyPurchases1011(data);
     applyPurchases1311(data);
+    applyApprovedCorreia124928(data);
     const M=data.meta,P=data.products,T=data.purchases;
     const nov13=M.newPurchasesAudit;
     const ok=M.schemaVersion===2 && M.projectFrom==='2026-05-07' && P.length>=320 && T.length===417 &&
       M.purchaseCents===23737560 && nov13?.sourceSHA256==='0fa16fc1f4d6fe7f5a00037e0741bdb802e9d52b173d34f717c10dd923c55ec1' &&
-      M.positiveCents===9873764+nov13.positiveCents && M.negativeCents===-584605+nov13.negativeCents &&
-      M.netCents===9289159+nov13.netCents &&
+      M.approvedProductCostCorrections?.['124928']?.referenceMicro===7982580000 &&
+      M.positiveCents===9873764+nov13.positiveCents+M.approvedProductCostCorrections['124928'].positiveDeltaCents &&
+      M.negativeCents===-584605+nov13.negativeCents+M.approvedProductCostCorrections['124928'].negativeDeltaCents &&
+      M.netCents===9289159+nov13.netCents+M.approvedProductCostCorrections['124928'].netDeltaCents &&
       T.reduce((s,r)=>s+(r[9]||0),0)===M.purchaseCents &&
       T.reduce((s,r)=>s+(r[11]||0),0)===M.positiveCents &&
       T.reduce((s,r)=>s+(r[12]||0),0)===M.negativeCents &&
@@ -271,7 +315,7 @@
       ['Produto','Un.','Menor Tabela Custo','Maior válido','Dif. entre referências','Qtd. comprada','Valor comprado','Ganho favorável','Dif. desfavorável','Saldo do produto'].map(v=>'<th>'+esc(v)+'</th>').join(''),
       '</tr></thead><tbody id="ct-rows"></tbody></table></div>',
       '<div id="ct-proof" class="ct-paper" style="display:none"></div>',
-      '<p class="ct-foot">Fonte: Tabela Custo.xlsx (5.374 registros), compras consolidadas até 09/11 e remessas 10/11 e 13/11; duplicidades removidas, pneus e câmaras fora da economia. Compras sem referência válida não geram economia estimada. Sem referência válida, o ganho é zero. A aba de auditoria mantém valores e datas do ERP, inclusive quando o custo máximo é posterior à compra.</p>',
+      '<p class="ct-foot">Fonte: Tabela Custo.xlsx (5.374 registros), compras consolidadas até 09/11 e remessas 10/11 e 13/11; duplicidades removidas, pneus e câmaras fora da economia. Referência gerencial da correia 124928 corrigida para R$ 7.982,58/PC, sem alterar os preços fiscais de compra. Compras sem referência válida não geram economia estimada. Sem referência válida, o ganho é zero. A aba de auditoria mantém valores e datas do ERP, inclusive quando o custo máximo é posterior à compra.</p>',
       '</div></details>',
       '<p class="ct-foot">A Tabela Custo original permanece intacta. A correção aprovada afeta apenas a base analítica, e a mesma diferença de negociação não é duplicada no CDI, no consumo próprio ou no estoque.</p>'
     ].join('');
