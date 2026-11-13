@@ -6,5 +6,7 @@ window.DB_COST_TABLE_COMPARE_CORRECTED_GZIP="H4sIAAAAAAAC/9S925IcSXYY+Ctp9SLSlAX
 // Referencia gerencial aprovada em 09/11/2026 para o eletrodo 105090.
 // A Tabela Custo original nao e alterada; o comparativo e recalculado no carregamento.
 window.DB_COST_TABLE_REFERENCE_OVERRIDES={
-  '105090':{product:'ELETRODO 6013 2.5MM',unit:'KG',previousMaxMicro:242350000,approvedMaxMicro:24235000,approvedAt:'2026-11-09',source:'Orientacao expressa: considerar como maior custo R$ 24,235 por KG.'}
+  '105090':{product:'ELETRODO 6013 2.5MM',unit:'KG',previousMaxMicro:242350000,approvedMaxMicro:24235000,approvedAt:'2026-11-09',source:'Orientacao expressa: considerar como maior custo R$ 24,235 por KG.'},
+  '124928':{product:'CORREIA HXE46027',unit:'PC',previousMaxMicro:null,approvedMaxMicro:7982580000,
+    approvedAt:'2026-11-13',source:'Orientacao expressa: corrigir o custo gerencial do codigo 124928 para R$ 7.982,58/PC em todos os locais. Notas originais preservadas.'}
 };
