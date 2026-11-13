@@ -79,6 +79,31 @@
           {code:'137140',description:'DISCO FLAP CONICO 7/8 X 7" GRAO 60',unit:'UN',quantity:40},
           {code:'105551',description:'FITA ISOLANTE 10MT',unit:'PC',quantity:20}
         ]
+      },
+      {
+        requestNumber: '110546',
+        uniqueNumber: '2716745',
+        quotationNumber: '105926',
+        issuedAt: '2026-11-06',
+        group: 'ROLAMENTOS',
+        requestedBy: 'LINCON',
+        buyer: 'ALMIR SOARES',
+        purchaseType: 'NORMAL',
+        documentType: 'SOLICITACAO DE COMPRA',
+        sourceFile: 'reposição rolamentos.pdf',
+        destinationLocal: '30115',
+        destinationCompany: '003',
+        status: 'SOLICITACAO EMITIDA',
+        note: 'REF. REPOSICAO ESTOQUE DE ROLAMENTOS FAZ. CHUA, FORAM TRANSFERIDOS MUITOS PARA MANUTENCAO QUE VAI TER NA FAZENDA, POR ISSO PRECISAMOS REPOR-',
+        pricesReported: false,
+        items: [
+          {code:'123231',description:'ROLAMENTO F110415.01',unit:'PC',quantity:5},
+          {code:'102911',description:'ROLAMENTO 6004',unit:'UN',quantity:6},
+          {code:'104371',description:'ROLAMENTO 6007',unit:'PC',quantity:4},
+          {code:'100410',description:'ROLAMENTO 6205',unit:'PC',quantity:50},
+          {code:'100411',description:'ROLAMENTO 6206',unit:'PC',quantity:20},
+          {code:'100412',description:'ROLAMENTO 6208',unit:'PC',quantity:15}
+        ]
       }
     ]
   };
