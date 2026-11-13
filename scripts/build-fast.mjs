@@ -111,8 +111,19 @@ report.estoqueAtualizado=stockAudit;
 const buyPack=JSON.parse(gunzipSync(Buffer.from(read('data/purchases-changes-20261110.b64').trim(),'base64')).toString('utf8'));
 assert.equal(buyPack.meta.sourceSHA256,'9ed21525bbab94802abd56ddf8260c9706f5b15f4a7295d20577b66b8db75405');
 assert.equal(buyPack.added.length,49);assert.equal(buyPack.reprice.length,2);assert.equal(buyPack.economy.length,28);
-fs.writeFileSync(path.join(out,'purchase-update.js'),'window.DB_PURCHASES_20261110_DELTA='+JSON.stringify(buyPack)+';\n'+read('public/purchase-update.js'),'utf8');
-report.comprasAtualizadas=buyPack.meta;
+const buyNov13=JSON.parse(read('data/purchases-day-20261113.json'));
+assert.equal(buyNov13.meta.sourceSHA256,'0fa16fc1f4d6fe7f5a00037e0741bdb802e9d52b173d34f717c10dd923c55ec1');
+assert.equal(buyNov13.added.length,8);
+assert.equal(buyNov13.added.reduce((total,r)=>total+r[15],0),401105);
+const previousKeys=new Set(buyPack.added.map(r=>[r[1],r[2],r[3],r[4]].join('|')));
+const newKeys=buyNov13.added.map(r=>[r[1],r[2],r[3],r[4]].join('|'));
+assert.equal(new Set(newKeys).size,8,'Remessa de 13/11 tem chaves repetidas');
+assert(newKeys.every(k=>!previousKeys.has(k)),'Compra ja presente no lote anterior');
+fs.writeFileSync(path.join(out,'purchase-update.js'),
+  'window.DB_PURCHASES_20261110_DELTA='+JSON.stringify(buyPack)+';\n'+
+  'window.DB_PURCHASES_20261113_DELTA='+JSON.stringify(buyNov13)+';\n'+
+  read('public/purchase-update.js'),'utf8');
+report.comprasAtualizadas={previous:buyPack.meta,newest:buyNov13.meta,rowsAfter:2930,centsAfter:185753456};
 // Monta a fotografia auditada de compras sem transportar arquivos Excel ao navegador.
 const auditedPurchaseB64=Array.from({length:4},(_,i)=>{
   const filename='public/audited-purchase-part-20261103-'+(i+1)+'.js';
