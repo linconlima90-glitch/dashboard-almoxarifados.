@@ -328,6 +328,7 @@
     });
     updateCascade();render();
     window.DB_APPROVED_COST_COMPARISON={ready:true,summary:M,getProducts:()=>P.slice(),getPurchases:()=>T.slice()};
+    window.dispatchEvent(new CustomEvent('cost-references-updated'));
   }
   async function load(){
     try{
