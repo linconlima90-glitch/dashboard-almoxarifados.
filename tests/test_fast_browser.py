@@ -652,8 +652,8 @@ with sync_playwright() as p:
             assert panel.get_by_text('Qtd. baixada no período', exact=True).count()==1
             assert panel.locator('td.dbmx-withdrawn-cell').count() > 0
             assert panel.locator('.dbmx-status').count() > 0
-            # Ordem por quantidade efetivamente baixada, nao por valor financeiro do excedente.
-            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.sortedByWithdrawalsDesc") is True
+            # Prioridade de compra: ordenacao por valor estimado de reposicao.
+            assert page.evaluate("window.DB_STOCK_UNIFIED.meta.sortedByReplenishmentValueDesc") is True
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.fullWidthProducts") is True
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.allProductColumnsHorizontal") is True
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.purchaseValueColumnHidden") is True
@@ -662,7 +662,7 @@ with sync_playwright() as p:
                     const box=document.querySelector('#db-stock-maximum .dbmx-scroll');
                     const table=box.querySelector('table');
                     const rows=[...table.querySelectorAll('tbody tr')];
-                    const quantities=rows.map(r=>Number(r.dataset.dbmxWithdrawalSort));
+                    const quantities=rows.map(r=>Number(r.dataset.dbmxReplenishmentSort));
                     const cell=rows[0]?.querySelectorAll('td')||[];
                     const last=cell[cell.length-1];
                     const tableRect=table.getBoundingClientRect();
