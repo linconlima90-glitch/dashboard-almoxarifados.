@@ -113,6 +113,26 @@ function filtered(){
     (!key||norm([g.name,...g.docs.flatMap(d=>[d.requestNumber,d.uniqueNumber,d.quotationNumber,
       ...d.items.flatMap(i=>[i.code,i.description])])].join(' ')).includes(key)));
 }
+function purchaseReconciliation(doc){
+  const order=str(doc.uniqueNumber);
+  if(!window.DB_PURCHASES_20261113_AUDIT?.ready||typeof PURCHASES==='undefined')
+    return {verified:false,matched:0,total:doc.items.length,rows:[],extra:[]};
+  const entries=PURCHASES.filter(x=>String(x.observacao||'').includes('PEDIDO DE COMPRA NUMERO '+order)
+    &&String(x.codigo_local)==='30115'&&x.status==='LANC.RECEB.');
+  const byCode=new Map();
+  for(const x of entries){const k=String(x.codigo)+'|'+norm(x.un);
+    byCode.set(k,(byCode.get(k)||0)+Number(x.qtd||0));}
+  let matched=0;
+  const rows=doc.items.map(i=>{
+    const received=byCode.get(String(i.code)+'|'+norm(i.unit))||0;
+    const status=received>=i.quantity?'LANC. RECEBIMENTO':received>0?'PARCIAL':'SEM RECEBIMENTO NO RELATÓRIO';
+    if(received>=i.quantity)matched++;
+    return {code:String(i.code),received,status};
+  });
+  const expected=new Set(doc.items.map(i=>String(i.code)+'|'+norm(i.unit)));
+  const extra=entries.filter(i=>!expected.has(String(i.codigo)+'|'+norm(i.un))).map(i=>String(i.codigo));
+  return {verified:true,matched,total:doc.items.length,rows,extra};
+}
 function render(){
   const pending=enriched.filter(g=>['soon','late'].includes(g.status.code));
   const codes=new Set(documents.flatMap(d=>d.items.map(i=>i.code)));
@@ -133,8 +153,15 @@ function render(){
     const open=state.open.has(g.name);
     const docs=open?g.docs.map((d,index)=>{
       const quantity=d.items.reduce((v,i)=>v+Number(i.quantity||0),0);
-      const rows=d.items.map(i=>'<tr><td>'+esc(i.code)+'</td><td>'+esc(i.description)+'</td>'+
-        '<td>'+esc(i.unit)+'</td><td class="qty">'+num(i.quantity)+'</td></tr>').join('');
+      const receipt=purchaseReconciliation(d);
+      const byProduct=new Map(receipt.rows.map(r=>[r.code,r]));
+      const rows=d.items.map(i=>{
+        const match=byProduct.get(String(i.code));
+        return '<tr><td>'+esc(i.code)+'</td><td>'+esc(i.description)+'</td>'+
+          '<td>'+esc(i.unit)+'</td><td class="qty">'+num(i.quantity)+'</td>'+
+          '<td>'+esc(match?.status||'SOLICITADO')+
+          (match?.received?' · '+num(match.received):'')+'</td></tr>';
+      }).join('');
       return '<details '+(index===0?'open':'')+'><summary>Solicitação '+esc(d.requestNumber)+' · '+display(d.issuedAt)+
         (index===0?' · Última solicitação':'')+
         '<small>'+int(d.items.length)+' itens'+(d.items.every(i=>i.unit==='PC')?' · '+num(quantity)+' peças':'')+
@@ -145,9 +172,12 @@ function render(){
         '<span><b>Cotação:</b> '+esc(d.quotationNumber)+'</span>'+
         '<span><b>Comprador:</b> '+esc(d.buyer)+'</span>'+
         '<span><b>Destino:</b> CDI Chuá (30115)</span></div>'+
-        '<div class="sc-scroll"><table><thead><tr><th>Código</th><th>Produto</th><th>UN</th><th>Quantidade solicitada</th></tr></thead>'+
+        '<div class="sc-scroll"><table><thead><tr><th>Código</th><th>Produto</th><th>UN</th><th>Quantidade solicitada</th><th>Recebimento ERP</th></tr></thead>'+
         '<tbody>'+rows+'</tbody></table></div>'+
-        '<div class="sc-note"><b>Situação documental:</b> solicitação emitida. Compra e entrega não confirmadas. '+
+        (receipt.verified&&receipt.matched>0?'<div class="sc-note"><b>Conferência por código e unidade:</b> '+int(receipt.matched)+' de '+int(receipt.total)+' itens com lançamento de recebimento no ERP'+
+          (receipt.extra.length?' · códigos adicionais na compra não solicitados aqui: '+esc(receipt.extra.join(', ')):'')+
+          '. Um lançamento no ERP não comprova conferência física.</div>':'')+
+        '<div class="sc-note"><b>Situação documental:</b> solicitação emitida. Sem conferência física independente. '+
         'Fonte: '+esc(d.sourceFile)+'. '+esc(d.note||'')+'. Valores de compra não informados.</div></details>';
     }).join(''):'';
     return '<section class="sc-group" data-sc-group="'+esc(g.name)+'">'+
@@ -165,11 +195,14 @@ function render(){
     nextDue:enriched.map(g=>({group:g.name,date:iso(g.status.due),status:g.status.code})),
     latestRequest:documents[0]?.requestNumber||null,latestDate:documents[0]?.issuedAt||null,
     centralLocal:'30115',source:'SANKHYA',purchasedConfirmed:false,receivedConfirmed:false,
-    groupedBy:['Grupo','Solicitação','Item'],externalNotifications:false
+    groupedBy:['Grupo','Solicitação','Item'],externalNotifications:false,
+    receipts:documents.map(d=>({request:d.requestNumber,uniqueNumber:d.uniqueNumber,
+      ...purchaseReconciliation(d)}))
   };
 }
 el('#sc-search').addEventListener('input',e=>{state.search=e.target.value;render()});
 el('#sc-status').addEventListener('change',e=>{state.status=e.target.value;render()});
+window.addEventListener('purchases-updated',render);
 el('#sc-export').addEventListener('click',()=>{
   const rows=[['Grupo','Solicitação','N único','N cotação','Emissão','Última solicitação do grupo',
     'Próxima solicitação prevista','Código','Produto','UN','Qtd solicitada','Destino','Situação','Documento fonte']];
