@@ -347,6 +347,22 @@ with sync_playwright() as p:
                 detailRows:document.querySelectorAll('#cu-rows tr[data-cu-stock-value]').length};
             }""")
             assert visual['groups']>3 and visual['open']==0 and visual['sorted'] and visual['detailRows']==0,visual
+            # Cada grupo precisa manter altura legivel dentro da lista rolavel.
+            # Antes, flex-shrink comprimia cerca de 20 cartoes em 610px.
+            card_layout=page.evaluate("""() => {
+              const tree=document.querySelector('#cu-rows');
+              const nodes=[...tree.querySelectorAll(':scope > .cu-group')];
+              const buttons=nodes.map(n=>n.querySelector(':scope > .cu-node'));
+              return {groups:nodes.length,overflow:getComputedStyle(tree).overflowY,
+                minHeight:Math.min(...buttons.map(b=>b.getBoundingClientRect().height)),
+                minVisibleText:Math.min(...buttons.map(b=>{
+                  const text=b.querySelector('.cu-node-label b');
+                  return text.getBoundingClientRect().height;
+                })),
+                shrink:nodes.some(n=>getComputedStyle(n).flexShrink!=='0')};
+            }""")
+            assert card_layout['groups']>3 and card_layout['minHeight']>=48,card_layout
+            assert card_layout['minVisibleText']>=12 and card_layout['shrink'] is False,card_layout
             first_group=page.locator('#cu-rows > .cu-group').first
             first_group.locator('[data-cu-toggle-group]').click()
             assert first_group.locator('.cu-product').count()>0
