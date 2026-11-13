@@ -418,6 +418,7 @@ with sync_playwright() as p:
         results[name] = {
             'stockRows': len(snapshots[name]['stock']),
             'stockValue': round(sum(x[9] for x in snapshots[name]['stock']), 2),
+            'approvedCostAudit': page.evaluate("window.DB_APPROVED_PRODUCT_COST_AUDIT || null"),
             'requests': len(requests),
             'errors': errors.copy(),
             'navigationMs': page.evaluate("performance.getEntriesByType('navigation')[0].loadEventEnd"),
@@ -1336,8 +1337,9 @@ with sync_playwright() as p:
     assert results['fast']['stockRows'] == 4374, 'Unexpected stock positions'
     assert results['fastPilot']['stockRows'] == 4374, 'Unexpected Sao Joao stock positions'
     assert results['fastChuaPilot']['stockRows'] == 4374, 'Unexpected Chua stock positions'
-    expected_adjustment=next((x[1]['deltaCents']/100 for x in [('fast',results['fast'].get('approvedCostAudit'))]
-                              if x[1] is not None),0)
+    approved_audit=results['fast']['approvedCostAudit']
+    assert approved_audit is not None and approved_audit['positions']>=1, approved_audit
+    expected_adjustment=approved_audit['deltaCents']/100
     assert abs(results['fast']['stockValue'] - (2281619.67 + expected_adjustment)) < 0.01, 'Unexpected stock value'
     if snapshots['legacy'] != snapshots['fast']:
         for field in snapshots['legacy']:
