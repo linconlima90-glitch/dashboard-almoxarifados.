@@ -12,9 +12,14 @@
     return local==='ALMOXARIFADO GERAL G GERIBA'||local==='ALMOXARIFADO GERAL G S CRUZ';
   };
   const esc=v=>str(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const brl=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(n(v));
-  const qty=v=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2}).format(n(v));
-  const int=v=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(n(v));
+  // Reusar formatadores: a lista de 4 mil posicoes nao precisa criar um
+  // Intl.NumberFormat novo para cada valor exibido.
+  const moneyFormatter=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+  const qtyFormatter=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2});
+  const intFormatter=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0});
+  const brl=v=>moneyFormatter.format(n(v));
+  const qty=v=>qtyFormatter.format(n(v));
+  const int=v=>intFormatter.format(n(v));
   const units=new Set(['KG','LT','ML','MT','M2','M3','CM','GR']);
   const virtual=x=>x?.network_scope===true||norm(x?.local)==='CDI DE PECAS CHUA';
   const exclude=x=>typeof window.DB_MINIMUM_EXCLUDED==='function'
@@ -691,9 +696,17 @@
   }
 
   let timer=0;
+  const renderPerformance={completed:0,skippedHidden:0,lastMs:0,maxMs:0};
   function render(reason){
     const panel=ensurePanel();
     if(!panel)return;
+    // O painel antigo era recalculado em background toda vez que chegavam dados
+    // do estoque/baixas, mesmo com o usuario em outra aba.
+    if(!document.getElementById('view-minimo')?.classList.contains('active')){
+      renderPerformance.skippedHidden++;
+      return;
+    }
+    const started=performance.now();
     if(!window.CURRENT_STOCK_META||!window.MOVEMENTS_REVISED_META){
       panel.innerHTML='<p style="padding:20px">Preparando análise de estoque...</p>';
       return;
@@ -824,10 +837,14 @@
     };
     window.DB_STOCK_UNIFIED.meta=meta;
     window.DB_STOCK_MAXIMUM.meta=meta;
+    renderPerformance.completed++;
+    renderPerformance.lastMs=Math.round((performance.now()-started)*10)/10;
+    renderPerformance.maxMs=Math.max(renderPerformance.maxMs,renderPerformance.lastMs);
   }
 
   function schedule(){clearTimeout(timer);timer=setTimeout(render,90);}
-  const api={render,refresh:schedule,meta:null,version:'20261113-ordenar-reposicao-desc-v1'};
+  const api={render,refresh:schedule,meta:null,performance:renderPerformance,
+    version:'20261113-lazy-min-max-performance-v1'};
   window.DB_STOCK_UNIFIED=api;
   window.DB_STOCK_MAXIMUM=api; // Retem os pontos de observacao da versao anterior.
   window.addEventListener('movements-updated',schedule);
