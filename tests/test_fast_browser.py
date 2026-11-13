@@ -337,7 +337,13 @@ with sync_playwright() as p:
             assert cascade['groupValues']==cascade['expectedGroups'],cascade
             assert all(cascade['productTotals'][i]>=cascade['productTotals'][i+1]-0.001
                        for i in range(len(cascade['productTotals'])-1)),cascade
-            assert 'R
+            assert any('Valor' not in x and ' ' in x for x in cascade['groupLabels']),cascade
+            page.locator('#cu-group').select_option(cascade['groupValues'][0])
+            assert page.locator('#cu-product option').count()>1
+            page.locator('#cu-product').select_option(index=1)
+            assert page.locator('#cu-rows [data-cu-edit]').count()>=1
+            page.locator('#cu-clear').click()
+            page.locator('#cu-search').fill('105090')
             assert page.locator('#cu-rows [data-cu-edit]').count()>=1
             page.locator('#cu-rows [data-cu-edit]').first.click()
             page.locator('#cu-scope').select_option('GERENCIAL')
