@@ -170,12 +170,66 @@
        M.negativeCents!==-584605||M.netCents!==9289159||docs.size!==409)
       throw Error('Economia nao confere com os valores auditados de 10/11');
   }
+  function applyPurchases1311(data){
+    const pkg=window.DB_PURCHASES_20261113_DELTA,M=data.meta,P=data.products,T=data.purchases;
+    if(!pkg||pkg.meta?.sourceSHA256!=='0fa16fc1f4d6fe7f5a00037e0741bdb802e9d52b173d34f717c10dd923c55ec1'
+      ||pkg.added?.length!==8||pkg.meta.cents!==401105)
+      throw Error('Remessa de 13/11 para comparativo de custo nao validada');
+    if(T.length!==409||M.purchaseCents!==23336455||M.netCents!==9289159)
+      throw Error('Base de economia historica mudou antes da remessa de 13/11');
+    const byCodeUnit=new Map(P.map(p=>[String(p[1])+'|'+String(p[4]),p]));
+    const existing=new Set(T.map(t=>[t[16],t[17],t[2],t[6]].join('|')));
+    let newPaid=0,newPositive=0,newNegative=0,matched=0,missing=0;
+    for(const row of pkg.added){
+      const [dateBR,document,seq,code,localCode,supplierCode,supplier,
+        company,companyLocal,local,group,description,unit,quantity,priceMicro,cents,status,nf]=row;
+      if(status!=='LANC.RECEB.'||dateBR!=='10/11/2026')throw Error('Status do novo documento de compra divergente');
+      const key=[document,seq,code,localCode].join('|');
+      if(existing.has(key))throw Error('Compra repetida no comparativo: '+key);
+      existing.add(key);newPaid+=cents;
+      let p=byCodeUnit.get(String(code)+'|'+String(unit));
+      if(!p){
+        p=new Array(20).fill(null);
+        p[0]='ERP|'+String(code)+'|'+String(unit);
+        p[1]=String(code);p[2]=description;p[3]=group;p[4]=unit;
+        p[14]=0;p[15]=0;p[16]=0;
+        P.push(p);byCodeUnit.set(String(code)+'|'+String(unit),p);
+      }
+      const reference=p[6];
+      const hasReference=Number(reference)>0;
+      const signed=hasReference?Math.round((Number(reference)-priceMicro)*quantity/10000):0;
+      const positive=Math.max(0,signed),negative=Math.min(0,signed);
+      newPositive+=positive;newNegative+=negative;
+      if(hasReference)matched++;else missing++;
+      p[14]=(p[14]||0)+positive;p[15]=(p[15]||0)+negative;p[16]=(p[16]||0)+signed;
+      T.push([p[0],'2026-11-10',String(code),description,group,unit,String(localCode),supplier,
+        quantity,cents,priceMicro,positive,negative,signed,'LANC.RECEB.',nf,document,seq,0,
+        hasReference?'REFERENCIA GERENCIAL TABELA CUSTO':'SEM REFERENCIA NA TABELA CUSTO',
+        p[9]??null,p[7]??null]);
+    }
+    if(newPaid!==401105||T.length!==417||existing.size!==417)
+      throw Error('Oito linhas novas nao fecharam na economia');
+    M.purchaseLines=T.length;
+    M.purchaseCents+=newPaid;
+    M.positiveCents+=newPositive;
+    M.negativeCents+=newNegative;
+    M.netCents=M.positiveCents+M.negativeCents;
+    M.matchedLines+=matched;
+    M.projectSkus=new Set(T.map(t=>t[0])).size;
+    M.lastUpdated='13/11/2026';
+    M.newPurchasesAudit={...pkg.meta,matchedReference:matched,missingReference:missing,
+      positiveCents:newPositive,negativeCents:newNegative,netCents:newPositive+newNegative};
+  }
   function show(data){
     aplicarReferenciasAprovadas(data);
     applyPurchases1011(data);
+    applyPurchases1311(data);
     const M=data.meta,P=data.products,T=data.purchases;
-    const ok=M.schemaVersion===2 && M.projectFrom==='2026-05-07' && P.length>=320 && T.length===409 &&
-      M.purchaseCents===23336455 && M.positiveCents===9873764 && M.negativeCents===-584605 && M.netCents===9289159 &&
+    const nov13=M.newPurchasesAudit;
+    const ok=M.schemaVersion===2 && M.projectFrom==='2026-05-07' && P.length>=320 && T.length===417 &&
+      M.purchaseCents===23737560 && nov13?.sourceSHA256==='0fa16fc1f4d6fe7f5a00037e0741bdb802e9d52b173d34f717c10dd923c55ec1' &&
+      M.positiveCents===9873764+nov13.positiveCents && M.negativeCents===-584605+nov13.negativeCents &&
+      M.netCents===9289159+nov13.netCents &&
       T.reduce((s,r)=>s+(r[9]||0),0)===M.purchaseCents &&
       T.reduce((s,r)=>s+(r[11]||0),0)===M.positiveCents &&
       T.reduce((s,r)=>s+(r[12]||0),0)===M.negativeCents &&
@@ -217,7 +271,7 @@
       ['Produto','Un.','Menor Tabela Custo','Maior válido','Dif. entre referências','Qtd. comprada','Valor comprado','Ganho favorável','Dif. desfavorável','Saldo do produto'].map(v=>'<th>'+esc(v)+'</th>').join(''),
       '</tr></thead><tbody id="ct-rows"></tbody></table></div>',
       '<div id="ct-proof" class="ct-paper" style="display:none"></div>',
-      '<p class="ct-foot">Fonte: Tabela Custo.xlsx (5.374 registros), compras consolidadas até 09/11 e nova remessa 10/11; duplicidades removidas, pneus e câmaras fora da economia. Sem referência válida, o ganho é zero. A aba de auditoria mantém valores e datas do ERP, inclusive quando o custo máximo é posterior à compra.</p>',
+      '<p class="ct-foot">Fonte: Tabela Custo.xlsx (5.374 registros), compras consolidadas até 09/11 e remessas 10/11 e 13/11; duplicidades removidas, pneus e câmaras fora da economia. Compras sem referência válida não geram economia estimada. Sem referência válida, o ganho é zero. A aba de auditoria mantém valores e datas do ERP, inclusive quando o custo máximo é posterior à compra.</p>',
       '</div></details>',
       '<p class="ct-foot">A Tabela Custo original permanece intacta. A correção aprovada afeta apenas a base analítica, e a mesma diferença de negociação não é duplicada no CDI, no consumo próprio ou no estoque.</p>'
     ].join('');
