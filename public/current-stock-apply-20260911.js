@@ -29,8 +29,32 @@
 
   const mm=new Map((typeof MOVEMENTS!=='undefined'?MOVEMENTS:[]).map(x=>[String(x.local)+'|'+String(x.codigo),x]));
   const next=[];
+  const approvedCosts=window.DB_APPROVED_PRODUCT_COSTS||{};
+  const costAudit={positions:0,originalCents:0,correctedCents:0,deltaCents:0,
+    policy:'Ajuste gerencial aprovado. O valor do ERP e as notas fiscais originais permanecem preservados.',
+    changes:[]};
   for(const row of P.rows){
     const x={};cols.forEach((c,i)=>x[c]=row[i]);
+    const approved=approvedCosts[String(x.codigo)];
+    if(approved&&String(x.un).toUpperCase()===approved.unidade){
+      const originalCents=Math.round((Number(x.valor_estoque)||0)*100);
+      const correctedCents=Math.round((Number(x.estoque)||0)*approved.custoUnitario*100);
+      if(!(Number(x.estoque)>0)||!Number.isInteger(originalCents)||!Number.isInteger(correctedCents))
+        throw Error('Posicao de estoque da correcao '+x.codigo+' invalida');
+      x.custo_erp_original=Number(x.custo_estoque);
+      x.valor_erp_original=Number(x.valor_estoque);
+      x.custo_estoque=approved.custoUnitario;
+      x.valor_estoque=correctedCents/100;
+      x.custo_corrigido_aprovado=true;
+      x.custo_correcao_fonte=approved.fonte;
+      costAudit.positions++;
+      costAudit.originalCents+=originalCents;
+      costAudit.correctedCents+=correctedCents;
+      costAudit.changes.push({codigo:String(x.codigo),local:String(x.local),unidade:String(x.un),
+        saldo:Number(x.estoque),custoErpOriginal:x.custo_erp_original,
+        custoCorrigido:x.custo_estoque,valorErpOriginal:x.valor_erp_original,
+        valorCorrigido:x.valor_estoque});
+    }
     const hs=hstats(x.codigo,x.un),m=mm.get(key(x));
     x.min_preco=hs?.mn?.preco||0;x.forn_min=hs?.mn?.fornecedor||'';x.data_min=hs?.mn?.data||'';
     x.max_preco=hs?.mx?.preco||0;x.forn_max=hs?.mx?.fornecedor||'';x.data_max=hs?.mx?.data||'';
@@ -42,6 +66,8 @@
     x.status_consumo=x.qtd_baixada>0?'COM BAIXA NO PERÍODO':(m?'SEM BAIXA NO PERÍODO':'SEM DADOS DE BAIXA');
     next.push(x);
   }
+  costAudit.deltaCents=costAudit.correctedCents-costAudit.originalCents;
+  window.DB_APPROVED_PRODUCT_COST_AUDIT=costAudit;
   next.sort((a,b)=>(Number(b.valor_estoque)||0)-(Number(a.valor_estoque)||0)||String(a.local).localeCompare(String(b.local),'pt-BR'));
   STOCK.splice(0,STOCK.length,...next);
 
@@ -93,7 +119,11 @@
   const total=STOCK.reduce((a,x)=>a+(Number(x.valor_estoque)||0),0);setExec('Valor em estoque',br(total));
   let mins=[];try{mins=typeof minimumBaseRows==='function'?minimumBaseRows():[]}catch(e){}
   setExec('Necessidade bruta de reposição',br(mins.reduce((a,x)=>a+(Number(x.need_value)||0),0)));setExec('Itens abaixo do mínimo',n0(mins.filter(x=>x.status==='ABAIXO DO MÍNIMO'||x.status==='SEM ESTOQUE').length));
-  window.CURRENT_STOCK_META=P.meta||{};
+  window.CURRENT_STOCK_META={...(P.meta||{}),
+    valorErpOriginal:P.meta?.valor,
+    valorGerencialAjustado:Math.round(total*100)/100,
+    correcaoGerencial124928:costAudit.changes,
+    variacaoGerencialCentavos:costAudit.deltaCents};
   setTimeout(()=>{try{document.querySelector('#view-executivo .capital-crumb[data-level="local"]')?.click()}catch(e){}},0);
   window.dispatchEvent(new CustomEvent('stock-position-updated',{detail:P.meta||{}}));
 })();
