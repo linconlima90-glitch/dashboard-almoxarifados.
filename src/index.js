@@ -93,6 +93,7 @@ class DashboardInjector {
       (this.pilot ? '<script src="/farm-minimum-from-manager.js?v=20261103-full-history"></script>' : '') +
       (this.pilot ? `<script src="/${this.chua ? 'chua-pilot' : 'sao-joao-pilot'}.js?v=20261015-1"></script>` : '') +
       '<script>(function(){var s=document.getElementById("db-boot-screen");if(s)s.remove();document.documentElement.classList.remove("db-booting");})();</script>' +
+      '<script src="/approved-product-costs-20261113.js?v=124928-798258"></script>' +
       '<script src="/stock-update.js?v=20260908"></script>' +
       '<script src="/stock-latest-data.js?v=20260908-1530"></script>' +
       '<script src="/stock-latest.js?v=20260908-1530"></script>' +
