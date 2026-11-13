@@ -51,8 +51,29 @@ for(const r of X.added){
 }
 if(NEW_PURCHASES.length!==2922||moneyCents(NEW_PURCHASES)!==185352351)
  throw Error('Conferencia de 2922 compras e total nao fechou');
-const newMeta={...m,source:'COMPRAS_DE_INSUMOS_POR_LOCAL(5).xlsx',sourceRows:2922,count:2922,older:2309,
- recent:613,fim:'05/11/2026',sourceSHA256:X.meta.sourceSHA256,incremental:X.meta,audited:true};
+const Y=window.DB_PURCHASES_20261113_DELTA;
+if(!Y||Y.meta?.sourceSHA256!=='0fa16fc1f4d6fe7f5a00037e0741bdb802e9d52b173d34f717c10dd923c55ec1'||
+   Y.meta.records!==8||Y.meta.cents!==401105||Y.added?.length!==8)
+  throw Error('Remessa de compras de 13/11 nao validada');
+let newCents=0;
+for(const r of Y.added){
+  const [data,nrounico,seq,codigo,codigo_local,fornecedor_codigo,fornecedor,
+    empresa_compra,empresa_local,local,grupo,produto,un,qtd,priceMicro,cents,status,nota,observacao]=r;
+  const k=[Number(nrounico),Number(seq),Number(codigo),Number(codigo_local)].join('|');
+  if(byKey.has(k))throw Error('Compra de 13/11 ja existente no historico: '+k);
+  if(data!=='10/11/2026'||status!=='LANC.RECEB.'||!Number.isInteger(cents)||cents<0||
+     !(Number(qtd)>0)||!(priceMicro>0)||!String(observacao||'').includes('PEDIDO DE COMPRA NUMERO'))
+    throw Error('Linha de compra de 13/11 invalida '+k);
+  const x={status,nrounico,nota,data,fornecedor_codigo,fornecedor,empresa_compra,empresa_local,
+    codigo,grupo,produto,un,local,qtd,preco:priceMicro/1000000,valor:cents/100,
+    observacao,seq,codigo_local};
+  byKey.set(k,x);NEW_PURCHASES.push(x);newCents+=cents;
+}
+if(newCents!==401105||NEW_PURCHASES.length!==2930||moneyCents(NEW_PURCHASES)!==185753456)
+  throw Error('Conferencia financeira da nova remessa de compras nao fechou');
+window.DB_PURCHASES_20261113_AUDIT={...Y.meta,ready:true,duplicateLines:0};
+const newMeta={...m,source:'COMPRAS_DE_INSUMOS_POR_LOCAL(6).xlsx',sourceRows:2930,count:2930,older:2309,
+ recent:621,fim:'10/11/2026',sourceSHA256:Y.meta.sourceSHA256,incremental:Y.meta,previousIncremental:X.meta,audited:true};
 window.DB_PURCHASES_20261110_AUDIT={...X.meta,ready:true};
 
 PURCHASES.splice(0,PURCHASES.length,...NEW_PURCHASES);
