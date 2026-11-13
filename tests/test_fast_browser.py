@@ -293,6 +293,45 @@ with sync_playwright() as p:
             assert nov13['matchedReference']+nov13['missingReference']==8, economy
             assert economy['cost']['netCents']==9289159+nov13['netCents'], economy
             assert economy['unified']['net']==economy['cost']['netCents'], economy
+            # A aba de atualizacao consulta tres fontes mas nao edita ERP ou
+            # indicadores gerenciais sem auditoria e publicacao oficial.
+            cost_tab=page.locator('.tab[data-view="atualizacao-custos"]')
+            assert cost_tab.count()==1
+            cost_tab.evaluate('(el)=>el.click()')
+            page.wait_for_function("window.DB_COST_UPDATE?.meta?.loaded===true",timeout=20000)
+            cost_state=page.evaluate("""() => ({
+                meta:window.DB_COST_UPDATE.meta,
+                officialReference:window.DB_APPROVED_COST_COMPARISON.getProducts()
+                  .find(p=>p[1]==='105090'&&p[4]==='KG')?.[6],
+                stockTotal:STOCK.reduce((s,x)=>s+(Number(x.valor_estoque)||0),0)
+            })""")
+            assert cost_state['meta']['rows']>3000 and cost_state['meta']['gerencialWithReference']>0,cost_state
+            assert cost_state['meta']['officialCostsChanged'] is False and cost_state['meta']['autoPublish'] is False,cost_state
+            assert cost_state['officialReference']==24235000,cost_state
+            assert abs(cost_state['stockTotal']-2281619.67)<0.01,cost_state
+            assert page.locator('#cu-local option').count()>2
+            page.locator('#cu-search').fill('105090')
+            assert page.locator('#cu-rows [data-cu-edit]').count()>=1
+            page.locator('#cu-rows [data-cu-edit]').first.click()
+            page.locator('#cu-scope').select_option('GERENCIAL')
+            page.locator('#cu-price').fill('24,500')
+            page.locator('#cu-date').fill('2026-11-13')
+            page.locator('#cu-document').fill('Tabela Custo linha teste')
+            page.locator('#cu-reason').fill('Conferencia da origem de custo em teste de navegador')
+            page.locator('#cu-save').click()
+            cost_draft=page.evaluate("""() => ({
+                drafts:window.DB_COST_UPDATE.getDrafts(),
+                officialReference:window.DB_APPROVED_COST_COMPARISON.getProducts()
+                  .find(p=>p[1]==='105090'&&p[4]==='KG')?.[6],
+                officialChanged:window.DB_COST_UPDATE.meta.officialCostsChanged,
+                fromLocalStorage:!!localStorage.getItem('db-cost-update-drafts-v1')
+            })""")
+            assert len(cost_draft['drafts'])==1 and cost_draft['drafts'][0]['proposed']==24.5,cost_draft
+            assert cost_draft['officialReference']==24235000 and cost_draft['officialChanged'] is False,cost_draft
+            assert cost_draft['fromLocalStorage'] is True,cost_draft
+            page.locator('[data-cu-remove]').first.click()
+            assert page.evaluate("window.DB_COST_UPDATE.getDrafts().length")==0
+
 
         snapshots[name] = page.evaluate(SNAPSHOT)
         results[name] = {
