@@ -118,15 +118,28 @@ const buyNov13=JSON.parse(read('data/purchases-day-20261113.json'));
 assert.equal(buyNov13.meta.sourceSHA256,'0fa16fc1f4d6fe7f5a00037e0741bdb802e9d52b173d34f717c10dd923c55ec1');
 assert.equal(buyNov13.added.length,8);
 assert.equal(buyNov13.added.reduce((total,r)=>total+r[15],0),401105);
+const buyNov17=JSON.parse(read('data/purchases-day-20261117.json'));
+assert.equal(buyNov17.meta.records,24);
+assert.equal(buyNov17.meta.cents,784514);
+assert.equal(buyNov17.meta.received,21);
+assert.equal(buyNov17.meta.receivedCents,667529);
+assert.equal(buyNov17.meta.pending,3);
+assert.equal(buyNov17.meta.pendingCents,116985);
+assert.equal(buyNov17.added.length,24);
+assert.equal(buyNov17.added.reduce((n,r)=>n+r[15],0),784514);
+const buyNov17Keys=buyNov17.added.map(r=>[r[1],r[2],r[3],r[4]].join('|'));
+assert.equal(new Set(buyNov17Keys).size,24,'Remessa 17/11 duplicada internamente');
 const previousKeys=new Set(buyPack.added.map(r=>[r[1],r[2],r[3],r[4]].join('|')));
 const newKeys=buyNov13.added.map(r=>[r[1],r[2],r[3],r[4]].join('|'));
 assert.equal(new Set(newKeys).size,8,'Remessa de 13/11 tem chaves repetidas');
 assert(newKeys.every(k=>!previousKeys.has(k)),'Compra ja presente no lote anterior');
+assert(buyNov17Keys.every(k=>!previousKeys.has(k)&&!newKeys.includes(k)),'Nova compra ja presente em remessa anterior');
 fs.writeFileSync(path.join(out,'purchase-update.js'),
   'window.DB_PURCHASES_20261110_DELTA='+JSON.stringify(buyPack)+';\n'+
   'window.DB_PURCHASES_20261113_DELTA='+JSON.stringify(buyNov13)+';\n'+
+  'window.DB_PURCHASES_20261117_DELTA='+JSON.stringify(buyNov17)+';\n'+
   read('public/purchase-update.js'),'utf8');
-report.comprasAtualizadas={previous:buyPack.meta,newest:buyNov13.meta,rowsAfter:2930,centsAfter:185753456};
+report.comprasAtualizadas={previous:buyPack.meta,nov13:buyNov13.meta,newest:buyNov17.meta,rowsAfter:2954,centsAfter:186537970};
 // Monta a fotografia auditada de compras sem transportar arquivos Excel ao navegador.
 const auditedPurchaseB64=Array.from({length:4},(_,i)=>{
   const filename='public/audited-purchase-part-20261103-'+(i+1)+'.js';
