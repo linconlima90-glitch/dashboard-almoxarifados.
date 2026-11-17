@@ -10,6 +10,15 @@ from playwright.sync_api import sync_playwright
 
 root = Path(__file__).resolve().parents[1]
 BAIXAS_AUDIT = json.loads((root / 'build-baixas-audit.json').read_text(encoding='utf-8'))
+REMESSA_AUDIT = json.loads((root / 'build-remessa-20261117.json').read_text(encoding='utf-8'))
+BAIXAS_AUDIT['revisedRecords'] = REMESSA_AUDIT['withdrawals']['totalRecords']
+BAIXAS_AUDIT['totalValue'] = REMESSA_AUDIT['withdrawals']['totalCents'] / 100
+BAIXAS_AUDIT['annual']['2026']['records'] += REMESSA_AUDIT['withdrawals']['added']
+BAIXAS_AUDIT['annual']['2026']['value'] = round(
+    BAIXAS_AUDIT['annual']['2026']['value'] + REMESSA_AUDIT['withdrawals']['addedCents'] / 100, 2)
+BAIXAS_AUDIT['november']['records'] += REMESSA_AUDIT['withdrawals']['added']
+BAIXAS_AUDIT['november']['value'] = round(
+    BAIXAS_AUDIT['november']['value'] + REMESSA_AUDIT['withdrawals']['addedCents'] / 100, 2)
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -226,15 +235,15 @@ with sync_playwright() as p:
           octoberUnique: (() => {const rows=PURCHASES.filter(x=>x.data.slice(3)==='10/2026');return new Set(rows.map(x=>[x.nrounico,x.seq,x.codigo,x.codigo_local].join('|'))).size===rows.length;})(),
           rollerRef: PURCHASES.find(x=>x.codigo===107385 && String(x.nota)==='138466')?.preco,
           correctMeta: window.LATEST_PURCHASE_META?.audited===true &&
-            window.LATEST_PURCHASE_META?.sourceRows===2930 &&
-            window.LATEST_PURCHASE_META?.source==='COMPRAS_DE_INSUMOS_POR_LOCAL(6).xlsx'
+            window.LATEST_PURCHASE_META?.sourceRows===2954 &&
+            window.LATEST_PURCHASE_META?.source==='COMPRAS_DE_INSUMOS_POR_LOCAL(7).xlsx'
         })""")
-        if purchase_checks['rows']!=2930:
+        if purchase_checks['rows']!=2954:
             print('PURCHASE DEBUG',name,'ERRORS',errors,'DELTA',page.evaluate("""() => ({delta:window.DB_PURCHASES_20261110_DELTA?.meta, audited:window.DB_AUDITED_PURCHASE_META, latest:window.LATEST_PURCHASE_META, loaded:window.DB_AUDITED_PURCHASE_READY})"""),flush=True)
         assert purchase_checks['aug']==197 and purchase_checks['sep']==241 and purchase_checks['oct']==152, purchase_checks
         assert abs(purchase_checks['sepValue']-118631.41)<0.02 and abs(purchase_checks['octValue']-88306.91)<0.02, purchase_checks
-        assert abs(purchase_checks['monthlyOct']-88306.91)<0.02 and abs(purchase_checks['total']-1857534.56)<0.02, purchase_checks
-        assert purchase_checks['rows']==2930 and purchase_checks['historical2025']==1149 and purchase_checks['historical2026']==1781, purchase_checks
+        assert abs(purchase_checks['monthlyOct']-88306.91)<0.02 and abs(purchase_checks['total']-1865379.70)<0.02, purchase_checks
+        assert purchase_checks['rows']==2954 and purchase_checks['historical2025']==1149 and purchase_checks['historical2026']==1805, purchase_checks
         assert abs(purchase_checks['rollerRef']-62.11)<0.01 and purchase_checks['correctMeta'] and purchase_checks['octoberUnique'], purchase_checks
         nov13=page.evaluate("""() => ({
             rows:PURCHASES.filter(x=>[2720614,2720618].includes(Number(x.nrounico))).map(x=>({
@@ -246,6 +255,17 @@ with sync_playwright() as p:
         assert sum(r['cents'] for r in nov13['rows'])==401105,nov13
         assert all(r['status']=='LANC.RECEB.' for r in nov13['rows']),nov13
         assert nov13['delta']['ready'] is True and nov13['delta']['duplicateLines']==0,nov13
+        nov17=page.evaluate("""() => ({
+            rows:PURCHASES.filter(x=>[2722117,2723145,2723194,2723206,2723210].includes(Number(x.nrounico)))
+              .map(x=>({key:[Number(x.nrounico),Number(x.seq),Number(x.codigo),Number(x.codigo_local)].join('|'),
+                         cents:Math.round(x.valor*100),status:x.status})),
+            audit:window.DB_PURCHASES_20261117_AUDIT
+        })""")
+        assert len(nov17['rows'])==24 and len(set(r['key'] for r in nov17['rows']))==24,nov17
+        assert sum(r['cents'] for r in nov17['rows'])==784514,nov17
+        assert sum(r['cents'] for r in nov17['rows'] if r['status']=='LANC.RECEB.')==667529,nov17
+        assert sum(r['cents'] for r in nov17['rows'] if r['status']=='NÃO LANC.RECEB.')==116985,nov17
+        assert nov17['audit']['ready'] is True and nov17['audit']['duplicateLines']==0,nov17
 
         if optimized and name=='fast':
             audit_summary=page.evaluate("""() => {
