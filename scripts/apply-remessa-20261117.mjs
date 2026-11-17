@@ -79,6 +79,8 @@ export function applyRemessa20261117(root,out) {
   assert.equal(dkeys.size,mt.records,'Nro.Unico + Seq. duplicados');
   const gidx=(arr,v)=>{let i=arr.findIndex(x=>String(x)===String(v));if(i<0){i=arr.length;arr.push(v)}return i;};
   const products=new Map(D.product.map((x,i)=>[String(x[0]),i]));
+  const majorityCompany=new Map();
+  for(const old of P.rows){const group=majorityCompany.get(old[1])||new Map();group.set(old[2],(group.get(old[2])||0)+old[7]);majorityCompany.set(old[1],group);}
   const months=new Map(),daily=new Map();
   for(const r of P.rows)months.set(r.slice(0,5).join('|'),r);
   const groupIndices=new Map(D.group.map((s,i)=>[String(s),i]));
@@ -88,8 +90,11 @@ export function applyRemessa20261117(root,out) {
     assert(Number(qty)>0 && Number.isInteger(cents) && cents>=0);
     const li=D.local.findIndex(x=>String(x[0])===String(localCode));
     assert(li>=0&&String(D.local[li][1])===String(localName),'Local de baixa inconsistente: '+localCode);
-    const fi=D.company.findIndex(x=>Number(x)===Number(company));
-    assert(fi>=0,'Empresa fiscal desconhecida: '+company);
+    const directFi=D.company.findIndex(x=>Number(x)===Number(company));
+    const existing=P.rows.find(x=>x[1]===li && String(D.product[x[3]]?.[0])===String(code));
+    const candidates=majorityCompany.get(li)||new Map();
+    const fi=directFi>=0?directFi:(existing?existing[2]:[...candidates].sort((a,b)=>b[1]-a[1])[0]?.[0]);
+    assert(fi!==undefined && fi>=0,'Empresa fiscal sem referencia historica: '+company+'/'+localCode);
     const gi=gidx(D.group,group);
     let pi=products.get(String(code));
     if(pi===undefined){pi=D.product.length;D.product.push([String(code),String(product),gi]);products.set(String(code),pi);}
