@@ -71,9 +71,40 @@ for(const r of Y.added){
 }
 if(newCents!==401105||NEW_PURCHASES.length!==2930||moneyCents(NEW_PURCHASES)!==185753456)
   throw Error('Conferencia financeira da nova remessa de compras nao fechou');
+const Z=window.DB_PURCHASES_20261117_DELTA;
+if(!Z||Z.meta?.sourceFile!=='COMPRAS_DE_INSUMOS_POR_LOCAL(7).xlsx'||
+   Z.meta.records!==24||Z.meta.cents!==784514||Z.meta.received!==21||
+   Z.meta.receivedCents!==667529||Z.meta.pending!==3||Z.meta.pendingCents!==116985||
+   Z.added?.length!==24)throw Error('Remessa de compras de 17/11 nao validada');
+let newerCents=0,receivedCents=0,pendingCents=0,receivedCount=0,pendingCount=0;
+for(const r of Z.added){
+  const [data,nrounico,seq,codigo,codigo_local,fornecedor_codigo,fornecedor,
+    empresa_compra,empresa_local,local,grupo,produto,un,qtd,priceMicro,cents,status,nota,observacao,top,chaveNfe]=r;
+  const k=[Number(nrounico),Number(seq),Number(codigo),Number(codigo_local)].join('|');
+  if(byKey.has(k))throw Error('Compra de 17/11 ja existe no historico: '+k);
+  if(!['12/11/2026','13/11/2026'].includes(data)||
+     !['LANC.RECEB.','NÃO LANC.RECEB.'].includes(status)||
+     !Number.isInteger(cents)||cents<0||!(Number(qtd)>0)||!(priceMicro>0)||
+     !(top===89)||!String(observacao||'').includes('PEDIDO DE COMPRA NUMERO'))
+       throw Error('Linha de compra de 17/11 invalida: '+k);
+  const purchase={status,nrounico,nota,data,fornecedor_codigo,fornecedor,empresa_compra,
+    empresa_local,codigo,grupo,produto,un,local,qtd,preco:priceMicro/1000000,
+    valor:cents/100,observacao,seq,codigo_local,top,chaveNfe};
+  byKey.set(k,purchase);NEW_PURCHASES.push(purchase);
+  newerCents+=cents;
+  if(status==='LANC.RECEB.'){receivedCount++;receivedCents+=cents}
+  else{pendingCount++;pendingCents+=cents}
+}
+if(newerCents!==784514||receivedCount!==21||pendingCount!==3||
+   receivedCents!==667529||pendingCents!==116985||
+   NEW_PURCHASES.length!==2954||moneyCents(NEW_PURCHASES)!==186537970)
+   throw Error('Conferencia financeira da remessa de 17/11 nao fechou');
+window.DB_PURCHASES_20261117_AUDIT={...Z.meta,ready:true,duplicateLines:0,
+  note:'Tres linhas nao recebidas sao exibidas como pendencia, nao como economia realizada.'};
 window.DB_PURCHASES_20261113_AUDIT={...Y.meta,ready:true,duplicateLines:0};
-const newMeta={...m,source:'COMPRAS_DE_INSUMOS_POR_LOCAL(6).xlsx',sourceRows:2930,count:2930,older:2309,
- recent:621,fim:'10/11/2026',sourceSHA256:Y.meta.sourceSHA256,incremental:Y.meta,previousIncremental:X.meta,audited:true};
+const newMeta={...m,source:'COMPRAS_DE_INSUMOS_POR_LOCAL(7).xlsx',sourceRows:2954,count:2954,older:2309,
+ recent:645,fim:'13/11/2026',sourceSHA256:Z.meta.sourceFile,incremental:Z.meta,previousIncremental:Y.meta,audited:true,
+ receiptSummary:{received:Z.meta.received,receivedCents:Z.meta.receivedCents,pending:Z.meta.pending,pendingCents:Z.meta.pendingCents}};
 window.DB_PURCHASES_20261110_AUDIT={...X.meta,ready:true};
 
 PURCHASES.splice(0,PURCHASES.length,...NEW_PURCHASES);
