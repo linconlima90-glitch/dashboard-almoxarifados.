@@ -55,6 +55,26 @@
     .sj-rep-group[open] .sj-rep-summary{border-bottom:1px solid #d6e5dc}
     .sj-rep-group .sj-table-wrap{max-height:650px}
     @media(max-width:760px){.sj-rep-summary{flex-direction:column;align-items:flex-start;gap:6px}.sj-rep-info{text-align:left}}
+
+    .sj-consumption-controls{display:flex;align-items:end;flex-wrap:wrap;gap:10px;padding:13px;background:#fff;border:1px solid #d5e3d9;border-radius:13px;margin:12px 0}
+    .sj-consumption-filter{flex:1;min-width:220px;display:flex;flex-direction:column;gap:5px}
+    .sj-consumption-filter>span{font-size:10px;font-weight:900;color:#315c42}
+    .sj-consumption-filter select{width:100%;padding:10px;border:1px solid #cadbd0;border-radius:8px;background:#fff;color:#173a26;font-size:11px}
+    .sj-consumption-filter select:focus{outline:2px solid #a0ccb0;outline-offset:1px}
+    .sj-consumption-filter select:disabled{background:#f1f5f2;color:#89938b}
+    .sj-consumption-reset{padding:10px 13px;border:1px solid #bad7c3;background:#edf7f0;border-radius:8px;font-size:10px;font-weight:900;color:#125a32;cursor:pointer}
+    .sj-consumption-reset:hover{background:#dff0e5}
+    .sj-consumption-status{flex-basis:100%;font-size:10px;color:#64766a}
+    .sj-consumption-groups{display:grid;gap:8px;padding:12px}
+    .sj-consumption-group{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;border:1px solid #d6e5dc;background:#f8fcf9;border-radius:10px;padding:13px 15px;cursor:pointer}
+    .sj-consumption-group:hover{background:#eaf5ed;border-color:#83b99a}
+    .sj-consumption-group strong{flex:1;min-width:0;overflow-wrap:anywhere;font-size:11px;color:#105330}
+    .sj-consumption-group span{font-size:10px;color:#5b7262}
+    .sj-consumption-group .sj-consumption-arrow{font-weight:900;color:#146638;white-space:nowrap}
+    .sj-consumption-subnav{display:flex;align-items:center;gap:12px;padding:9px 12px;border-bottom:1px solid #e5eee8}
+    .sj-consumption-back{padding:8px 11px;background:#eaf6ed;border:0;border-radius:8px;font-size:10px;font-weight:900;color:#145632;cursor:pointer}
+    .sj-consumption-subnav span{font-size:10px;color:#5b6f60}
+    @media(max-width:760px){.sj-consumption-filter{flex-basis:100%}.sj-consumption-group{align-items:flex-start;flex-direction:column;gap:5px}.sj-consumption-subnav{flex-wrap:wrap}}
     .sj-note{padding:10px 12px;border:1px solid #d9e6dd;border-left:4px solid #1e8747;background:#f7fbf8;border-radius:10px;font-size:9px;line-height:1.5;color:#5f6c64;margin-top:10px}
     .sj-empty{padding:26px;text-align:center;color:#7a867e;font-size:10px}
     .sj-loading{min-height:360px;display:grid;place-items:center}.sj-loading-box{text-align:center;color:#66736b;font-size:11px}.sj-spin{width:28px;height:28px;border:3px solid #dce9e0;border-top-color:#1e8747;border-radius:50%;margin:0 auto 11px;animation:sjspin .8s linear infinite}@keyframes sjspin{to{transform:rotate(360deg)}}
@@ -85,7 +105,7 @@
   `;
   document.body.appendChild(root);
 
-  let active='overview',search='';
+  let active='overview',search='',consumptionGroup='',consumptionProduct='';
   const content=document.getElementById('sj-content');
 
   function statusChip(s){
@@ -185,6 +205,35 @@
 
   function renderConsumption(d){
     const rows=d.movements.slice().sort((a,b)=>(Number(b.total)||0)-(Number(a.total)||0));
+    const byGroup=new Map();
+    rows.forEach(x=>{
+      const name=String(x.grupo||'SEM GRUPO').trim()||'SEM GRUPO';
+      if(!byGroup.has(name))byGroup.set(name,{name,rows:[],volume:0});
+      const group=byGroup.get(name);
+      group.rows.push(x);
+      group.volume+=Number(x.total)||0;
+    });
+    const groups=[...byGroup.values()].sort((a,b)=>b.volume-a.volume||a.name.localeCompare(b.name,'pt-BR'));
+    if(consumptionGroup&&!byGroup.has(consumptionGroup)){consumptionGroup='';consumptionProduct='';}
+    const chosen=byGroup.get(consumptionGroup);
+    const products=chosen?[...new Map(chosen.rows.map(x=>[String(x.codigo),x])).values()]
+      .sort((a,b)=>(Number(b.total)||0)-(Number(a.total)||0)):[];
+    if(consumptionProduct&&!products.some(x=>String(x.codigo)===consumptionProduct))consumptionProduct='';
+    const displayed=chosen?chosen.rows.filter(x=>!consumptionProduct||String(x.codigo)===consumptionProduct):[];
+    const groupCards=groups.map(g=>`<button type="button" class="sj-consumption-group" data-sj-consumption-group="${esc(g.name)}">
+      <strong>${esc(g.name)}</strong><span>${n0(new Set(g.rows.map(x=>String(x.codigo))).size)} produtos com baixas</span>
+      <span class="sj-consumption-arrow">Ver produtos ›</span>
+    </button>`).join('');
+    const table=`<div class="sj-table-wrap"><table class="sj-table"><thead><tr>
+      <th>Código</th><th>Produto</th><th>Grupo</th><th class="num">Baixas acumuladas</th>
+      <th class="num">01 a 15/10</th><th class="num">Média/mês</th><th class="num">Estoque</th>
+      <th class="num">Cobertura</th><th>Status</th></tr></thead><tbody>
+      ${displayed.map(x=>`<tr><td><b>${esc(x.codigo)}</b></td><td>${esc(x.produto)}</td>
+        <td>${esc(x.grupo)}</td><td class="num">${n(x.total)}</td>
+        <td class="num">${n(x.qtd_set_20261015)}</td><td class="num">${n(x.avg)}</td>
+        <td class="num">${n(x.stock)}</td><td class="num">${coverage(x.coverage)}</td>
+        <td>${statusChip(x.status)}</td></tr>`).join('')||'<tr><td colspan="9" class="sj-empty">Nenhum produto encontrado.</td></tr>'}
+      </tbody></table></div>`;
     return `
       <section class="sj-section active">
         <div class="sj-hero"><h2>Consumo e baixas de São João</h2><p>O histórico acumulado orienta cobertura e estoque mínimo. As baixas de outubro já aparecem no consumo acumulado, mas outubro ainda parcial não altera a média mensal usada no mínimo.</p></div>
@@ -193,14 +242,34 @@
           <div class="sj-kpi"><div class="k">Baixas de outubro</div><div class="v">${n(d.october)}</div><div class="s">Período de 01 a 15/10.</div></div>
           <div class="sj-kpi"><div class="k">Custo das baixas de outubro</div><div class="v">${br(d.octoberValue)}</div><div class="s">Valor registrado no período de 01 a 15/10.</div></div>
         </div>
-        <div class="sj-card"><div class="sj-card-head"><h3>Consumo por produto</h3><span>Ordenado pelo maior volume acumulado</span></div><div class="sj-table-wrap"><table class="sj-table"><thead><tr><th>Código</th><th>Produto</th><th>Grupo</th><th class="num">Baixas acumuladas</th><th class="num">01 a 15/10</th><th class="num">Média/mês</th><th class="num">Estoque</th><th class="num">Cobertura</th><th>Status</th></tr></thead><tbody>
-          ${rows.map(x=>`<tr><td><b>${esc(x.codigo)}</b></td><td>${esc(x.produto)}</td><td>${esc(x.grupo)}</td><td class="num">${n(x.total)}</td><td class="num">${n(x.qtd_set_20261015)}</td><td class="num">${n(x.avg)}</td><td class="num">${n(x.stock)}</td><td class="num">${coverage(x.coverage)}</td><td>${statusChip(x.status)}</td></tr>`).join('')||'<tr><td colspan="9" class="sj-empty">Sem histórico de consumo.</td></tr>'}
-        </tbody></table></div></div>
+        <div class="sj-consumption-controls">
+          <label class="sj-consumption-filter"><span>1. Grupo</span>
+            <select id="sj-consumption-group-select" aria-label="Filtrar consumo por grupo">
+              <option value="">Selecione um grupo...</option>
+              ${groups.map(g=>`<option value="${esc(g.name)}" ${consumptionGroup===g.name?'selected':''}>${esc(g.name)} (${n0(new Set(g.rows.map(x=>String(x.codigo))).size)} produtos)</option>`).join('')}
+            </select>
+          </label>
+          <label class="sj-consumption-filter"><span>2. Produto</span>
+            <select id="sj-consumption-product-select" aria-label="Filtrar consumo por produto" ${chosen?'':'disabled'}>
+              <option value="">Todos os produtos do grupo</option>
+              ${products.map(x=>`<option value="${esc(x.codigo)}" ${consumptionProduct===String(x.codigo)?'selected':''}>${esc(x.codigo)} - ${esc(x.produto)}</option>`).join('')}
+            </select>
+          </label>
+          <button type="button" class="sj-consumption-reset" data-sj-consumption-clear>Limpar filtros</button>
+          <div class="sj-consumption-status" aria-live="polite">${chosen?'Grupo selecionado: '+esc(chosen.name)+' · '+n0(displayed.length)+' posição(ões) de consumo.':'Selecione um grupo ou clique nele abaixo para visualizar os produtos.'} Os indicadores acima mostram o total do almoxarifado.</div>
+        </div>
+        <div class="sj-card">
+          <div class="sj-card-head"><h3>${chosen?'Produtos do grupo: '+esc(chosen.name):'Consumo por grupo'}</h3><span>${chosen?'Ordenado pelo maior consumo acumulado':n0(groups.length)+' grupos · clique para abrir os produtos'}</span></div>
+          ${chosen?`<div class="sj-consumption-subnav">
+            <button type="button" class="sj-consumption-back" data-sj-consumption-back>← Voltar aos grupos</button>
+            <span>${n0(displayed.length)} posições apresentadas</span>
+          </div>${table}`:`<div class="sj-consumption-groups">${groupCards||'<div class="sj-empty">Sem histórico de consumo.</div>'}</div>`}
+        </div>
       </section>
     `;
   }
 
-  function renderNoTurn(d){
+    function renderNoTurn(d){
     const rows=d.noTurn.slice().sort((a,b)=>(Number(b.valor_estoque)||0)-(Number(a.valor_estoque)||0));
     return `
       <section class="sj-section active">
@@ -225,6 +294,14 @@
   }
 
   root.addEventListener('click',e=>{
+    const consumptionGroupButton=e.target.closest('[data-sj-consumption-group]');
+    if(consumptionGroupButton){
+      consumptionGroup=consumptionGroupButton.dataset.sjConsumptionGroup;
+      consumptionProduct='';render();return;
+    }
+    if(e.target.closest('[data-sj-consumption-back]')||e.target.closest('[data-sj-consumption-clear]')){
+      consumptionGroup='';consumptionProduct='';render();return;
+    }
     const tab=e.target.closest('[data-sj-tab]');
     if(tab){
       active=tab.dataset.sjTab;search='';
@@ -239,6 +316,15 @@
     if(e.target.closest('[data-show-noturn]')){active='noturn';root.querySelectorAll('[data-sj-tab]').forEach(b=>b.classList.remove('active'));render();window.scrollTo({top:0,behavior:'smooth'});}
   });
   root.addEventListener('input',e=>{if(e.target.id==='sj-stock-search'){search=e.target.value;render();const inp=document.getElementById('sj-stock-search');if(inp){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length)}}});
+
+
+  root.addEventListener('change',e=>{
+    if(e.target.id==='sj-consumption-group-select'){
+      consumptionGroup=e.target.value;consumptionProduct='';if(active==='consumption')render();
+    }else if(e.target.id==='sj-consumption-product-select'){
+      consumptionProduct=e.target.value;if(active==='consumption')render();
+    }
+  });
 
   let tries=0;
   const timer=setInterval(()=>{tries++;if(render()||tries>150)clearInterval(timer)},100);
