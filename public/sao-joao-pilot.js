@@ -46,6 +46,19 @@
     .sj-table-wrap{overflow:auto}.sj-table{width:100%;border-collapse:collapse;font-size:9px}.sj-table th{background:#0d4726;color:#fff;text-align:left;padding:8px 9px;font-size:8px;text-transform:uppercase;white-space:nowrap}.sj-table td{padding:8px 9px;border-bottom:1px solid #e8f0eb;vertical-align:top}.sj-table tbody tr:nth-child(even){background:#fbfdfb}.sj-table tbody tr:hover{background:#edf8f1}.sj-table .num{text-align:right;white-space:nowrap}
     .sj-chip{display:inline-block;border-radius:999px;padding:3px 6px;font-size:7.5px;font-weight:900}.sj-chip.red{background:#fbeaea;color:#9c3737}.sj-chip.orange{background:#fff0da;color:#955c0f}.sj-chip.green{background:#e8f5ed;color:#176b39}.sj-chip.gray{background:#eef2ef;color:#67736b}
     .sj-tools{display:flex;gap:8px;align-items:center;padding:11px 12px;background:#fff;border:1px solid #d5e3d9;border-radius:13px;margin:12px 0 9px}.sj-tools input{flex:1;min-width:180px;border:1px solid #cfded4;border-radius:9px;padding:9px 10px;font-size:10px;outline:none}.sj-tools input:focus{border-color:#1e8747;box-shadow:0 0 0 3px rgba(30,135,71,.1)}.sj-tools span{font-size:9px;color:#6d786f}
+
+    .sj-stock-controls{display:grid;grid-template-columns:minmax(190px,1.15fr) minmax(215px,1.4fr) minmax(220px,1.3fr) auto;gap:10px;align-items:end;padding:13px;background:#fff;border:1px solid #d5e3d9;border-radius:13px;margin:12px 0 9px}
+    .sj-stock-controls label{display:flex;flex-direction:column;gap:5px;min-width:0;font-size:10px;font-weight:900;color:#315c42}
+    .sj-stock-controls input,.sj-stock-controls select{box-sizing:border-box;width:100%;min-height:37px;padding:9px;border:1px solid #cadbd0;border-radius:8px;background:#fff;color:#173a26;font-size:11px;outline:none}
+    .sj-stock-controls input:focus,.sj-stock-controls select:focus{border-color:#1e8747;box-shadow:0 0 0 3px rgba(30,135,71,.1)}
+    .sj-stock-controls select:disabled{background:#f1f5f2;color:#89938b;cursor:not-allowed}
+    .sj-stock-controls button,.sj-stock-more{min-height:37px;padding:9px 13px;border:1px solid #bad7c3;background:#edf7f0;border-radius:8px;font-size:11px;font-weight:900;color:#125a32;cursor:pointer}
+    .sj-stock-controls button:hover,.sj-stock-more:hover{background:#dff0e5}
+    .sj-stock-summary{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px 16px;padding:8px 13px 12px;font-size:11px;color:#55715c}
+    .sj-stock-summary b{color:#145c32}
+    .sj-stock-more-wrap{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 13px;font-size:10px;color:#61766a}
+    @media(max-width:1080px){.sj-stock-controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:640px){.sj-stock-controls{grid-template-columns:1fr}}
     .sj-rep-groups{padding:11px;display:grid;gap:9px}
     .sj-rep-group{border:1px solid #d6e5dc;background:#fff;border-radius:11px;overflow:hidden}
     .sj-rep-summary{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:13px 15px;background:#eef6f0;cursor:pointer;color:#134d2b}
@@ -105,7 +118,7 @@
   `;
   document.body.appendChild(root);
 
-  let active='overview',search='',consumptionGroup='',consumptionProduct='',consumptionYear='';
+  let active='overview',search='',stockGroup='',stockProduct='',stockLimit=300,consumptionGroup='',consumptionProduct='',consumptionYear='';
   const content=document.getElementById('sj-content');
 
   function statusChip(s){
@@ -180,16 +193,64 @@
     `;
   }
 
+
   function renderStock(d){
+    const value=x=>Number(x?.valor_estoque)||0;
+    const all=d.stock;
+    // Agregar valores monetarios por grupo e por codigo de produto (sem misturar quantidades).
+    const byGroup=new Map();
+    for(const x of all){
+      const key=String(x.grupo||'SEM GRUPO').trim()||'SEM GRUPO';
+      const group=byGroup.get(key)||{name:key,total:0,positions:0};
+      group.total+=value(x);group.positions++;byGroup.set(key,group);
+    }
+    const groups=[...byGroup.values()].sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name,'pt-BR'));
+    if(stockGroup&&!byGroup.has(stockGroup)){stockGroup='';stockProduct='';}
+    const withinGroup=stockGroup?all.filter(x=>(String(x.grupo||'SEM GRUPO').trim()||'SEM GRUPO')===stockGroup):all;
+    const byProduct=new Map();
+    if(stockGroup)for(const x of withinGroup){
+      const code=String(x.codigo);
+      const item=byProduct.get(code)||{code,produto:String(x.produto||''),total:0,positions:0};
+      item.total+=value(x);item.positions++;byProduct.set(code,item);
+    }
+    const products=[...byProduct.values()].sort((a,b)=>b.total-a.total||
+      a.produto.localeCompare(b.produto,'pt-BR')||a.code.localeCompare(b.code,'pt-BR'));
+    if(stockProduct&&!byProduct.has(stockProduct))stockProduct='';
     const q=norm(search);
-    const rows=d.stock.filter(x=>!q||norm([x.codigo,x.produto,x.grupo,x.un].join(' ')).includes(q)).sort((a,b)=>(Number(b.valor_estoque)||0)-(Number(a.valor_estoque)||0));
+    const rows=withinGroup.filter(x=>(!stockProduct||String(x.codigo)===stockProduct)&&
+      (!q||norm([x.codigo,x.produto,x.grupo,x.un].join(' ')).includes(q)))
+      .sort((a,b)=>value(b)-value(a)||String(a.produto).localeCompare(String(b.produto),'pt-BR'));
+    const total=rows.reduce((sum,x)=>sum+value(x),0),visible=rows.slice(0,stockLimit);
+    const stockDate=String(window.CURRENT_STOCK_META?.emissao||'').trim()||'data não informada';
     return `
-      <section class="sj-section active">
-        <div class="sj-tools"><input id="sj-stock-search" type="search" placeholder="Buscar código, produto ou grupo..." value="${esc(search)}"><span>${n0(rows.length)} posições encontradas</span></div>
-        <div class="sj-card"><div class="sj-card-head"><h3>Estoque de São João</h3><span>Posição de 03/11/2026</span></div><div class="sj-table-wrap"><table class="sj-table"><thead><tr><th>Código</th><th>Produto</th><th>Grupo</th><th>Un.</th><th class="num">Estoque</th><th class="num">Média/mês</th><th class="num">Cobertura</th><th class="num">Custo</th><th class="num">Valor</th></tr></thead><tbody>
-          ${rows.slice(0,300).map(x=>`<tr><td><b>${esc(x.codigo)}</b></td><td>${esc(x.produto)}</td><td>${esc(x.grupo)}</td><td>${esc(x.un)}</td><td class="num">${n(x.estoque)}</td><td class="num">${n(x.media_mensal)}</td><td class="num">${coverage(x.cobertura)}</td><td class="num">${br(x.custo_estoque)}</td><td class="num">${br(x.valor_estoque)}</td></tr>`).join('')||'<tr><td colspan="9" class="sj-empty">Nenhum item encontrado.</td></tr>'}
-        </tbody></table></div></div>
-        ${rows.length>300?'<div class="sj-note">Exibindo as 300 primeiras posições. Use a busca para localizar itens específicos.</div>':''}
+      <section class="sj-section active" id="sj-stock-view">
+        <div class="sj-stock-controls" aria-label="Filtros em cascata do estoque de São João">
+          <label><span>1. Grupo</span><select id="sj-stock-group" aria-label="Selecionar grupo de materiais">
+            <option value="">Todos os grupos</option>
+            ${groups.map(g=>`<option value="${esc(g.name)}" ${stockGroup===g.name?'selected':''}>${esc(g.name)} · ${br(g.total)}</option>`).join('')}
+          </select></label>
+          <label><span>2. Produto</span><select id="sj-stock-product" aria-label="Selecionar produto do grupo" ${stockGroup?'':'disabled'}>
+            <option value="">Todos os produtos do grupo</option>
+            ${products.map(p=>`<option value="${esc(p.code)}" ${stockProduct===p.code?'selected':''}>${esc(p.code)} — ${esc(p.produto)} · ${br(p.total)}</option>`).join('')}
+          </select></label>
+          <label><span>Buscar código ou produto</span><input id="sj-stock-search" type="search" autocomplete="off" placeholder="Código, produto ou grupo..." value="${esc(search)}"></label>
+          <button type="button" id="sj-stock-clear">Limpar filtros</button>
+        </div>
+        <div class="sj-card">
+          <div class="sj-card-head"><h3>Estoque de São João${stockGroup?' · '+esc(stockGroup):''}</h3><span>Posição de ${esc(stockDate)}</span></div>
+          <div class="sj-stock-summary" id="sj-stock-summary">
+            <span><b>${n0(rows.length)}</b> posições encontradas${stockProduct?' para o produto '+esc(stockProduct):''}</span>
+            <span>Valor em estoque filtrado: <b>${br(total)}</b> · maior para menor valor</span>
+          </div>
+          <div class="sj-table-wrap"><table class="sj-table" id="sj-stock-table">
+            <thead><tr><th>Código</th><th>Produto</th><th>Grupo</th><th>Un.</th><th class="num">Estoque</th><th class="num">Média/mês</th><th class="num">Cobertura</th><th class="num">Custo</th><th class="num">Valor</th></tr></thead>
+            <tbody>
+            ${visible.map(x=>`<tr data-sj-stock-code="${esc(x.codigo)}" data-sj-stock-value="${value(x)}"><td><b>${esc(x.codigo)}</b></td><td>${esc(x.produto)}</td><td>${esc(x.grupo)}</td><td>${esc(x.un)}</td><td class="num">${n(x.estoque)}</td><td class="num">${n(x.media_mensal)}</td><td class="num">${coverage(x.cobertura)}</td><td class="num">${br(x.custo_estoque)}</td><td class="num"><b>${br(x.valor_estoque)}</b></td></tr>`).join('')||'<tr><td colspan="9" class="sj-empty">Nenhum material encontrado para os filtros selecionados.</td></tr>'}
+            </tbody>
+          </table></div>
+          <div class="sj-stock-more-wrap"><span>Exibindo ${n0(visible.length)} de ${n0(rows.length)} posições</span>
+          ${rows.length>stockLimit?'<button type="button" class="sj-stock-more" id="sj-stock-more">Exibir mais 300</button>':''}</div>
+        </div>
       </section>
     `;
   }
@@ -336,6 +397,11 @@
   }
 
   root.addEventListener('click',e=>{
+
+    if(e.target.closest('#sj-stock-clear')){
+      search='';stockGroup='';stockProduct='';stockLimit=300;render();return;
+    }
+    if(e.target.closest('#sj-stock-more')){stockLimit+=300;render();return;}
     const consumptionGroupButton=e.target.closest('[data-sj-consumption-group]');
     if(consumptionGroupButton){
       consumptionGroup=consumptionGroupButton.dataset.sjConsumptionGroup;
@@ -357,11 +423,16 @@
     }
     if(e.target.closest('[data-show-noturn]')){active='noturn';root.querySelectorAll('[data-sj-tab]').forEach(b=>b.classList.remove('active'));render();window.scrollTo({top:0,behavior:'smooth'});}
   });
-  root.addEventListener('input',e=>{if(e.target.id==='sj-stock-search'){search=e.target.value;render();const inp=document.getElementById('sj-stock-search');if(inp){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length)}}});
+  root.addEventListener('input',e=>{if(e.target.id==='sj-stock-search'){search=e.target.value;stockLimit=300;render();const inp=document.getElementById('sj-stock-search');if(inp){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length)}}});
+
 
 
   root.addEventListener('change',e=>{
-    if(e.target.id==='sj-consumption-year-select'){
+    if(e.target.id==='sj-stock-group'){
+      stockGroup=e.target.value;stockProduct='';stockLimit=300;if(active==='stock')render();
+    }else if(e.target.id==='sj-stock-product'){
+      stockProduct=e.target.value;stockLimit=300;if(active==='stock')render();
+    }else if(e.target.id==='sj-consumption-year-select'){
       consumptionYear=e.target.value;consumptionGroup='';consumptionProduct='';if(active==='consumption')render();
     }else if(e.target.id==='sj-consumption-group-select'){
       consumptionGroup=e.target.value;consumptionProduct='';if(active==='consumption')render();
