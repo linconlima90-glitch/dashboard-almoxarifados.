@@ -105,7 +105,7 @@
   `;
   document.body.appendChild(root);
 
-  let active='overview',search='',consumptionGroup='',consumptionProduct='';
+  let active='overview',search='',consumptionGroup='',consumptionProduct='',consumptionYear='';
   const content=document.getElementById('sj-content');
 
   function statusChip(s){
@@ -203,8 +203,38 @@
     });
   }
 
+  // Consulta anual a partir da base ERP por data de negociacao, sem transferencias.
+  // Nao altera a media ou o estoque minimo oficial do gestor.
+  function yearConsumption(){
+    const pack=window.MOVEMENTS_COMPLETE_20261103;
+    if(!pack||!pack.dict||!Array.isArray(pack.rows)||pack.meta?.dateBasis!=='Dt.Neg.'||!window.__MOVEMENT_COMPLETE_20261103_APPLIED)return null;
+    const D=pack.dict, map=new Map();
+    let total=0,valueCents=0;
+    for(const [monthIndex,localIndex,,productIndex,,qty,cents] of pack.rows){
+      if(String(D.local?.[localIndex]?.[0])!==LOCAL_CODE)continue;
+      if(String(D.month?.[monthIndex]||'').slice(0,4)!==consumptionYear)continue;
+      const product=D.product?.[productIndex];
+      if(!product)continue;
+      const codigo=String(product[0]);
+      const prev=map.get(codigo)||{codigo,produto:product[1],grupo:D.group?.[product[2]]||'SEM GRUPO',total:0,valueCents:0};
+      prev.total+=Number(qty)||0;
+      prev.valueCents+=Number(cents)||0;
+      map.set(codigo,prev);
+      total+=Number(qty)||0;
+      valueCents+=Number(cents)||0;
+    }
+    return {map,total,value:valueCents/100,through:pack.meta?.to||'03/11/2026'};
+  }
+
   function renderConsumption(d){
-    const rows=d.movements.slice().sort((a,b)=>(Number(b.total)||0)-(Number(a.total)||0));
+    const annual=consumptionYear?yearConsumption():null;
+    const rows=(annual?Array.from(annual.map.values()).map(item=>{
+      const original=d.movements.find(x=>String(x.codigo)===item.codigo);
+      return {...(original||{}),...item,avg:undefined,coverage:undefined,status:'',stock:original?.stock??0};
+    }):d.movements.slice()).sort((a,b)=>(Number(b.total)||0)-(Number(a.total)||0));
+    const yearlyMode=!!consumptionYear;
+    const periodLabel=yearlyMode?('Ano '+consumptionYear):'Histórico acumulado';
+    const yearAvailable=!yearlyMode||!!annual;
     const byGroup=new Map();
     rows.forEach(x=>{
       const name=String(x.grupo||'SEM GRUPO').trim()||'SEM GRUPO';
@@ -225,22 +255,34 @@
       <span class="sj-consumption-arrow">Ver produtos ›</span>
     </button>`).join('');
     const table=`<div class="sj-table-wrap"><table class="sj-table"><thead><tr>
-      <th>Código</th><th>Produto</th><th>Grupo</th><th class="num">Baixas acumuladas</th>
-      <th class="num">01 a 15/10</th><th class="num">Média/mês</th><th class="num">Estoque</th>
+      <th>Código</th><th>Produto</th><th>Grupo</th><th class="num">Baixas no período</th>
+      <th class="num">Custo das baixas</th><th class="num">Média/mês</th><th class="num">Estoque</th>
       <th class="num">Cobertura</th><th>Status</th></tr></thead><tbody>
       ${displayed.map(x=>`<tr><td><b>${esc(x.codigo)}</b></td><td>${esc(x.produto)}</td>
         <td>${esc(x.grupo)}</td><td class="num">${n(x.total)}</td>
-        <td class="num">${n(x.qtd_set_20261015)}</td><td class="num">${n(x.avg)}</td>
-        <td class="num">${n(x.stock)}</td><td class="num">${coverage(x.coverage)}</td>
-        <td>${statusChip(x.status)}</td></tr>`).join('')||'<tr><td colspan="9" class="sj-empty">Nenhum produto encontrado.</td></tr>'}
+        <td class="num">${yearlyMode?br((Number(x.valueCents)||0)/100):br(Number(x.valor_set_20261015)||0)}</td><td class="num">${yearlyMode?'—':n(x.avg)}</td>
+        <td class="num">${n(x.stock)}</td><td class="num">${yearlyMode?'—':coverage(x.coverage)}</td>
+        <td>${yearlyMode?'—':statusChip(x.status)}</td></tr>`).join('')||'<tr><td colspan="9" class="sj-empty">Nenhum produto encontrado.</td></tr>'}
       </tbody></table></div>`;
     return `
       <section class="sj-section active">
-        <div class="sj-hero"><h2>Consumo e baixas de São João</h2><p>O histórico acumulado orienta cobertura e estoque mínimo. As baixas de outubro já aparecem no consumo acumulado, mas outubro ainda parcial não altera a média mensal usada no mínimo.</p></div>
+        <div class="sj-hero"><h2>Consumo e baixas de São João</h2><p>${yearlyMode?'Consulta das baixas por ano, conforme a data de negociação registrada no ERP. O filtro anual não altera o estoque mínimo.':'O histórico acumulado orienta cobertura e estoque mínimo. Os indicadores acumulados seguem a base operacional do gestor.'}</p></div>
+        <div class="sj-consumption-controls" style="margin-top:0">
+          <label class="sj-consumption-filter" style="max-width:310px"><span>Filtrar por ano</span>
+            <select id="sj-consumption-year-select" aria-label="Filtrar baixas por ano">
+              <option value="" ${!consumptionYear?'selected':''}>Todos os anos (acumulado)</option>
+              <option value="2024" ${consumptionYear==='2024'?'selected':''}>2024</option>
+              <option value="2025" ${consumptionYear==='2025'?'selected':''}>2025</option>
+              <option value="2026" ${consumptionYear==='2026'?'selected':''}>2026</option>
+            </select>
+          </label>
+          <span class="sj-consumption-status" style="flex:1 1 260px">${yearlyMode?'Fonte: histórico ERP até 03/11/2026; 2024 começa em 14/03 e 2026 está parcial.':'Exibindo o acumulado operacional disponível.'}</span>
+        </div>
+        ${yearAvailable?'': '<div class="sj-note">O detalhamento anual ainda não está carregado. Aguarde e tente novamente.</div>'}
         <div class="sj-kpis">
-          <div class="sj-kpi"><div class="k">Baixas acumuladas</div><div class="v">${n(d.consumption)}</div><div class="s">Unidades no histórico analisado.</div></div>
-          <div class="sj-kpi"><div class="k">Baixas de outubro</div><div class="v">${n(d.october)}</div><div class="s">Período de 01 a 15/10.</div></div>
-          <div class="sj-kpi"><div class="k">Custo das baixas de outubro</div><div class="v">${br(d.octoberValue)}</div><div class="s">Valor registrado no período de 01 a 15/10.</div></div>
+          <div class="sj-kpi"><div class="k">Baixas - ${esc(periodLabel)}</div><div class="v">${annual?n(annual.total):n(d.consumption)}</div><div class="s">Quantidade no período selecionado.</div></div>
+          <div class="sj-kpi"><div class="k">${yearlyMode?'Produtos movimentados':'Baixas de outubro'}</div><div class="v">${annual?n0(annual.map.size):n(d.october)}</div><div class="s">${yearlyMode?'Produtos distintos com baixas no ano.':'Período de referência do acumulado.'}</div></div>
+          <div class="sj-kpi"><div class="k">${yearlyMode?'Custo das baixas no ano':'Custo das baixas de outubro'}</div><div class="v">${annual?br(annual.value):br(d.octoberValue)}</div><div class="s">${yearlyMode?'Custo_Total do ERP, sem transferências.':'Valor da referência operacional.'}</div></div>
         </div>
         <div class="sj-consumption-controls">
           <label class="sj-consumption-filter"><span>1. Grupo</span>
@@ -319,7 +361,9 @@
 
 
   root.addEventListener('change',e=>{
-    if(e.target.id==='sj-consumption-group-select'){
+    if(e.target.id==='sj-consumption-year-select'){
+      consumptionYear=e.target.value;consumptionGroup='';consumptionProduct='';if(active==='consumption')render();
+    }else if(e.target.id==='sj-consumption-group-select'){
       consumptionGroup=e.target.value;consumptionProduct='';if(active==='consumption')render();
     }else if(e.target.id==='sj-consumption-product-select'){
       consumptionProduct=e.target.value;if(active==='consumption')render();
