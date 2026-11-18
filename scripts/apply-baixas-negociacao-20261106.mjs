@@ -340,8 +340,21 @@ export function applyBaixasNegociacao20261106(root,out) {
   write('stock-no-withdrawals-tab-20261015.js',historicPrelude+noBaixas);
   for(const pilot of ['sao-joao','chua']){
     const name=pilot+'-no-withdrawals.js';
-    const src=read('public/'+name)
-      .replace('window.MOVEMENTS_REVISED_META?.records!==21792','window.MOVEMENTS_REVISED_META?.records!=='+totalCount)
+    const original=read('public/'+name);
+    const guarded='window.MOVEMENTS_REVISED_META?.records!==21792';
+    assert(original.includes(guarded),'Contagem de baixas do piloto mudou: '+name);
+    // Sao Joao passou a consultar diretamente as baixas ERP por ano e escopo.
+    // Nao aplicar o ajuste legado de historico, que alteraria a logica nova.
+    if(pilot==='sao-joao'&&original.includes('function hasWithdrawal(x,scope=state.scope,year=state.year)')){
+      const annual=original.replace(guarded,'window.MOVEMENTS_REVISED_META?.records!=='+totalCount);
+      assert(annual.includes('const pack=window.MOVEMENTS_COMPLETE_20261103;')&&
+        annual.includes('movementsByYear={local:localYears,network:networkYears,allLocal,allNetwork};')&&
+        annual.includes('id="sj-nw-year"')&&annual.includes('id="sj-nw-product"'),
+        'Revisar extracao anual de baixas do piloto Sao Joao');
+      write(name,historicPrelude+annual);
+      continue;
+    }
+    const src=original.replace(guarded,'window.MOVEMENTS_REVISED_META?.records!=='+totalCount)
       .replace('const localMovements = new Set(), networkMovements = new Set(), pending = new Set();',
         'const localMovements = new Set(), networkMovements = new Set(), pending = new Set();'+
         'const allHistory=new Set((window.DB_WITHDRAWAL_HISTORY_2024_2026?.localCodes)||[]);'+
