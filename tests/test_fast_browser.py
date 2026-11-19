@@ -19,6 +19,13 @@ BAIXAS_AUDIT['annual']['2026']['value'] = round(
 BAIXAS_AUDIT['november']['records'] += REMESSA_AUDIT['withdrawals']['added']
 BAIXAS_AUDIT['november']['value'] = round(
     BAIXAS_AUDIT['november']['value'] + REMESSA_AUDIT['withdrawals']['addedCents'] / 100, 2)
+REMESSA_19 = json.loads((root / 'build-remessa-20261119.json').read_text(encoding='utf-8'))
+BAIXAS_AUDIT['revisedRecords'] = REMESSA_19['withdrawals']['totalRecords']
+BAIXAS_AUDIT['totalValue'] = REMESSA_19['withdrawals']['totalCents'] / 100
+BAIXAS_AUDIT['annual']['2026']['records'] += REMESSA_19['withdrawals']['added']
+BAIXAS_AUDIT['annual']['2026']['value'] = round(BAIXAS_AUDIT['annual']['2026']['value'] + REMESSA_19['withdrawals']['addedCents'] / 100, 2)
+BAIXAS_AUDIT['november']['records'] += REMESSA_19['withdrawals']['added']
+BAIXAS_AUDIT['november']['value'] = round(BAIXAS_AUDIT['november']['value'] + REMESSA_19['withdrawals']['addedCents'] / 100, 2)
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -348,7 +355,7 @@ with sync_playwright() as p:
                        for r in cost_state['correiaRows']),cost_state
             assert cost_state['referenceCorreia']==7982580000,cost_state
             assert abs(cost_state['stockTotal']-
-                       (2432567.70+cost_state['correction']['deltaCents']/100))<0.01,cost_state
+                       (2441983.52+cost_state['correction']['deltaCents']/100))<0.01,cost_state
             assert page.locator('#cu-local option').count()>2
             # Filtro em cascata: grupos e produtos ordenados pelo valor do
             # saldo fisico, sem confundir referencias de preco com estoque.
@@ -454,8 +461,8 @@ with sync_playwright() as p:
                 preserveMin:window.STOCK_MINIMUM_MONTHS===2,
                 adjustment:window.DB_APPROVED_PRODUCT_COST_AUDIT?.deltaCents||0
             })""")
-            assert stockmeta['emitted']=='17/11/2026 17:23:25', stockmeta
-            assert abs(stockmeta['total']-(2432567.70+stockmeta['adjustment']/100))<0.01 and stockmeta['warehouses']==9, stockmeta
+            assert stockmeta['emitted']=='19/11/2026 12:53:55', stockmeta
+            assert abs(stockmeta['total']-(2441983.52+stockmeta['adjustment']/100))<0.01 and stockmeta['warehouses']==9, stockmeta
             assert stockmeta['preserveHistory'] and stockmeta['preserveMin'], stockmeta
             october=page.evaluate("""() => ({
                 month:window.MOVEMENTS_OCTOBER_META,
@@ -513,7 +520,7 @@ with sync_playwright() as p:
             page.wait_for_function("window.DB_STOCK_LOCATION_CASCADE?.meta?.rows>0",timeout=20000)
             source_meta=page.evaluate("window.DB_STOCK_LOCATION_CASCADE.meta")
             assert source_meta['viewLevels']==['Almoxarifado','Grupo','Produto'],source_meta
-            assert source_meta['rows']==4428,source_meta
+            assert source_meta['rows']==4454,source_meta
             assert source_meta['visiblePositions']==source_meta['rows'],source_meta
             cascade=page.locator('#db-stock-cascade')
             print('DBSC_VISIBILITY_DEBUG',page.evaluate("""() => {
@@ -684,7 +691,7 @@ with sync_playwright() as p:
             page.wait_for_function("window.DB_STOCK_UNIFIED?.meta?.integrated===true", timeout=15000)
             meta4=page.evaluate("window.DB_STOCK_UNIFIED.meta")
             assert meta4['warehouseCount']>=9 and meta4['networkExcludedFromTotals'], meta4
-            assert meta4['stockDate']=='17/11/2026 17:23:25', meta4
+            assert meta4['stockDate']=='19/11/2026 12:53:55', meta4
             assert meta4['minimumMonths']==2 and meta4['months']==4, meta4
             assert meta4['physicalNeedItems']>0 and meta4['physicalNeedValue']>0, meta4
             assert meta4['physicalExcessItems']>=0 and meta4['physicalExcessValue']>=0, meta4
@@ -1056,7 +1063,7 @@ with sync_playwright() as p:
             assert all(no_withdrawals[x] for x in ['locationCounts','groupCounts','locationValues','groupValues']), no_withdrawals
             assert no_withdrawals['networkDefault'] and no_withdrawals['filtered']==no_withdrawals['networkRows'] and no_withdrawals['purchaseHistoryAvailable'], no_withdrawals
             assert no_withdrawals['rows']>0 and no_withdrawals['filtered']>0 and no_withdrawals['filtered']<=no_withdrawals['rows'], no_withdrawals
-            assert no_withdrawals['position']=='17/11/2026 17:23:25', no_withdrawals
+            assert no_withdrawals['position']=='19/11/2026 12:53:55', no_withdrawals
             assert no_withdrawals['header']=='Estoque sem baixas registradas' and no_withdrawals['groupLabel'], no_withdrawals
 
             def open_no_withdrawal_group(key):
@@ -1251,7 +1258,7 @@ with sync_playwright() as p:
             assert sj_no_withdrawals['rows']>0 and sj_no_withdrawals['display']>0, sj_no_withdrawals
             assert sj_no_withdrawals['localRows'] and sj_no_withdrawals['valid'] and sj_no_withdrawals['ordered'], sj_no_withdrawals
             assert sj_no_withdrawals['purchaseLocal'] and sj_no_withdrawals['meta']==BAIXAS_AUDIT['revisedRecords'], sj_no_withdrawals
-            assert sj_no_withdrawals['date']=='17/11/2026 17:23:25', sj_no_withdrawals
+            assert sj_no_withdrawals['date']=='19/11/2026 12:53:55', sj_no_withdrawals
             assert page.locator('#sj-nw-scope').input_value()=='rede', 'Sao Joao deve iniciar sem baixas em toda a rede'
             page.locator('#sj-nw-sort').select_option('unitario')
             sorted_unit=page.evaluate("""() => [...document.querySelectorAll('#sj-nw-view tr[data-sj-nw-unit]')]
@@ -1354,13 +1361,13 @@ with sync_playwright() as p:
             assert 'São João' not in page.locator('#sj-pilot-root').inner_text()
         results[name]['errors'] = errors.copy()
         page.close()
-    assert results['fast']['stockRows'] == 4428, 'Unexpected stock positions'
-    assert results['fastPilot']['stockRows'] == 4428, 'Unexpected Sao Joao stock positions'
-    assert results['fastChuaPilot']['stockRows'] == 4428, 'Unexpected Chua stock positions'
+    assert results['fast']['stockRows'] == 4454, 'Unexpected stock positions'
+    assert results['fastPilot']['stockRows'] == 4454, 'Unexpected Sao Joao stock positions'
+    assert results['fastChuaPilot']['stockRows'] == 4454, 'Unexpected Chua stock positions'
     approved_audit=results['fast']['approvedCostAudit']
     assert approved_audit is not None and approved_audit['positions']>=1, approved_audit
     expected_adjustment=approved_audit['deltaCents']/100
-    assert abs(results['fast']['stockValue'] - (2432567.70 + expected_adjustment)) < 0.01, 'Unexpected stock value'
+    assert abs(results['fast']['stockValue'] - (2441983.52 + expected_adjustment)) < 0.01, 'Unexpected stock value'
     if snapshots['legacy'] != snapshots['fast']:
         for field in snapshots['legacy']:
             left, right = snapshots['legacy'][field], snapshots['fast'][field]
