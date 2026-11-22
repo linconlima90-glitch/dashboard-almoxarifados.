@@ -67,10 +67,10 @@ export function applyRemessa20261122(root,out){
     newRows:added,updatedRows:updated,removedRows:removed,warehouses:9,
     source:'ERP · fotografia integral substitutiva',
     fiscalKey:'empresa + codigo_local + codigo_produto + unidade'};
-  const compressed=gzipSync(Buffer.from(prefix+JSON.stringify(stock)+';\\n'),{level:9,mtime:0}).toString('base64');
+  const compressed=gzipSync(Buffer.from(prefix+JSON.stringify(stock)+';\n'),{level:9,mtime:0}).toString('base64');
   const partSize=Math.ceil(compressed.length/12);
   for(let i=0;i<12;i++)write('stock-current-20261103-1558-'+String(i+1).padStart(2,'0')+'.js',
-    'window.CURRENT_STOCK_GZ'+(i===0?'':'+')+"='"+compressed.slice(i*partSize,(i+1)*partSize)+"';\\n");
+    'window.CURRENT_STOCK_GZ'+(i===0?'':'+')+"='"+compressed.slice(i*partSize,(i+1)*partSize)+"';\n");
 
   // 20 and 21 November occur strictly after the prior certified history.
   const ids=wd.rows.map(r=>String(r[10])+'|'+String(r[11]));
