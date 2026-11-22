@@ -9,6 +9,7 @@ import { applyBaixasNegociacao20261106 } from './apply-baixas-negociacao-2026110
 import { applyStock20261112 } from './apply-stock-20261112.mjs';
 import { applyRemessa20261117 } from './apply-remessa-20261117.mjs';
 import { applyRemessa20261119 } from './apply-remessa-20261119.mjs';
+import { applyRemessa20261122 } from './apply-remessa-20261122.mjs';
 
 const root = process.cwd(), input = path.join(root, 'public'), out = path.join(root, 'dist');
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
@@ -114,6 +115,8 @@ const remessaAudit=applyRemessa20261117(root,out);
 report.remessa20261117=remessaAudit;
 const newestAudit=applyRemessa20261119(root,out);
 report.remessa20261119=newestAudit;
+const latestAudit=applyRemessa20261122(root,out);
+report.remessa20261122=latestAudit;
 const buyPack=JSON.parse(gunzipSync(Buffer.from(read('data/purchases-changes-20261110.b64').trim(),'base64')).toString('utf8'));
 assert.equal(buyPack.meta.sourceSHA256,'9ed21525bbab94802abd56ddf8260c9706f5b15f4a7295d20577b66b8db75405');
 assert.equal(buyPack.added.length,49);assert.equal(buyPack.reprice.length,2);assert.equal(buyPack.economy.length,28);
