@@ -34,7 +34,7 @@ export function applyRemessa20261122(root,out){
   for(let i=1;i<=12;i++){
     const filename='stock-current-20261103-1558-'+String(i).padStart(2,'0')+'.js';
     const code=fs.readFileSync(dest(filename),'utf8');
-    const match=code.match(/window\\.CURRENT_STOCK_GZ(?:\\+)?='([^']+)';/);
+    const match=code.match(/window\.CURRENT_STOCK_GZ(?:\+)?='([^']+)';/);
     assert(match,'ERP stock fragment missing: '+filename);
     stock64+=match[1];
   }
