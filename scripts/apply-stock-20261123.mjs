@@ -46,16 +46,16 @@ export function applyStock20261123(root,out){
     newRows:added,updatedRows:revised,removedRows:removed,unchangedRows:unchanged,warehouses:9,
     source:'ERP · fotografia integral substitutiva',
     fiscalKey:'empresa + codigo_local + codigo_produto + unidade'};
-  const packed=gzipSync(Buffer.from(prefix+JSON.stringify(old)+';\\n'),{level:9,mtime:0}).toString('base64');
+  const packed=gzipSync(Buffer.from(prefix+JSON.stringify(old)+';\n'),{level:9,mtime:0}).toString('base64');
   const n=Math.ceil(packed.length/12);
   for(let i=0;i<12;i++){
     const name='stock-current-20261103-1558-'+String(i+1).padStart(2,'0')+'.js';
     fs.writeFileSync(path.join(out,name),
-      'window.CURRENT_STOCK_GZ'+(i===0?'':'+')+"='"+packed.slice(i*n,(i+1)*n)+"';\\n");
+      'window.CURRENT_STOCK_GZ'+(i===0?'':'+')+"='"+packed.slice(i*n,(i+1)*n)+"';\n");
   }
   const result={date:meta.date,source:meta.source,records:meta.records,cents:meta.cents,
     previousRecords:prev.size,previousCents:243592356,added,removed,revised,unchanged,
     historyUntouched:true,purchasesUntouched:true,physicalBalanceNotReducedByWithdrawals:true};
-  fs.writeFileSync(path.join(root,'build-stock-20261123.json'),JSON.stringify(result,null,2)+'\\n');
+  fs.writeFileSync(path.join(root,'build-stock-20261123.json'),JSON.stringify(result,null,2)+'\n');
   return result;
 }
