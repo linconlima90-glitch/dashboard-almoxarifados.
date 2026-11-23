@@ -22,7 +22,7 @@ export function applyStock20261123(root,out){
   for(let i=1;i<=12;i++){
     const name='stock-current-20261103-1558-'+String(i).padStart(2,'0')+'.js';
     const s=fs.readFileSync(path.join(out,name),'utf8');
-    const m=s.match(/window\\.CURRENT_STOCK_GZ(?:\\+)?='([^']+)';/);
+    const m=s.match(/window\.CURRENT_STOCK_GZ(?:\+)?='([^']+)';/);
     assert(m,'Missing stock part '+name);
     compressed+=m[1];
   }
