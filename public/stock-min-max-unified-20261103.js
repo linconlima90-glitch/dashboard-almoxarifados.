@@ -494,8 +494,7 @@
           const height=max?Math.max(amount?4:0,Math.round(Math.abs(amount)/max*142)):0;
           const label=monthlyNames[index]+' '+year+': '+qty(amount)+' '+series.un+
             (isPartial?' (mês parcial)':'');
-          return '<button type="button" class="dbmx-monthly-month" data-year="'+year+'" data-month="'+(index+1)+'" data-value="'+amount+'" data-unit="'+esc(series.un)+'" aria-label="'+esc('Ver centros de resultado de '+monthlyNames[index]+' '+year+', '+qty(amount)+' '+series.un)+'" title="Clique para conferir os centros de resultado"+
-            '" aria-label="'+esc(label)+'" title="'+esc(label)+'">'+
+          return '<button type="button" class="dbmx-monthly-month" data-year="'+year+'" data-month="'+(index+1)+'" data-value="'+amount+'" data-unit="'+esc(series.un)+'" aria-label="'+esc('Ver centros de resultado de '+monthlyNames[index]+' '+year+', '+qty(amount)+' '+series.un)+'" title="'+esc(label)+' — clique para conferir os centros de resultado">'+
             '<span class="dbmx-monthly-amount">'+(amount?esc(qty(amount)):'0')+'</span>'+
             '<div class="dbmx-monthly-bar-zone"><span class="dbmx-monthly-bar'+
               (!amount?' is-zero':amount<0?' is-negative':'')+
