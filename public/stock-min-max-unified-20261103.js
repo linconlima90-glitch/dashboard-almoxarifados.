@@ -398,18 +398,16 @@
   function monthlyChartHtml(item){
     const rows=monthlyHistory(item);
     const years=config.year?[Number(config.year)]:[2025,2026];
-    const dateParts=str(window.CURRENT_STOCK_META?.emissao).match(/^\d{1,2}\/(\d{1,2})\/(\d{4})/);
-    const stockMonth=dateParts?Number(dateParts[1]):11;
-    const stockYear=dateParts?Number(dateParts[2]):2026;
-    const endMonth=year=>year===stockYear?Math.min(12,stockMonth):(year<stockYear?12:0);
-    const hasPartial=years.includes(stockYear)&&endMonth(stockYear)>0;
+    // MOVEMENTS_YEARLY encerra o ultimo ano em outubro de 2026. Meses
+    // parciais nao devem aparecer como "zero baixas" no historico.
+    const endMonth=year=>year===2026?10:12;
     const intro='<div class="dbmx-monthly-context">Almoxarifado: <b>'+esc(item.local)+
       '</b> · Código: <b>'+esc(item.codigo)+'</b> · Período do filtro: <b>'+
       esc(config.year||'2025 + 2026')+'</b></div>'+
       '<p class="dbmx-monthly-note">Cada barra representa as baixas do produto naquele mês. '+
       'Os meses sem baixa aparecem zerados. Transferências não são somadas ao consumo. '+
       'As unidades são exibidas separadamente, quando diferentes. '+
-      (hasPartial?'O mês mais recente está em andamento e <b>não entra na média de reposição</b>. ':'')+
+      '2026 contém somente janeiro a outubro (meses completos), conforme a base usada na reposição.'+
       '</p>';
     if(!rows.length)return intro+
       '<p class="dbmx-monthly-empty">Não há baixas mensais identificadas para este produto neste '+
@@ -421,7 +419,7 @@
       const blocks=years.map(year=>{
         const count=endMonth(year);
         const bars=series.months[year].slice(0,count).map((amount,index)=>{
-          const isPartial=year===stockYear&&index===count-1;
+          const isPartial=false;
           const height=max?Math.max(amount?4:0,Math.round(Math.abs(amount)/max*142)):0;
           const label=monthlyNames[index]+' '+year+': '+qty(amount)+' '+series.un+
             (isPartial?' (mês parcial)':'');
@@ -442,9 +440,7 @@
       return '<section class="dbmx-monthly-unit" data-unit="'+esc(series.un)+'">'+
         '<h3>Baixas em '+esc(series.un)+' <small>Total exibido: '+esc(qty(total))+' '+esc(series.un)+'</small></h3>'+
         blocks+'</section>';
-    }).join('')+(hasPartial?
-      '<p class="dbmx-monthly-footnote">* Mês parcial. O estoque mínimo continua calculado '+
-      'com meses completos até outubro de 2026.</p>':'');
+    }).join('');
   }
   let lastMonthlyTrigger=null;
   function openMonthlyChart(item,trigger){
