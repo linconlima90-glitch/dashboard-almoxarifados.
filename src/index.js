@@ -156,6 +156,7 @@ class DashboardInjector {
         '<script src="/baixas-consolidadas-20261103.js?v=20261103-1"></script>' +
         '<script src="/stock-min-max-unified-20261103.js?v=20261126-centros-placas-v2"></script>' +
         '<script src="/baixas-erp-conferido-20261106.js?v=20261106-custo-total-erp"></script>'+
+        '<script src="/movement-monthly-drilldown-20261126.js?v=20261126-centros-placas-movimentos-v1"></script>'+
         '<script src="/cdi-transfer-data.js?v=20261106-cdi-aprovacao"></script>'+
         '<script src="/cdi-transfer-savings.js?v=20261106-cdi-aprovacao"></script>'+ 
         '<script src="/reallocation-reuse-data-20261109.js?v=20261109-uso-final-chua"></script>'+ 
