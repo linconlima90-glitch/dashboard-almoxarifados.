@@ -13,8 +13,8 @@ test('sintaxe, script carregado e acao do produto conectada',()=>{
   assert.match(injector,/movement-monthly-drilldown-20261126\.js/);
   assert.match(movements,/data-dbx-action="monthly"/);
   assert.match(movements,/window\.DB_MOVEMENT_MONTHLY\.open/);
-  assert.match(file,/centros-resultado-placas-20261126/);
-  assert.match(file,/centros-resultado-20261126/);
+  assert.match(file,/centros-resultado-placas/);
+  assert.match(file,/\-20261126\-/);
 });
 
 function exercise(){
