@@ -5,7 +5,7 @@
   if(window.DB_BAIXAS_ERP_CONFERIDO)return;
   const rootId='db-baixas-erp-conferido';
   const periodSet={all:['2024','2025','2026'],'2024':['2024'],'2025':['2025'],'2026':['2026'],'2025-2026':['2025','2026']};
-  const state={period:'all',mode:'local',local:'',group:'',item:''};
+  const state={period:'all',mode:'local',local:'',group:'',item:'',sort:'value'};
   const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
   const outsideScope=v=>['ALMOXARIFADO GERAL G GERIBA','ALMOXARIFADO GERAL G S CRUZ'].includes(norm(v));
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -95,9 +95,18 @@
       locais:new Set(x.rows.map(r=>r.local)).size}));
   }
   function tableItems(list,withLocals){
-    const items=itemRows(list);
+    const items=itemRows(list).sort((a,b)=>
+      (state.sort==='quantity'?b.quantidade-a.quantidade:b.cents-a.cents)||
+      b.cents-a.cents||b.quantidade-a.quantidade||
+      a.produto.localeCompare(b.produto,'pt-BR')||a.codigo.localeCompare(b.codigo,'pt-BR'));
     if(!items.length)return '<p class="dbx-muted">Nenhum produto nesta seleção.</p>';
-    return '<div class="dbx-scroll"><table class="dbx-table"><thead><tr><th>#</th><th>Código</th><th>Produto</th><th>UN</th><th class="dbx-num">Qtd. baixada</th><th class="dbx-num">Lançamentos</th>'+
+    return '<div class="dbx-sort-row"><label for="dbx-sort-items">Ordenar produtos por</label>'+
+      '<select id="dbx-sort-items" aria-label="Ordenar produtos por maior valor ou maior quantidade baixada">'+
+      '<option value="value"'+(state.sort==='value'?' selected':'')+'>Maior valor baixado (R$)</option>'+
+      '<option value="quantity"'+(state.sort==='quantity'?' selected':'')+'>Maior quantidade baixada</option>'+
+      '</select><small>'+(state.sort==='quantity'?'Quantidade do maior para o menor na unidade de cada produto.':'Custo total ERP do maior para o menor.')+
+      ' Unidades diferentes não são somadas.</small></div>'+
+      '<div class="dbx-scroll"><table class="dbx-table"><thead><tr><th>#</th><th>Código</th><th>Produto</th><th>UN</th><th class="dbx-num">Qtd. baixada</th><th class="dbx-num">Lançamentos</th>'+
       (withLocals?'<th class="dbx-num">Locais</th>':'')+
       '<th class="dbx-num">Custo_Total ERP</th></tr></thead><tbody>'+
       items.map((x,i)=>'<tr class="dbx-item-row'+(state.item===x.key?' dbx-selected':'')+'" data-dbx-action="item" data-dbx-key="'+esc(x.key)+'" tabindex="0" role="button" aria-label="Filtrar pelo produto '+esc(x.produto)+'"><td>'+number(i+1)+'</td><td>'+esc(x.codigo)+'</td><td><button type="button" class="dbx-product-monthly" data-dbx-action="monthly" data-dbx-key="'+esc(x.key)+'" aria-label="Ver consumo mensal, centros de resultado e placas de '+esc(x.produto)+'">'+esc(x.produto)+'</button></td><td>'+esc(x.un)+
@@ -146,7 +155,7 @@
       '<button data-dbx-action="close" type="button">Voltar aos locais</button></div><div class="dbx-groups">'+
       groups.map(g=>'<button type="button" data-dbx-action="local-group" data-dbx-key="'+esc(g.key)+'" class="dbx-group'+(g.key===state.group?' dbx-selected':'')+'">'+
         '<span>'+esc(g.key)+' <small>'+number(g.products.size)+' itens</small></span><b>'+brlCents(g.cents)+'</b></button>').join('')+'</div>'+
-      (group?'<h4 class="dbx-section-title">Produtos · '+esc(group.key)+' · maior custo primeiro</h4>'+tableItems(group.rows,false):'')+'</div>';
+      (group?'<h4 class="dbx-section-title">Produtos · '+esc(group.key)+'</h4>'+tableItems(group.rows,false):'')+'</div>';
   }
   function consolidatedDetails(){
     const group=allGroups.find(x=>x.key===state.group);
@@ -178,6 +187,11 @@
       '<p class="dbx-audit">Fonte: '+esc(source.meta.sourceFile)+' · histórico até 06/11/2026. '+
       '2024 é consultivo e <b>não entra no cálculo do estoque mínimo</b>. Estoque mínimo: 2025 e janeiro–outubro/2026, cobertura de 2 meses. '+
       'Dados financeiros reconciliados pelo Custo_Total do ERP. Os saldos físicos não são alterados nesta tela.</p>';
+    const sortSelect=panel.querySelector('#dbx-sort-items');
+    if(sortSelect)sortSelect.addEventListener('change',event=>{
+      state.sort=event.target.value==='quantity'?'quantity':'value';
+      render();
+    });
     panel.querySelector('#dbx-period').value=state.period;
     panel.querySelector('#dbx-period').addEventListener('change',ev=>{
       state.period=ev.target.value;state.local='';state.group='';state.item='';render();
@@ -251,6 +265,9 @@
       #${rootId} .dbx-group small{font-size:10px;color:#7a897f;margin-left:8px}
       #${rootId} .dbx-group:hover,#${rootId} .dbx-group.dbx-selected{background:#eef8f2;border-color:#9eceb0}
       #${rootId} .dbx-section-title{font-size:13px;margin:16px 0 10px;color:#135732}
+      #${rootId} .dbx-sort-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 10px;font-size:11px;color:#1a6339;font-weight:800}
+      #${rootId} .dbx-sort-row select{width:auto;min-width:210px;max-width:100%;margin:0}
+      #${rootId} .dbx-sort-row small{font-size:10px;color:#65796b;font-weight:500}
       #${rootId} .dbx-scroll{overflow:auto;max-height:500px;border:1px solid #e0eae2;border-radius:8px}
       #${rootId} .dbx-table{width:100%;min-width:800px;border-collapse:collapse;font-size:11px;background:white}
       #${rootId} .dbx-table th{position:sticky;top:0;text-align:left;background:#17613b;color:white;font-size:10px;padding:10px 8px;white-space:nowrap}
