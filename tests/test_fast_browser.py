@@ -23,8 +23,11 @@ for batch in ('20261117', '20261119', '20261122', '20261126'):
         period['records'] += withdrawals['added']
         period['value'] = round(period['value'] + withdrawals['addedCents'] / 100, 2)
 CURRENT_REMESSA = imported
-CURRENT_INPUT = json.loads(gzip.decompress(base64.b64decode(
+WITHDRAWAL_INPUT = json.loads(gzip.decompress(base64.b64decode(
     (root / 'data/remessa-delta-20261126.b64').read_text(encoding='utf-8'))))
+CURRENT_INPUT = json.loads(gzip.decompress(base64.b64decode(
+    (root / 'data/stock-snapshot-20261126.b64').read_text(encoding='utf-8'))))
+CURRENT_STOCK_AUDIT = json.loads((root / 'build-stock-20261126.json').read_text(encoding='utf-8'))
 EXPECTED_STOCK_ROWS = len(CURRENT_INPUT['rows'])
 EXPECTED_STOCK_DATE = CURRENT_INPUT['meta']['date']
 EXPECTED_STOCK_ERP = sum(round(row[9] * 100) for row in CURRENT_INPUT['rows']) / 100
@@ -32,11 +35,14 @@ EXPECTED_FISCAL_POSITIONS = sorted([
     [str(row[0]), str(row[1]), str(row[3]), str(row[6]), row[7], round(row[9] * 100)]
     for row in CURRENT_INPUT['rows']
 ])
-assert CURRENT_REMESSA['stock']['records'] == EXPECTED_STOCK_ROWS
-assert CURRENT_REMESSA['stock']['date'] == EXPECTED_STOCK_DATE
-assert CURRENT_REMESSA['stock']['cents'] == round(EXPECTED_STOCK_ERP * 100)
-assert CURRENT_REMESSA['withdrawals']['added'] == len(CURRENT_INPUT['withdrawals']['rows'])
-assert CURRENT_REMESSA['withdrawals']['addedCents'] == sum(row[9] for row in CURRENT_INPUT['withdrawals']['rows'])
+EXPECTED_CDI_CORREIA_BALANCE = sum(row[7] for row in CURRENT_INPUT['rows']
+    if str(row[1])=='30115' and str(row[3])=='115220' and row[6]=='PC')
+assert CURRENT_STOCK_AUDIT['records'] == EXPECTED_STOCK_ROWS
+assert CURRENT_STOCK_AUDIT['date'] == EXPECTED_STOCK_DATE
+assert CURRENT_STOCK_AUDIT['cents'] == round(EXPECTED_STOCK_ERP * 100)
+assert CURRENT_STOCK_AUDIT['historyUntouched'] and CURRENT_STOCK_AUDIT['purchasesUntouched']
+assert CURRENT_REMESSA['withdrawals']['added'] == len(WITHDRAWAL_INPUT['withdrawals']['rows'])
+assert CURRENT_REMESSA['withdrawals']['addedCents'] == sum(row[9] for row in WITHDRAWAL_INPUT['withdrawals']['rows'])
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -507,8 +513,9 @@ with sync_playwright() as p:
             }""")
             assert not cdi_current['mismatches'] and not cdi_current['excluded'],cdi_current
             assert cdi_current['allTwoMonths'],cdi_current
-            assert cdi_current['correia']['stock']==14 and cdi_current['correia']['minimum']==5,cdi_current
-            assert cdi_current['correia']['need']==0,cdi_current
+            assert cdi_current['correia']['stock']==EXPECTED_CDI_CORREIA_BALANCE,cdi_current
+            assert cdi_current['correia']['minimum']==5,cdi_current
+            assert cdi_current['correia']['need']==max(0,5-EXPECTED_CDI_CORREIA_BALANCE),cdi_current
             october=page.evaluate("""() => ({
                 month:window.MOVEMENTS_OCTOBER_META,
                 full:window.MOVEMENTS_REVISED_META && {
