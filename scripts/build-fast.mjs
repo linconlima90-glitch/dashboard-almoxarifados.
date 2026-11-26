@@ -112,6 +112,10 @@ const legacy = read('src/index.js');
 const report = { originalHtmlBytes: Buffer.byteLength(source), datasets: [], routes: {} };
 fs.rmSync(out, { recursive: true, force: true });
 fs.cpSync(input, out, { recursive: true });
+// Retired dashboards remain in source history, outside the published assets.
+for (const retired of ['portal.html', 'combustiveis.html']) {
+  fs.rmSync(path.join(out, retired), { force: true });
+}
 const baixasAudit=applyBaixasNegociacao20261106(root,out);
 report.baixasRetificadas=baixasAudit;
 const stockAudit=applyStock20261112(root,out);
