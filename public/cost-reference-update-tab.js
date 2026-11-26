@@ -60,7 +60,7 @@ style.textContent=[
 '#view-atualizacao-custos .cu-drafts{margin-top:20px}',
 '#view-atualizacao-custos .cu-message{margin:10px 0 0;color:#235b38;font-weight:700;line-height:1.5}',
 '#view-atualizacao-custos .cu-message.error{color:#a63b31}',
-'#view-atualizacao-custos .cu-source{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:12px 0}',
+'#view-atualizacao-custos .cu-source{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:12px 0}',
 '#view-atualizacao-custos .cu-source>div{background:#f7faf7;border:1px solid #dfe9df;padding:12px;border-radius:8px;line-height:1.5}',
 '#view-atualizacao-custos .cu-source small{display:block;color:#657b69}',
 '#view-atualizacao-custos .cu-source strong{display:block;color:#1a6038;font-size:16px;margin:4px 0}',
@@ -93,7 +93,7 @@ style.textContent=[
 document.head.appendChild(style);
 view.innerHTML=[
 '<header class="cu-head"><h2>Atualização de Custos</h2>',
-'<p>Confira qual preço está sendo usado em cada análise: <b>custo do estoque ERP</b>, <b>última compra por nota fiscal</b> e <b>maior referência gerencial da Tabela Custo</b>.</p></header>',
+'<p>Confira o <b>custo original do estoque ERP</b>, o <b>custo usado no dashboard</b>, a <b>última compra por nota fiscal</b> e a <b>referência gerencial disponível</b>.</p></header>',
 '<div class="cu-note"><b>Controle de alterações:</b> os novos valores lançados aqui ficam como <b>propostas pendentes de conferência, salvas somente neste navegador</b>. Não modificam o Sankhya, o estoque físico, a Tabela Custo ou os indicadores de economia. Exporte o CSV para auditar e incorporar as correções aprovadas à base oficial.</div>',
 '<div id="cu-stats" class="cu-stats" aria-live="polite"></div>',
 '<section class="cu-card"><h3>Filtro em cascata · Grupo → Produto → Almoxarifado</h3><div class="cu-fields">',
@@ -101,11 +101,11 @@ view.innerHTML=[
 '<label>2. Produto (maior valor primeiro)<select id="cu-product"></select></label>',
 '<label>Almoxarifado (opcional)<select id="cu-local"></select></label>',
 '<label class="wide">Busca adicional<input id="cu-search" type="search" placeholder="Código, descrição, nota ou fornecedor"></label>',
-'<label>Situação<select id="cu-only"><option value="all">Todos</option><option value="noref">Sem Tabela Custo</option><option value="draft">Com proposta pendente</option></select></label>',
+'<label>Situação<select id="cu-only"><option value="all">Todos</option><option value="noref">Sem referência nesta base</option><option value="draft">Com proposta pendente</option></select></label>',
 '</div><div class="cu-buttons"><button id="cu-clear" class="cu-btn" type="button">Limpar filtros</button>',
 '<button id="cu-export-reference" class="cu-btn" type="button">Exportar custos consultados (CSV)</button>',
 '<button id="cu-template" class="cu-btn" type="button">Baixar modelo de atualização</button></div>',
-'<p class="cu-hint"><b>Critério de ordenação:</b> valor total do estoque físico no ERP (saldo × custo unitário). Grupos e produtos sem estoque físico ficam ao final. O custo unitário e a referência gerencial permanecem visíveis para conferência.</p>',
+'<p class="cu-hint"><b>Critério de ordenação:</b> valor gerencial do estoque no dashboard, incluindo ajustes aprovados. Grupos e produtos sem estoque físico ficam ao final. O custo original do ERP permanece separado para conferência.</p>',
 '<p class="cu-hint" id="cu-asof">Os preços de compras são conferidos por código e unidade; a Tabela Custo pode não identificar a unidade na fonte original. Custos de estoque e compras não devem ser substituídos automaticamente pelo maior preço.</p>',
 '<p class="cu-hint"><b>Como consultar:</b> clique no grupo para abrir os produtos em ordem de maior valor. Clique no produto para conferir cada almoxarifado, o custo ERP, a última compra e a referência gerencial.</p>',
 '<div class="cu-tree-tools"><strong id="cu-count" aria-live="polite">Carregando grupos...</strong>',
@@ -115,7 +115,7 @@ view.innerHTML=[
 '<section class="cu-card cu-edit" id="cu-edit" hidden><h3>Registrar proposta de correção</h3>',
 '<p id="cu-selected" class="cu-hint"></p><div id="cu-sources" class="cu-source"></div>',
 '<div class="cu-fields">',
-'<label>Campo a revisar<select id="cu-scope"><option value="GERENCIAL">Referência da Tabela Custo</option><option value="ESTOQUE_ERP">Custo unitário do estoque ERP</option></select></label>',
+'<label>Campo a revisar<select id="cu-scope"><option value="GERENCIAL">Referência gerencial</option><option value="ESTOQUE_ERP">Custo unitário original do ERP</option></select></label>',
 '<label>Valor vigente (R$/un.)<input id="cu-current" type="text" readonly></label>',
 '<label>Novo valor proposto (R$/un.)<input id="cu-price" type="text" inputmode="decimal" placeholder="Ex.: 24,235"></label>',
 '<label>Data do documento<input id="cu-date" type="date"></label>',
@@ -163,7 +163,8 @@ function build(){
     let r=m.get(k);
     if(!r){
       r={code:str(code),unit:norm(unit),local:str(local||'SEM POSIÇÃO FÍSICA'),group:'SEM GRUPO',
-        product:'',balance:0,stockValue:0,stockCost:null,hasStock:false,
+        product:'',balance:0,stockValue:0,stockValueERP:0,stockCost:null,managementCost:null,
+        stockCostAdjusted:false,stockCostSource:'Custo do estoque ERP',hasStock:false,
         last:null,purchaseLines:0,reference:null,refDate:'',refLine:'',refOverride:'',referenceSource:''};
       m.set(k,r);
     }
@@ -174,7 +175,13 @@ function build(){
     const r=get(x.codigo,x.un,x.local);
     r.group=str(x.grupo||r.group);r.product=str(x.produto||r.product);
     r.balance+=number(x.estoque);r.stockValue+=number(x.valor_estoque);
-    r.stockCost=number(x.custo_estoque)>0?number(x.custo_estoque):r.stockCost;
+    r.stockValueERP+=number(x.valor_erp_original??x.valor_estoque);
+    const originalCost=number(x.custo_erp_original??x.custo_estoque);
+    r.stockCost=originalCost>0?originalCost:r.stockCost;
+    r.managementCost=number(x.custo_estoque)>0?number(x.custo_estoque):r.managementCost;
+    if(x.custo_corrigido_aprovado){
+      r.stockCostAdjusted=true;r.stockCostSource=str(x.custo_correcao_fonte||'Ajuste gerencial aprovado');
+    }
     r.hasStock=true;
   }
   for(const x of purchases){
@@ -193,7 +200,10 @@ function build(){
     r.group=str(p[3]||r.group);r.product=str(p[2]||r.product);
   }
   for(const r of m.values()){
-    if(r.hasStock&&r.balance>0&&r.stockValue>0)r.stockCost=r.stockValue/r.balance;
+    if(r.hasStock&&r.balance>0){
+      if(r.stockValueERP>0)r.stockCost=r.stockValueERP/r.balance;
+      if(r.stockValue>0)r.managementCost=r.stockValue/r.balance;
+    }
     const p=cost.get(r.code+'|'+r.unit);
     if(p){
       r.reference=p[6]!=null&&number(p[6])>0?number(p[6])/1e6:null;
@@ -289,13 +299,14 @@ function groupTree(rows){
 function detailRow(r,hasDraft){
   const last=r.last;
   const origin=r.refOverride||(r.reference>0?'Tabela Custo · linha '+(r.refLine||'não informada')+
-    (r.refDate?' · '+r.refDate:''):'Sem referência válida na Tabela Custo');
+    (r.refDate?' · '+r.refDate:''):'Referência indisponível na base do comparativo');
   return '<tr data-cu-stock-value="'+r.stockValue+'">'+
     '<td><b>'+esc(r.code)+'</b><div>'+esc(r.product)+'</div><div class="light">'+esc(r.unit)+'</div></td>'+
     '<td>'+esc(r.local)+'</td>'+
     '<td class="num">'+(r.hasStock?whole.format(r.balance):'—')+'</td>'+
     '<td class="num"><b>'+fmtTotal(r.stockValue)+'</b></td>'+
     '<td class="num">'+fmt(r.stockCost)+'</td>'+
+    '<td class="num">'+fmt(r.managementCost)+(r.stockCostAdjusted?'<div class="light">Ajuste gerencial aprovado</div>':'')+'</td>'+
     '<td class="num">'+(last?fmt(last.price)+'<div class="light">'+esc(last.date)+' · NF '+esc(last.invoice)+'</div>':'—')+'</td>'+
     '<td class="num">'+fmt(r.reference)+'</td>'+
     '<td>'+esc(origin)+'<div class="light">'+(last?'Fornecedor: '+esc(last.supplier):'')+'</div></td>'+
@@ -311,12 +322,12 @@ function paint(){
     stat('Posições e referências consultáveis',whole.format(records.length)),
     stat('Com custo físico ERP',whole.format(records.filter(r=>r.hasStock&&r.stockCost>0).length)),
     stat('Com histórico de compras',whole.format(records.filter(r=>r.purchaseLines>0).length)),
-    stat('Com maior Tabela Custo',whole.format(records.filter(r=>r.reference>0).length)),
+    stat('Com referência gerencial disponível',whole.format(records.filter(r=>r.reference>0).length)),
     stat('Propostas locais pendentes',whole.format(drafts.length))
   ].join('');
   $('cu-asof').textContent='Custo físico: '+stockSource()+' · '+stockDate()+
     '. Compras: '+(window.LATEST_PURCHASE_META?.source||'histórico ERP')+
-    '. Referências gerenciais: Tabela Custo.xlsx (5.374 registros) e correções aprovadas, incluindo a correia 124928 a R$ 7.982,58/PC. A origem fiscal do ERP e as notas de compra não são regravadas.';
+    '. Referências gerenciais: subconjunto disponível no comparativo da Tabela Custo.xlsx (fonte original com 5.374 registros) e correções aprovadas, incluindo a correia 124928 a R$ 7.982,58/PC. Referência indisponível nesta base não comprova ausência na tabela original. O custo ERP original e as notas de compra são preservados.';
   const productCount=groups.reduce((sum,g)=>sum+g.products.size,0);
   $('cu-count').textContent=whole.format(groups.length)+' grupos · '+whole.format(productCount)+
     ' produtos por grupo · '+whole.format(shown.length)+' posições · '+fmtTotal(shown.reduce((sum,r)=>sum+r.stockValue,0));
@@ -344,8 +355,8 @@ function paint(){
           '<strong class="cu-node-value">'+fmtTotal(p.total)+'</strong></button>'+
           (productOpened?'<div class="cu-details-scroll"><table><thead><tr>'+
             '<th>Código / produto</th><th>Almoxarifado</th><th>Saldo físico</th>'+
-            '<th>Valor em estoque</th><th>Custo unit. ERP</th><th>Última compra</th>'+
-            '<th>Maior Tabela Custo</th><th>Origem / data</th><th>Revisão</th>'+
+            '<th>Valor em estoque (gerencial)</th><th>Custo unit. ERP original</th><th>Custo usado no dashboard</th><th>Última compra</th>'+
+            '<th>Referência gerencial</th><th>Origem / data</th><th>Revisão</th>'+
             '</tr></thead><tbody>'+rows.map(r=>detailRow(r,draftKeys.has(r.code+'|'+r.unit))).join('')+
             '</tbody></table></div>':'')+'</section>';
       }).join('')+'</div>':'')+'</section>';
@@ -376,9 +387,10 @@ function presentEditing(){
   $('cu-selected').textContent='Produto '+editing.code+' · '+editing.product+' · '+editing.unit+
     ' · '+editing.local+' · grupo '+editing.group;
   $('cu-sources').innerHTML=[
-    '<div><small>Estoque ERP · '+esc(stockDate())+'</small><strong>'+fmt(editing.stockCost)+'</strong><small>'+esc(stockSource())+'</small></div>',
+    '<div><small>Custo original ERP · '+esc(stockDate())+'</small><strong>'+fmt(editing.stockCost)+'</strong><small>'+esc(stockSource())+'</small></div>',
+    '<div><small>Custo usado no dashboard</small><strong>'+fmt(editing.managementCost)+'</strong><small>'+esc(editing.stockCostSource)+'</small></div>',
     '<div><small>Última compra · '+esc(editing.last?.date||'sem histórico')+'</small><strong>'+fmt(editing.last?.price)+'</strong><small>'+esc(editing.last?'NF '+editing.last.invoice+' · '+editing.last.supplier:'Sem documento de compra')+'</small></div>',
-    '<div><small>Maior custo gerencial · '+esc(editing.refDate||'data não informada')+'</small><strong>'+fmt(editing.reference)+'</strong><small>'+esc(editing.refOverride||('Tabela Custo, linha '+(editing.refLine||'não identificada')))+'</small></div>'
+    '<div><small>Referência gerencial · '+esc(editing.refDate||'data não informada')+'</small><strong>'+fmt(editing.reference)+'</strong><small>'+esc(editing.refOverride||(editing.reference>0?'Tabela Custo, linha '+(editing.refLine||'não identificada'):'Referência indisponível nesta base'))+'</small></div>'
   ].join('');
   const scope=$('cu-scope').value;
   $('cu-current').value=scope==='GERENCIAL'?fmt(editing.reference):fmt(editing.stockCost);
@@ -427,6 +439,18 @@ function exportDrafts(){
   const rows=drafts.map(x=>[x.scope,x.code,x.product,x.group,x.unit,x.local,
     x.current==null?'':x.current,x.proposed,x.date,x.document,x.reason,'PENDENTE_CONFERENCIA']);
   download('propostas_atualizacao_custos_DB.csv',[header,...rows]);
+}
+function referenceExportRows(rows){
+  const header=['Codigo','Produto','Grupo','Unidade','Local','Saldo','CustoEstoqueERPOriginal',
+    'CustoUsadoDashboard','ValorEstoqueERPOriginal','ValorEstoqueGerencial','DataEstoque',
+    'UltimaCompra','DataUltimaCompra','FornecedorUltimaCompra','NotaUltimaCompra','DocumentoUltimaCompra',
+    'ReferenciaGerencialDisponivel','LinhaTabelaCusto','DataReferencia','CorrecaoReferenciaAprovada',
+    'CustoEstoqueAjustado','OrigemCustoDashboard'];
+  return [header,...rows.map(r=>
+    [r.code,r.product,r.group,r.unit,r.local,r.balance,r.stockCost??'',r.managementCost??'',
+      r.stockValueERP,r.stockValue,stockDate(),r.last?.price??'',r.last?.date??'',
+      r.last?.supplier??'',r.last?.invoice??'',r.last?.document??'',r.reference??'',
+      r.refLine,r.refDate,r.refOverride,r.stockCostAdjusted?'SIM':'NAO',r.stockCostSource])];
 }
 view.addEventListener('click',e=>{
   const groupBtn=e.target.closest('[data-cu-toggle-group]');
@@ -495,13 +519,7 @@ $('cu-save').addEventListener('click',()=>{
 });
 $('cu-export-drafts').addEventListener('click',exportDrafts);
 $('cu-export-reference').addEventListener('click',()=>{
-  const header=['Codigo','Produto','Grupo','Unidade','Local','Saldo','CustoEstoqueERP','DataEstoque',
-    'UltimaCompra','DataUltimaCompra','FornecedorUltimaCompra','NotaUltimaCompra','DocumentoUltimaCompra',
-    'MaiorTabelaCusto','LinhaTabelaCusto','DataReferencia','CorrecaoAprovada'];
-  download('consulta_fontes_custos_DB.csv',[header,...visible().map(r=>
-    [r.code,r.product,r.group,r.unit,r.local,r.balance,r.stockCost??'',stockDate(),
-      r.last?.price??'',r.last?.date??'',r.last?.supplier??'',r.last?.invoice??'',r.last?.document??'',
-      r.reference??'',r.refLine,r.refDate,r.refOverride])]);
+  download('consulta_fontes_custos_DB.csv',referenceExportRows(visible()));
 });
 $('cu-template').addEventListener('click',()=>download('modelo_atualizacao_custo_DB.csv',[
   ['Tipo','Codigo','Produto','Grupo','Unidade','Local','CustoAtual','CustoProposto','DataFonte','DocumentoFonte','Justificativa','Situacao'],
@@ -550,5 +568,5 @@ for(const event of ['purchases-updated','stock-position-updated','cost-reference
 window.DB_COST_UPDATE={open:()=>tab.click(),refresh:()=>{dirty=true;paint()},
   getRows:()=>records.slice(),getDrafts:()=>drafts.map(x=>({...x})),
   meta:{loaded:false,rows:0,drafts:drafts.length,officialCostsChanged:false,autoPublish:false},
-  version:'20261113-cascata-visual-grupo-produto-v2'};
+  version:'20261125-custos-erp-gerencial-separados'};
 })();

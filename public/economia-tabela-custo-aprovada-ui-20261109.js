@@ -82,6 +82,14 @@
 
   // Aplica a referencia corrigida a todas as compras do produto antes de exibir
   // KPIs, provas por nota e API do painel consolidado, sem editar o ERP.
+  function comparisonFromTotal(referenceMicro,quantity,paidCents){
+    if(!(Number(referenceMicro)>0))return null;
+    const referenceCents=Math.round(Number(referenceMicro)*Number(quantity)/10000);
+    if(!(Number(quantity)>0)||!Number.isSafeInteger(referenceCents)||
+       !Number.isSafeInteger(paidCents)||paidCents<0)
+      throw Error('Quantidade ou custo total ERP invalido no comparativo');
+    return referenceCents-paidCents;
+  }
   function aplicarReferenciasAprovadas(data){
     const M=data.meta,P=data.products,T=data.purchases;
     if(M.approvedReferenceCorrections?.['105090'])return;
@@ -98,7 +106,7 @@
     for(const r of buys){
       oldPositive+=r[11];oldNegative+=r[12];
       // Preco unitario em micros de real; valor da diferenca em centavos.
-      const signed=Math.round((override.approvedMaxMicro-r[10])*r[8]/10000);
+      const signed=comparisonFromTotal(override.approvedMaxMicro,r[8],r[9]);
       r[11]=Math.max(0,signed);
       r[12]=Math.min(0,signed);
       r[13]=signed;
@@ -154,8 +162,8 @@
       if(p[6]==null&&maxMicro!=null)p[6]=maxMicro;
       if(p[5]==null&&minMicro!=null)p[5]=minMicro;
       p[14]=(p[14]||0)+pos;p[15]=(p[15]||0)+neg;p[16]=(p[16]||0)+net;
-      T.push([sku,date,code,desc,group,un,local,supplier,qty,paid,priceMicro,pos,neg,net,status,note,doc,seq,0,
-        maxMicro==null?'SEM REFERENCIA NA TABELA CUSTO':'REFERENCIA GERENCIAL',refLine,maxDate]);
+      T.push([sku,date,code,desc,group,un,local,supplier,qty,paid,priceMicro,pos,neg,net,null,note,doc,seq,status,
+        maxMicro==null?'REFERENCIA INDISPONIVEL NA BASE DO COMPARATIVO':'REFERENCIA GERENCIAL',refLine,maxDate]);
     }
     M.purchaseLines=T.length;
     M.purchaseCents=T.reduce((s,t)=>s+t[9],0);
@@ -197,14 +205,14 @@
       }
       const reference=p[6];
       const hasReference=Number(reference)>0;
-      const signed=hasReference?Math.round((Number(reference)-priceMicro)*quantity/10000):0;
+      const signed=hasReference?comparisonFromTotal(reference,quantity,cents):0;
       const positive=Math.max(0,signed),negative=Math.min(0,signed);
       newPositive+=positive;newNegative+=negative;
       if(hasReference)matched++;else missing++;
       p[14]=(p[14]||0)+positive;p[15]=(p[15]||0)+negative;p[16]=(p[16]||0)+signed;
       T.push([p[0],'2026-11-10',String(code),description,group,unit,String(localCode),supplier,
-        quantity,cents,priceMicro,positive,negative,signed,'LANC.RECEB.',nf,document,seq,0,
-        hasReference?'REFERENCIA GERENCIAL TABELA CUSTO':'SEM REFERENCIA NA TABELA CUSTO',
+        quantity,cents,priceMicro,positive,negative,signed,null,nf,document,seq,status,
+        hasReference?'REFERENCIA GERENCIAL TABELA CUSTO':'REFERENCIA INDISPONIVEL NA BASE DO COMPARATIVO',
         p[9]??null,p[7]??null]);
     }
     if(newPaid!==401105||T.length!==417||existing.size!==417)
@@ -218,7 +226,95 @@
     M.projectSkus=new Set(T.map(t=>t[0])).size;
     M.lastUpdated='13/11/2026';
     M.newPurchasesAudit={...pkg.meta,matchedReference:matched,missingReference:missing,
-      positiveCents:newPositive,negativeCents:newNegative,netCents:newPositive+newNegative};
+      positiveCents:newPositive,negativeCents:newNegative,netCents:newPositive+newNegative,
+      comparisonBasis:'CUSTO_TOTAL_ERP',roundingCorrectionCents:3};
+  }
+  function applyPurchases1711(data){
+    const pkg=window.DB_PURCHASES_20261117_DELTA,M=data.meta,P=data.products,T=data.purchases;
+    if(!pkg||pkg.meta?.sourceFile!=='COMPRAS_DE_INSUMOS_POR_LOCAL(7).xlsx'||
+       pkg.meta.records!==24||pkg.meta.cents!==784514||pkg.meta.received!==21||
+       pkg.meta.receivedCents!==667529||pkg.meta.pending!==3||pkg.meta.pendingCents!==116985||
+       pkg.added?.length!==24)
+      throw Error('Remessa de 17/11 para comparativo de custo nao validada');
+    if(T.length!==417||M.purchaseCents!==23737560)
+      throw Error('Base de economia historica mudou antes da remessa de 17/11');
+    const byCodeUnit=new Map(P.map(p=>[String(p[1])+'|'+String(p[4]),p]));
+    const existing=new Set(T.map(t=>[t[16],t[17],t[2],t[6]].join('|')));
+    if(existing.size!==T.length)throw Error('Duplicidade na base anterior de economia');
+    let newPaid=0,newPositive=0,newNegative=0,matched=0,missing=0,
+      received=0,receivedCents=0,pending=0,pendingCents=0;
+    for(const row of pkg.added){
+      const [dateBR,document,seq,code,localCode,supplierCode,supplier,
+        company,companyLocal,local,group,description,unit,quantity,priceMicro,cents,status,nf]=row;
+      const key=[document,seq,code,localCode].join('|');
+      if(existing.has(key))throw Error('Compra repetida no comparativo: '+key);
+      if(!['12/11/2026','13/11/2026'].includes(dateBR)||
+         !['LANC.RECEB.','NÃO LANC.RECEB.'].includes(status)||
+         !Number.isSafeInteger(cents)||cents<=0||!(quantity>0)||!(priceMicro>0)||
+         window.DB_IS_TIRE_OR_CAMERA?.({grupo:group,produto:description}))
+        throw Error('Linha de compra de 17/11 fora da remessa conciliada: '+key);
+      existing.add(key);newPaid+=cents;
+      if(status==='LANC.RECEB.'){received++;receivedCents+=cents}
+      else{pending++;pendingCents+=cents}
+      let p=byCodeUnit.get(String(code)+'|'+String(unit));
+      if(!p){
+        p=new Array(20).fill(null);
+        p[0]='ERP|'+String(code)+'|'+String(unit);p[1]=String(code);
+        p[2]=description;p[3]=group;p[4]=unit;p[14]=0;p[15]=0;p[16]=0;
+        P.push(p);byCodeUnit.set(String(code)+'|'+String(unit),p);
+      }
+      const hasReference=Number(p[6])>0;
+      const signed=hasReference?comparisonFromTotal(p[6],quantity,cents):0;
+      const positive=Math.max(0,signed),negative=Math.min(0,signed);
+      newPositive+=positive;newNegative+=negative;
+      if(hasReference)matched++;else missing++;
+      p[14]=(p[14]||0)+positive;p[15]=(p[15]||0)+negative;p[16]=(p[16]||0)+signed;
+      const classification=(status==='LANC.RECEB.'?'':'RECEBIMENTO PENDENTE · ')+
+        (hasReference?'COMPARATIVO GERENCIAL TABELA CUSTO':'REFERENCIA INDISPONIVEL NA BASE DO COMPARATIVO');
+      T.push([p[0],dateBR.split('/').reverse().join('-'),String(code),description,group,unit,
+        String(localCode),supplier,quantity,cents,priceMicro,positive,negative,signed,null,nf,
+        document,seq,status,classification,p[9]??null,p[7]??null]);
+    }
+    if(newPaid!==784514||T.length!==441||existing.size!==441||received!==21||
+       receivedCents!==667529||pending!==3||pendingCents!==116985||
+       matched!==2||missing!==22||newPositive!==36488||newNegative!==0)
+      throw Error('Remessa de 17/11 nao fechou em quantidade, recebimento e custo total ERP');
+    M.previousPurchasesAudit=M.newPurchasesAudit;
+    M.newPurchasesAudit={...pkg.meta,matchedReference:matched,missingReference:missing,
+      positiveCents:newPositive,negativeCents:newNegative,netCents:newPositive+newNegative,
+      comparisonBasis:'CUSTO_TOTAL_ERP',financialSavingsCertified:false};
+    M.purchaseUpdates={'20261113':M.previousPurchasesAudit,'20261117':M.newPurchasesAudit};
+    M.lastUpdated='17/11/2026';
+    M.localNames={...M.localNames,'10150':'TI · Escritório Central'};
+  }
+  function reconcileComparison(data){
+    const M=data.meta,P=data.products,T=data.purchases,bySku=new Map(P.map(p=>[p[0],p]));
+    const receipts={received:{rows:0,paidCents:0,comparisonCents:0},
+      pending:{rows:0,paidCents:0,comparisonCents:0}};
+    const keys=new Set();
+    M.groups={};
+    for(const p of P){p[14]=0;p[15]=0;p[16]=0}
+    for(const t of T){
+      const key=[t[16],t[17],t[2],t[6]].join('|'),p=bySku.get(t[0]);
+      if(keys.has(key)||!p||!['LANC.RECEB.','NÃO LANC.RECEB.'].includes(t[18]))
+        throw Error('Compra duplicada ou sem status de recebimento verificavel: '+key);
+      keys.add(key);
+      p[14]+=t[11]||0;p[15]+=t[12]||0;p[16]+=t[13]||0;
+      const receipt=receipts[t[18]==='LANC.RECEB.'?'received':'pending'];
+      receipt.rows++;receipt.paidCents+=t[9];receipt.comparisonCents+=t[13]||0;
+      M.groups[t[19]]=(M.groups[t[19]]||0)+1;
+    }
+    M.purchaseLines=T.length;M.purchaseCents=T.reduce((n,t)=>n+t[9],0);
+    M.positiveCents=T.reduce((n,t)=>n+(t[11]||0),0);
+    M.negativeCents=T.reduce((n,t)=>n+(t[12]||0),0);
+    M.netCents=M.positiveCents+M.negativeCents;
+    M.matchedLines=T.filter(t=>Number(bySku.get(t[0])?.[6])>0).length;
+    M.unmatchedLines=T.length-M.matchedLines;
+    M.projectSkus=new Set(T.map(t=>t[0])).size;M.productKeys=P.length;
+    M.receiptSummary=receipts;M.comparisonBasis='CUSTO_TOTAL_ERP';
+    M.latestPurchaseDate=T.reduce((latest,t)=>t[1]>latest?t[1]:latest,'');
+    M.financialSavingsCertified=false;
+    M.referenceCoverage='Referencias disponiveis na base do comparativo; nao e a Tabela Custo integral';
   }
   // Referencia aprovada pelo gestor em 13/11, sem reescrever precos pagos nas NFs.
   // Recalcular apenas comparativos gerenciais que usam o custo de referencia.
@@ -239,7 +335,7 @@
     for(const r of T){
       if(String(r[2])!=='124928'||String(r[5])!=='PC')continue;
       const originalPositive=Number(r[11])||0,originalNegative=Number(r[12])||0;
-      const signed=Math.round((item.custoMicro-Number(r[10]))*Number(r[8])/10000);
+      const signed=comparisonFromTotal(item.custoMicro,r[8],r[9]);
       if(!Number.isSafeInteger(signed))throw Error('Comparativo nao verificavel da correia 124928');
       r[11]=Math.max(0,signed);r[12]=Math.min(0,signed);r[13]=signed;
       r[19]='REFERENCIA GERENCIAL CORRIGIDA · HISTORICO FISCAL PRESERVADO';
@@ -261,19 +357,20 @@
     M.confirmation=(M.confirmation||'')+
       ' Correia 124928: custo de referencia aprovado R$ 7.982,58/PC; notas fiscais originais preservadas.';
   }
-  function show(data){
+  function prepareComparison(data){
     aplicarReferenciasAprovadas(data);
     applyPurchases1011(data);
     applyPurchases1311(data);
     applyApprovedCorreia124928(data);
+    applyPurchases1711(data);
+    reconcileComparison(data);
     const M=data.meta,P=data.products,T=data.purchases;
-    const nov13=M.newPurchasesAudit;
-    const ok=M.schemaVersion===2 && M.projectFrom==='2026-05-07' && P.length>=320 && T.length===417 &&
-      M.purchaseCents===23737560 && nov13?.sourceSHA256==='0fa16fc1f4d6fe7f5a00037e0741bdb802e9d52b173d34f717c10dd923c55ec1' &&
+    const nov13=M.previousPurchasesAudit,nov17=M.newPurchasesAudit;
+    const ok=M.schemaVersion===2 && M.projectFrom==='2026-05-07' && P.length>=320 && T.length===441 &&
+      M.purchaseCents===24522074 && nov13?.sourceSHA256==='0fa16fc1f4d6fe7f5a00037e0741bdb802e9d52b173d34f717c10dd923c55ec1' &&
       M.approvedProductCostCorrections?.['124928']?.referenceMicro===7982580000 &&
-      M.positiveCents===9873764+nov13.positiveCents+M.approvedProductCostCorrections['124928'].positiveDeltaCents &&
-      M.negativeCents===-584605+nov13.negativeCents+M.approvedProductCostCorrections['124928'].negativeDeltaCents &&
-      M.netCents===9289159+nov13.netCents+M.approvedProductCostCorrections['124928'].netDeltaCents &&
+      nov17?.netCents===36488 && nov17.pendingCents===116985 &&
+      M.positiveCents===9926664 && M.negativeCents===-632046 && M.netCents===9294618 &&
       T.reduce((s,r)=>s+(r[9]||0),0)===M.purchaseCents &&
       T.reduce((s,r)=>s+(r[11]||0),0)===M.positiveCents &&
       T.reduce((s,r)=>s+(r[12]||0),0)===M.negativeCents &&
@@ -282,6 +379,11 @@
       P.find(r=>r[1]==='105090')?.[6]===24235000 &&
       M.approvedReferenceCorrections?.['105090']?.correctedPositiveCents===68234;
     if(!ok)throw Error('A base aprovada da Tabela Custo não passou na reconciliação de valores.');
+    return data;
+  }
+  function show(data){
+    prepareComparison(data);
+    const M=data.meta,P=data.products,T=data.purchases;
     const bySku=new Map(P.map(r=>[r[0],r]));
     const farms=new Map();for(const t of T){const k=String(t[6]);const x=farms.get(k)||{code:k,lines:0,paid:0,pos:0,neg:0};x.lines++;x.paid+=t[9];x.pos+=t[11]||0;x.neg+=t[12]||0;farms.set(k,x)}
     const farmList=[...farms.values()].sort((a,b)=>b.pos-a.pos);
@@ -298,8 +400,12 @@
       stat('Saldo comparativo (favoráveis − desfavoráveis)',money(M.netCents),'Resultado líquido do comparativo, não economia contábil'),
       stat('Total comprado no período',money(M.purchaseCents),M.purchaseLines+' compras · '+M.projectSkus+' produtos/unidades'),
       '</div>',
+      '<p class="ct-foot">Recebimento informado pelo ERP: '+intBR.format(M.receiptSummary.received.rows)+
+      ' linhas com recebimento lançado ('+money(M.receiptSummary.received.paidCents)+') e '+
+      intBR.format(M.receiptSummary.pending.rows)+' sem recebimento lançado ('+money(M.receiptSummary.pending.paidCents)+
+      '). Os comparativos históricos permanecem como estimativa gerencial e não representam ganho financeiro comprovado.</p>',
       '<div class="ct-notes"><div class="ct-note"><strong>Referências de eletrodos corrigidas</strong><p><b>Eletrodo 105090, 2,5 mm:</b> maior custo aprovado <b>R$ 24,235/kg</b> (antes R$ 242,35). As duas compras de 390 kg somam R$ 682,34 de diferença favorável, já incluída no total acima.</p><br><strong>Correção aprovada: eletrodo 6013 3,25 mm · 102902</strong><p>O custo gerencial da linha 182 passou de R$ 234,70 para <b>R$ 23,47</b>. O maior custo válido do produto passa a ser <b>R$ 23,85</b> (linha 3242). Os demais preços elevados foram mantidos, exceto o eletrodo 105090 corrigido, conforme sua orientação. <b>'+money(M.approvedExceptionalPositiveCents)+'</b> do indicador favorável provém de seis compras com máximos excepcionais aprovados; esse valor já está incluído no total, não deve ser somado.</p></div>',
-      '<div class="ct-note warn"><strong>Como interpretar esta economia</strong><p>Para cada nota: <b>máximo da Tabela Custo menos preço realmente pago, multiplicado pela quantidade</b>. O preço máximo pode ser de outra data e a Tabela Custo não contém unidade de medida. Portanto, trata-se de comparação gerencial, <b>não economia financeira comprovada</b>. Não somamos esse valor novamente nas transferências.</p></div></div>',
+      '<div class="ct-note warn"><strong>Como interpretar esta economia</strong><p>Para cada nota: <b>maior referência da Tabela Custo × quantidade, menos o custo total registrado no ERP</b>. O total da nota prevalece sobre a multiplicação do preço unitário arredondado. O preço máximo pode ser de outra data e a Tabela Custo não contém unidade de medida. Portanto, trata-se de comparação gerencial, <b>não economia financeira comprovada</b>. Não somamos esse valor novamente nas transferências.</p></div></div>',
       '<h3>Resultado por local de compra</h3>',
       '<div class="ct-breakdown" id="ct-farms"></div>',
       '<details id="ct-details"><summary>Abrir produtos, preços máximo e mínimo e notas de compra</summary><div class="ct-detail-body">',
@@ -315,7 +421,7 @@
       ['Produto','Un.','Menor Tabela Custo','Maior válido','Dif. entre referências','Qtd. comprada','Valor comprado','Ganho favorável','Dif. desfavorável','Saldo do produto'].map(v=>'<th>'+esc(v)+'</th>').join(''),
       '</tr></thead><tbody id="ct-rows"></tbody></table></div>',
       '<div id="ct-proof" class="ct-paper" style="display:none"></div>',
-      '<p class="ct-foot">Fonte: Tabela Custo.xlsx (5.374 registros), compras consolidadas até 09/11 e remessas 10/11 e 13/11; duplicidades removidas, pneus e câmaras fora da economia. Referência gerencial da correia 124928 corrigida para R$ 7.982,58/PC, sem alterar os preços fiscais de compra. Compras sem referência válida não geram economia estimada. Sem referência válida, o ganho é zero. A aba de auditoria mantém valores e datas do ERP, inclusive quando o custo máximo é posterior à compra.</p>',
+      '<p class="ct-foot">Fonte: referências disponíveis da Tabela Custo.xlsx (fonte original com 5.374 registros), compras consolidadas até 09/11 e remessas 10/11, 13/11 e 17/11; duplicidades removidas, pneus e câmaras fora da economia. Referência gerencial da correia 124928 corrigida para R$ 7.982,58/PC, sem alterar os preços fiscais de compra. '+M.unmatchedLines+' compras não têm referência disponível nesta base e não geram ganho estimado. Isso não comprova ausência do produto na Tabela Custo original. A auditoria mantém custos totais, datas e status de recebimento do ERP, inclusive quando o custo máximo é posterior à compra.</p>',
       '</div></details>',
       '<p class="ct-foot">A Tabela Custo original permanece intacta. A correção aprovada afeta apenas a base analítica, e a mesma diferença de negociação não é duplicada no CDI, no consumo próprio ou no estoque.</p>'
     ].join('');
@@ -355,7 +461,7 @@
       el.style.display='block';el.innerHTML='<h4>'+esc(r[1])+' · '+esc(r[2])+'</h4><p><b>Menor custo da Tabela:</b> '+price(r[5])+' &nbsp; <b>Maior custo válido:</b> '+price(r[6])+' &nbsp; <b>Data do maior:</b> '+dBR(r[7])+' &nbsp; <b>Linha Tabela Custo:</b> '+esc(sourceRow??'—')+'</p>'+
        (r[1]==='102902'?'<p>Este produto teve a linha 182 corrigida de R$ 234,70 para R$ 23,47. Máximo válido remanescente: R$ 23,85 (linha 3242).</p>':'')+
         (r[1]==='105090'?'<p>Maior custo gerencial aprovado para o eletrodo 2,5 mm: R$ 24,235/kg (antes R$ 242,35/kg), segundo orientação de 09/11/2026. Valor de referência substitui o máximo original para este comparativo.</p>':'')+
-       '<div class="ct-scroll"><table><thead><tr>'+['Data','NF','NUNOTA / Seq.','Local','Fornecedor','Qtd.','Preço pago','Valor pago','Máximo Tabela','Ganho favorável','Dif. desfavorável','Situação'].map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr></thead><tbody>'+matches.map(t=>'<tr><td>'+dBR(t[1])+'</td><td>'+esc(t[15])+'</td><td>'+esc(t[16])+'/'+esc(t[17])+'</td><td>'+esc(farmName(t[6]))+'</td><td>'+esc(t[7])+'</td><td class="ct-num">'+numberBR.format(t[8])+'</td><td class="ct-num">'+price(t[10])+'</td><td class="ct-num">'+money(t[9])+'</td><td class="ct-num">'+price(r[6])+'</td><td class="ct-num ct-pos">'+money(t[11])+'</td><td class="ct-num ct-neg">'+money(t[12])+'</td><td>'+esc(t[19])+'</td></tr>').join('')+'</tbody></table></div>';
+       '<div class="ct-scroll"><table><thead><tr>'+['Data','NF','NUNOTA / Seq.','Local','Fornecedor','Qtd.','Preço unit. ERP','Custo total ERP','Máximo Tabela','Ganho favorável','Dif. desfavorável','Recebimento ERP','Situação do comparativo'].map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr></thead><tbody>'+matches.map(t=>'<tr><td>'+dBR(t[1])+'</td><td>'+esc(t[15])+'</td><td>'+esc(t[16])+'/'+esc(t[17])+'</td><td>'+esc(farmName(t[6]))+'</td><td>'+esc(t[7])+'</td><td class="ct-num">'+numberBR.format(t[8])+'</td><td class="ct-num">'+price(t[10])+'</td><td class="ct-num">'+money(t[9])+'</td><td class="ct-num">'+price(r[6])+'</td><td class="ct-num ct-pos">'+money(t[11])+'</td><td class="ct-num ct-neg">'+money(t[12])+'</td><td>'+esc(t[18])+'</td><td>'+esc(t[19])+'</td></tr>').join('')+'</tbody></table></div>';
       el.scrollIntoView({block:'nearest',behavior:'smooth'});
     }
     [local,month].forEach(x=>x.addEventListener('change',()=>{updateCascade();render()}));
@@ -365,8 +471,8 @@
     $('ct-rows').addEventListener('click',ev=>{const row=ev.target.closest('[data-sku]');if(row)detail(row.dataset.sku)});
     $('ct-rows').addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){const row=ev.target.closest('[data-sku]');if(row){ev.preventDefault();detail(row.dataset.sku)}}});
     $('ct-export').addEventListener('click',()=>{
-      const header=['Data','Local','Fornecedor','Codigo','Produto','Grupo','Un','NF','NUNOTA','Seq','Quantidade','ValorPagoCentavos','PrecoPagoMicro','MaiorCustoGerencialMicro','LinhaTabela','DataMaiorCusto','FavoravelCentavos','DesfavoravelCentavos','SaldoCentavos','Situacao'];
-      const dataRows=shown.map(t=>{const r=bySku.get(t[0]);return[t[1],farmName(t[6]),t[7],t[2],t[3],t[4],t[5],t[15],t[16],t[17],t[8],t[9],t[10],r?.[6]??'',t[20]??'',t[21]??'',t[11],t[12],t[13],t[19]]});
+      const header=['Data','Local','Fornecedor','Codigo','Produto','Grupo','Un','NF','NUNOTA','Seq','Quantidade','CustoTotalERPCentavos','PrecoUnitarioERPMicro','MaiorCustoGerencialMicro','LinhaTabela','DataMaiorCusto','FavoravelCentavos','DesfavoravelCentavos','SaldoCentavos','StatusRecebimentoERP','SituacaoComparativo'];
+      const dataRows=shown.map(t=>{const r=bySku.get(t[0]);return[t[1],farmName(t[6]),t[7],t[2],t[3],t[4],t[5],t[15],t[16],t[17],t[8],t[9],t[10],r?.[6]??'',t[20]??'',t[21]??'',t[11],t[12],t[13],t[18],t[19]]});
       const quote=v=>{let s=String(v??'');if(/^[=+@\-\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};
       const csv='\uFEFF'+[header,...dataRows].map(r=>r.map(quote).join(';')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='economia_tabela_custo_corrigida_20261109.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),750);
     });

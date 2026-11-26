@@ -149,6 +149,7 @@ class DashboardInjector {
       '<script src="/movement-full-03-20261103.js?v=20261103-1525"></script>' +
       '<script src="/movement-full-04-20261103.js?v=20261103-1525"></script>' +
       '<script src="/movement-reconcile-full-20261103.js?v=20261103-1525"></script>' +
+      '<script src="/cdi-current-stock-policy-20261126.js?v=20261126-current-stock-v1"></script>' +
       (this.pilot ? '' : '<script src="/movement-history-ui-20261103.js?v=20261103-1525"></script>' +
         '<script src="/baixas-consolidadas-20261103.js?v=20261103-1"></script>' +
         '<script src="/stock-min-max-unified-20261103.js?v=20261103-status-column-filter-v8"></script>' +

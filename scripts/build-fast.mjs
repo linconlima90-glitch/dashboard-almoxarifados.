@@ -11,6 +11,7 @@ import { applyRemessa20261117 } from './apply-remessa-20261117.mjs';
 import { applyRemessa20261119 } from './apply-remessa-20261119.mjs';
 import { applyRemessa20261122 } from './apply-remessa-20261122.mjs';
 import { applyStock20261123 } from './apply-stock-20261123.mjs';
+import { applyRemessa20261126 } from './apply-remessa-20261126.mjs';
 
 const root = process.cwd(), input = path.join(root, 'public'), out = path.join(root, 'dist');
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
@@ -120,6 +121,8 @@ const latestAudit=applyRemessa20261122(root,out);
 report.remessa20261122=latestAudit;
 const currentStockAudit=applyStock20261123(root,out);
 report.estoqueAtualizado20261123=currentStockAudit;
+const currentRemessaAudit=applyRemessa20261126(root,out);
+report.remessa20261126=currentRemessaAudit;
 const buyPack=JSON.parse(gunzipSync(Buffer.from(read('data/purchases-changes-20261110.b64').trim(),'base64')).toString('utf8'));
 assert.equal(buyPack.meta.sourceSHA256,'9ed21525bbab94802abd56ddf8260c9706f5b15f4a7295d20577b66b8db75405');
 assert.equal(buyPack.added.length,49);assert.equal(buyPack.reprice.length,2);assert.equal(buyPack.economy.length,28);
