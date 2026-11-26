@@ -33,13 +33,20 @@
       var cdiUnitCost=optionalMoney(r.cdiUnitCost,'cdiUnitCost'),
         alternativePurchasePrice=optionalMoney(r.alternativePurchasePrice,'alternativePurchasePrice'),
         transferCost=optionalMoney(r.transferCost,'transferCost');
+      var hasOriginalValue=Object.prototype.hasOwnProperty.call(r,'sourceValueCents');
+      if(hasOriginalValue&&r.sourceValueCents!=null&&
+        (!Number.isSafeInteger(r.sourceValueCents)||r.sourceValueCents<0))
+        throw Error('Valor ERP original invalido na transferencia '+r.id);
+      // A null source total means unknown. Derive a value only for legacy/manual
+      // rows that do not supply the original ERP field at all.
+      var moved=hasOriginalValue?(r.sourceValueCents??null):
+        cdiUnitCost===null?null:cents(r.quantity,cdiUnitCost);
       var status=r.reviewStatus||'PENDENTE';
       if(status!=='PENDENTE'&&status!=='VALIDADO')throw Error('Situacao invalida na transferencia '+r.id);
-      var comparable=cdiUnitCost!==null&&alternativePurchasePrice!==null&&transferCost!==null;
+      var comparable=moved!==null&&alternativePurchasePrice!==null&&transferCost!==null;
       if(status==='VALIDADO'&&(!comparable||!String(r.evidence||'').trim()))
         throw Error('Economia validada sem comparativo completo e comprovacao: '+r.id);
-      var moved=cdiUnitCost===null?null:cents(r.quantity,cdiUnitCost),
-        alternative=alternativePurchasePrice===null?null:cents(r.quantity,alternativePurchasePrice),
+      var alternative=alternativePurchasePrice===null?null:cents(r.quantity,alternativePurchasePrice),
         diff=comparable?alternative-moved-cents(1,transferCost):null;
       out.push(Object.assign({},r,{
         reviewStatus:status,cdiUnitCost:cdiUnitCost,alternativePurchasePrice:alternativePurchasePrice,
@@ -47,7 +54,21 @@
         validatedCents:status==='VALIDADO'?diff:null
       }));
     }
+    if(source.audit){
+      var coverage=costCoverage(out);
+      for(var field of ['importedRecords','importedValueCents','pricedRecords','unpricedRecords','valueCoverage','latestTransferDate']){
+        if(source.audit[field]!==undefined&&source.audit[field]!==coverage[field])
+          throw Error('Cobertura de custos CDI nao conciliada: '+field);
+      }
+    }
     return out;
+  }
+  function costCoverage(rows){
+    var priced=rows.filter(function(r){return r.movedCents!==null});
+    return {importedRecords:rows.length,importedValueCents:priced.reduce(function(n,r){return n+r.movedCents},0),
+      pricedRecords:priced.length,unpricedRecords:rows.length-priced.length,
+      valueCoverage:priced.length===rows.length?'complete':'partial',
+      latestTransferDate:rows.map(function(r){return r.date}).sort().pop()||null};
   }
   var state={year:'',destination:'',group:'',product:'',query:''},data=[],error='';
   var section=document.createElement('section');
@@ -59,12 +80,13 @@
     '<p>Materiais redistribuídos da Chuá para outras unidades desde 07/05/2026. Valor transferido é movimentação interna; a economia comprovada é apurada separadamente.</p></div>',
     '<span class="cdtr-state" id="cdtr-state">Aguardando planilha</span></div>',
     '<div class="cdtr-metrics"><div><small>Transferências conciliadas</small><strong id="cdtr-count">Aguardando planilha</strong></div>',
-    '<div><small>Valor distribuído · custo ERP</small><strong id="cdtr-value">—</strong></div>',
+    '<div><small id="cdtr-value-label">Valor distribuído · custo ERP</small><strong id="cdtr-value">—</strong></div>',
     '<div><small>Preço de compra alternativo</small><strong id="cdtr-reference">—</strong></div>',
     '<div><small>Economia comprovada por preços</small><strong id="cdtr-confirmed">—</strong></div></div>',
     '<p class="cdtr-foot" id="cdtr-foot">Aguardando histórico de transferências. Os valores atuais de estoque e compras não são alterados.</p>',
     '<details id="cdtr-details"><summary>Consultar transferências, filtros e critério de cálculo <span>›</span></summary>',
-    '<div class="cdtr-detail"><div class="cdtr-method"><b>Critério:</b> economia comparativa = quantidade × (preço de compra alternativo − custo unitário CDI) − custo adicional da transferência. ',
+    '<div class="cdtr-detail"><div class="cdtr-method"><b>Critério:</b> economia comparativa = quantidade × preço de compra alternativo − valor transferido − custo adicional da transferência. ',
+    'O valor transferido utiliza o total original do ERP quando disponível; custos ausentes ficam pendentes. ',
     'Só é validada quando o comparativo e a compra evitada estão documentados. O valor transferido é movimentação interna, não economia realizada. ',
     'Diferenças negativas permanecem negativas e não são omitidas. A partir de 07/05/2026 (inclusive).</div>',
     '<div class="cdtr-filters">',
@@ -158,8 +180,11 @@
     $('#cdtr-group').disabled=!byDest.length;
     $('#cdtr-product').disabled=!byGroup.length;
     $('#cdtr-export').disabled=!rows.length;
-    var approved=rows.filter(function(r){return r.reviewStatus==='VALIDADO'});
+    var approved=rows.filter(function(r){return r.reviewStatus==='VALIDADO'}),
+      coverage=costCoverage(all),shownCoverage=costCoverage(rows);
     $('#cdtr-count').textContent=all.length?integer.format(rows.length):'Aguardando planilha';
+    $('#cdtr-value-label').textContent=shownCoverage.unpricedRecords?
+      'Subtotal conhecido · custo ERP':'Valor distribuído · custo ERP';
     $('#cdtr-value').textContent=currency(sum(rows,'movedCents'));
     $('#cdtr-reference').textContent=currency(sum(rows,'alternativeCents'));
     $('#cdtr-confirmed').textContent=currency(sum(approved,'validatedCents'));
@@ -168,7 +193,10 @@
     stateLabel.classList.toggle('cdtr-ready',!!all.length&&!error);
     $('#cdtr-foot').textContent=error?'Importação não validada: '+error:
       !all.length?'Envie a planilha de transferências do CDI. Nenhuma economia é contabilizada até a conferência dos dados.':
-      integer.format(rows.length)+' linhas exibidas; '+integer.format(approved.length)+' validações econômicas documentadas. Sem alteração de saldos ERP nem duplicação com a economia de compras.';
+      integer.format(rows.length)+' linhas exibidas: '+integer.format(shownCoverage.pricedRecords)+' com custo conhecido e '+
+      integer.format(shownCoverage.unpricedRecords)+' com custo pendente. '+
+      (shownCoverage.unpricedRecords?'O subtotal cobre somente as linhas com custo conhecido. ':'')+
+      integer.format(approved.length)+' validações econômicas documentadas. Sem alteração de saldos ERP nem duplicação com a economia de compras.';
     $('#cdtr-filter-state').textContent=error?'Erro de validação':
       !all.length?'Nenhuma transferência importada ainda.':integer.format(rows.length)+' linhas nos filtros; '+integer.format(rows.filter(function(r){return r.comparisonCents!=null}).length)+' com comparativo completo.';
     $('#cdtr-body').innerHTML=!rows.length?'<tr><td colspan="12" style="padding:20px;text-align:center;color:#6f8273">Aguardando transferências elegíveis desde 07/05/2026.</td></tr>':
@@ -185,6 +213,9 @@
     return {approvalDate:START,rows:all.length,shown:rows.length,validated:all.filter(function(r){return r.reviewStatus==='VALIDADO'}).length,
       status:error?'ERRO':all.length?'REGISTRADO':'AGUARDANDO_PLANILHA',
       movedCents:sum(all,'movedCents'),alternativeCents:sum(all,'alternativeCents'),
+      importedValueCents:coverage.importedValueCents,pricedRecords:coverage.pricedRecords,
+      unpricedRecords:coverage.unpricedRecords,valueCoverage:coverage.valueCoverage,
+      latestTransferDate:coverage.latestTransferDate,shownCoverage:shownCoverage,
       validatedCents:sum(all.filter(function(r){return r.reviewStatus==='VALIDADO'}),'validatedCents'),
       error:error};
   }

@@ -1,5 +1,5 @@
 // Compras para estoque do local 30115 sao compras destinadas a distribuicao.
-// Base auditada enviada em 06/11/2026; nao constitui transferencia nem economia.
+// Fonte e periodo seguem os metadados auditados; compra nao e transferencia nem economia.
 (function(){
   'use strict';
   if(document.documentElement.dataset.cdiDistributionPurchases==='1'||document.documentElement.dataset.dbPilot==='1')return;
@@ -52,7 +52,11 @@
   function check(){
     const sum=a=>a.reduce((t,r)=>t+r[2],0);
     const count=a=>a.reduce((t,r)=>t+r[1],0);
-    if(sum(groups)!==meta.totalCents||sum(months)!==meta.totalCents||
+    if(!Number.isSafeInteger(meta.lines)||meta.lines<1||!Number.isSafeInteger(meta.totalCents)||meta.totalCents<0||
+      meta.from!==START||meta.localCode!==LOCAL||!/^\d{4}-\d{2}-\d{2}$/.test(meta.to)||meta.to<meta.from||
+      groups.length!==meta.groups||new Set(groups.map(r=>r[0])).size!==groups.length||
+      new Set(months.map(r=>r[0])).size!==months.length||
+      sum(groups)!==meta.totalCents||sum(months)!==meta.totalCents||
       count(groups)!==meta.lines||count(months)!==meta.lines||
       meta.receivingStatus['LANC.RECEB.']+meta.receivingStatus['NAO LANC.RECEB.']!==meta.lines)
       throw Error('Totais das compras para distribuicao nao conciliados');
@@ -70,6 +74,7 @@
   const fmtMoney=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
   const fmtInt=new Intl.NumberFormat('pt-BR');
   const money=c=>fmtMoney.format(c/100);
+  const dateBR=d=>String(d).split('-').reverse().join('/');
   const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const htmlRows=a=>a.map(r=>'<tr><td>'+esc(r[0])+'</td><td class="dp-num">'+fmtInt.format(r[1])+'</td><td class="dp-num"><b>'+money(r[2])+'</b></td></tr>').join('');
   const section=document.createElement('section');
@@ -78,7 +83,7 @@
     '<div class="dp-head"><div><span class="dp-kicker">CDI de Peças · desde 07/05/2026</span>',
     '<h2>Compras para distribuição — Local 30115</h2>',
     '<p>Toda compra destinada ao estoque do local 30115 será classificada para distribuição, mesmo quando a empresa compradora for diferente da Fazenda Chua.</p></div>',
-    '<span class="dp-tag">Base de compras conferida</span></div>',
+    '<span class="dp-tag">Compras conferidas até ',esc(dateBR(meta.to)),'</span></div>',
     '<div class="dp-metrics"><div><small>Total comprado para distribuição</small><strong>',money(meta.totalCents),'</strong></div>',
     '<div><small>Itens de compra</small><strong>',fmtInt.format(meta.lines),'</strong></div>',
     '<div><small>Códigos e unidades distintos</small><strong>',fmtInt.format(meta.distinctSkuUnits),'</strong></div>',
@@ -92,9 +97,9 @@
     htmlRows(groups),'</tbody></table></div></div>',
     '<div><h3>Por mês</h3><div class="dp-table"><table><thead><tr><th>Mês</th><th>Linhas</th><th>Total comprado</th></tr></thead><tbody>',
     htmlRows(months.map(([ym,n,v])=>[ym.slice(5)+'/'+ym.slice(0,4),n,v])),'</tbody></table></div></div></div>',
-    '<p class="dp-foot">Fonte: ',esc(meta.source),' · Emitida em ',esc(meta.emission),
-    ' · Compras de 07/05/2026 a 05/11/2026. Os valores por grupo e mês são resumos do arquivo; ',
-    'a conferência linha a linha continuará com a planilha original quando forem enviadas as transferências.</p>',
+    '<p class="dp-foot">Fonte: ',esc(meta.source),' · Base atualizada em ',esc(meta.emission),
+    ' · Compras de ',esc(dateBR(meta.from)),' a ',esc(dateBR(meta.to)),'. ',fmtInt.format(meta.lines),
+    ' lançamentos conciliados por nota, grupo e mês; compras e transferências têm períodos próprios.</p>',
     '</details>'
   ].join('');
   transferPanel.insertAdjacentElement('afterend',section);

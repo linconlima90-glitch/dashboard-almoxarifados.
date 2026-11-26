@@ -13,6 +13,8 @@ import { applyRemessa20261122 } from './apply-remessa-20261122.mjs';
 import { applyStock20261123 } from './apply-stock-20261123.mjs';
 import { applyRemessa20261126 } from './apply-remessa-20261126.mjs';
 import { applyStock20261126 } from './apply-stock-20261126.mjs';
+import { applyCdiTransfers20261126 } from './apply-cdi-transfers-20261126.mjs';
+import { applyCdiAllocation20261126 } from './apply-cdi-allocation-20261126.mjs';
 
 const root = process.cwd(), input = path.join(root, 'public'), out = path.join(root, 'dist');
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
@@ -126,6 +128,8 @@ const currentRemessaAudit=applyRemessa20261126(root,out);
 report.remessa20261126=currentRemessaAudit;
 const latestStockAudit=applyStock20261126(root,out);
 report.estoqueAtualizado20261126=latestStockAudit;
+report.transferencias20261126=applyCdiTransfers20261126(root,out);
+report.atribuicaoCdi20261126=applyCdiAllocation20261126(root,out);
 const buyPack=JSON.parse(gunzipSync(Buffer.from(read('data/purchases-changes-20261110.b64').trim(),'base64')).toString('utf8'));
 assert.equal(buyPack.meta.sourceSHA256,'9ed21525bbab94802abd56ddf8260c9706f5b15f4a7295d20577b66b8db75405');
 assert.equal(buyPack.added.length,49);assert.equal(buyPack.reprice.length,2);assert.equal(buyPack.economy.length,28);
@@ -189,7 +193,9 @@ function localAsset(url) {
     'movement-full-01-20261103.js','movement-full-02-20261103.js',
     'movement-full-03-20261103.js','movement-full-04-20261103.js',
     'movement-reconcile-full-20261103.js','movement-history-ui-20261103.js',
-    'stock-no-withdrawals-tab-20261015.js','sao-joao-no-withdrawals.js','chua-no-withdrawals.js','purchase-update.js']);
+    'stock-no-withdrawals-tab-20261015.js','sao-joao-no-withdrawals.js','chua-no-withdrawals.js','purchase-update.js',
+    'cdi-transfer-data.js','cdi-bulk-audit-data-20261109.js',
+    'cdi-distribution-purchases.js','cdi-distribution-detail-data-20261106.js']);
   return fs.readFileSync((revised.has(pathname.slice(1))||/^\/stock-current-20261103-1558-\d\d\.js$/.test(pathname))?newPath:
     fs.existsSync(originalPath)?originalPath:newPath,'utf8');
 }

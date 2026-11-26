@@ -24,8 +24,8 @@ const ui=document.createElement('div');ui.id='dp-cascade';ui.innerHTML=[
 '<div><h3>Por mês · clique para filtrar</h3><div class="dp-table"><table><thead><tr><th>Mês</th><th>Linhas</th><th>Total</th></tr></thead><tbody id="dp-months"></tbody></table></div></div>',
 '<div><h3>Por grupo · clique para filtrar</h3><div class="dp-table"><table><thead><tr><th>Grupo</th><th>Linhas</th><th>Total</th></tr></thead><tbody id="dp-groups"></tbody></table></div></div></div>',
 '<h3>Produtos comprados · maior valor primeiro</h3><div class="dp-table"><table><thead><tr><th>Produto</th><th>UN</th><th>Linhas</th><th>Total</th></tr></thead><tbody id="dp-products"></tbody></table></div>',
-'<h3>Lançamentos individuais do ERP</h3><div class="dp-table dp-documents"><table><thead><tr><th>Data</th><th>NF</th><th>Produto</th><th>Fornecedor</th><th>Qtd.</th><th>UN</th><th>Preço unit.</th><th>Valor</th><th>Recebimento</th></tr></thead><tbody id="dp-records"></tbody></table></div>',
-'<p class="dp-remark">Compras destinadas à distribuição não representam transferências realizadas nem economia.</p>',
+'<h3>Lançamentos individuais do ERP</h3><div class="dp-table dp-documents"><table><thead><tr><th>Data</th><th>NF</th><th>Produto</th><th>Fornecedor</th><th>Qtd.</th><th>UN</th><th>Custo unit. calculado</th><th>Valor</th><th>Recebimento</th></tr></thead><tbody id="dp-records"></tbody></table></div>',
+'<p class="dp-remark"><span id="dp-purchase-period"></span> Compras destinadas à distribuição não representam transferências realizadas nem economia.</p>',
 '<button type="button" id="dp-export">Exportar compras filtradas CSV</button>'
 ].join('');
 old.insertAdjacentElement('beforebegin',ui);
@@ -108,16 +108,37 @@ async function boot(){
  const json=await new Response(new Blob([decoded]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
  const obj=JSON.parse(json);
  if(obj.v!==1||!obj.d||!Array.isArray(obj.r))throw Error('Formato invalido');
- const d=obj.d;
+ const d=obj.d,meta=source.meta;
+ if(!meta||!Number.isSafeInteger(meta.lines)||meta.lines<1||
+   !Number.isSafeInteger(meta.totalCents)||meta.totalCents<0||
+   !Number.isSafeInteger(meta.distinctSkuUnits)||meta.distinctSkuUnits<1||
+   !/^\d{4}-\d{2}-\d{2}$/.test(meta.from)||!/^\d{4}-\d{2}-\d{2}$/.test(meta.to)||meta.to<meta.from)
+   throw Error('Metadados das compras CDI invalidos');
+ if(!['group','product','unit','supplier','status','buyCompany'].every(k=>Array.isArray(d[k]))||
+   obj.r.some(r=>!Array.isArray(r)||r.length!==15))throw Error('Esquema das compras CDI invalido');
  rows=obj.r.map(r=>({date:String(r[0]),month:String(r[0]).slice(0,4)+'-'+String(r[0]).slice(4,6),
  id:r[1],nf:r[2],seq:r[3],code:String(r[4]),group:d.group[r[5]],product:d.product[r[6]],unit:d.unit[r[7]],
  supplier:d.supplier[r[8]],qty:r[9],unitPrice:r[10]/10000,total:r[11],status:d.status[r[12]],buyer:d.buyCompany[r[13]],line:r[14],
  productKey:String(r[4])+'|'+d.unit[r[7]]}));
- if(rows.length!==256||rows.reduce((s,r)=>s+r.total,0)!==15019467||new Set(rows.map(r=>r.productKey)).size!==208)throw Error('Totais nao conferem');
- if(new Set(rows.map(r=>r.id+'|'+r.seq+'|'+r.code+'|'+r.unit)).size!==256)throw Error('Linhas duplicadas');
+ const from=meta.from.replaceAll('-',''),to=meta.to.replaceAll('-','');
+ if(rows.some(r=>!/^\d{8}$/.test(r.date)||r.date<from||r.date>to||
+   !Number.isFinite(r.qty)||r.qty<=0||!Number.isFinite(r.unitPrice)||r.unitPrice<0||
+   !Number.isSafeInteger(r.total)||r.total<0||
+   [r.id,r.seq,r.code,r.group,r.product,r.unit,r.supplier,r.status,r.buyer].some(v=>v==null||!String(v).trim())))
+   throw Error('Linha de compra CDI invalida');
+ if(rows.length!==meta.lines||rows.reduce((s,r)=>s+r.total,0)!==meta.totalCents||
+   new Set(rows.map(r=>r.productKey)).size!==meta.distinctSkuUnits)throw Error('Totais nao conferem');
+ const uniqueIDs=new Set(rows.map(r=>r.id+'|'+r.seq+'|'+r.code+'|'+r.unit)).size;
+ if(uniqueIDs!==meta.lines||(meta.uniqueIDs!==undefined&&uniqueIDs!==meta.uniqueIDs))throw Error('Linhas duplicadas');
+ if(new Set(source.groups.map(x=>x.name)).size!==source.groups.length||
+   new Set(rows.map(r=>r.group)).size!==source.groups.length||
+   new Set(source.months.map(x=>x.month)).size!==source.months.length||
+   new Set(rows.map(r=>r.month)).size!==source.months.length)throw Error('Grupos ou meses nao conferem');
  for(const x of source.groups){const a=rows.filter(r=>r.group===x.name);if(a.length!==x.lines||a.reduce((s,r)=>s+r.total,0)!==x.valueCents)throw Error('Grupo nao confere: '+x.name)}
  for(const x of source.months){const a=rows.filter(r=>r.month===x.month);if(a.length!==x.lines||a.reduce((s,r)=>s+r.total,0)!==x.valueCents)throw Error('Mes nao confere: '+x.month)}
- source.detailRows=rows;render();source.cascade={getRows:()=>rows.slice(),getState:()=>({...state}),reset:()=>$('#dp-reset').click()};
+ $('#dp-purchase-period').textContent='Compras de '+formatDate(from)+' a '+formatDate(to)+
+   ' · '+fmt.format(meta.lines)+' linhas ERP conciliadas.';
+ source.detailRows=rows;render();source.cascade={ready:true,getRows:()=>rows.slice(),getState:()=>({...state}),reset:()=>$('#dp-reset').click()};
 }
 boot().catch(e=>{ui.innerHTML='<p role="alert">Erro ao conferir dados CDI: '+esc(e.message)+'</p>';old.style.display='grid';if(oldFoot)oldFoot.style.display=''});
 })();

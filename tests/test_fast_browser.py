@@ -28,6 +28,11 @@ WITHDRAWAL_INPUT = json.loads(gzip.decompress(base64.b64decode(
 CURRENT_INPUT = json.loads(gzip.decompress(base64.b64decode(
     (root / 'data/stock-snapshot-20261126.b64').read_text(encoding='utf-8'))))
 CURRENT_STOCK_AUDIT = json.loads((root / 'build-stock-20261126.json').read_text(encoding='utf-8'))
+CDI_ALLOCATION_INPUT = json.loads(gzip.decompress(base64.b64decode(
+    (root / 'data/cdi-allocation-input-20261126.b64').read_text(encoding='utf-8'))))
+EXPECTED_CDI_MAY_PURCHASES = [row for row in CDI_ALLOCATION_INPUT['purchases']
+    if row['date'].startswith('2026-05')]
+EXPECTED_CDI_MAY_CENTS = sum(row['totalCents'] for row in EXPECTED_CDI_MAY_PURCHASES)
 EXPECTED_STOCK_ROWS = len(CURRENT_INPUT['rows'])
 EXPECTED_STOCK_DATE = CURRENT_INPUT['meta']['date']
 EXPECTED_STOCK_ERP = sum(round(row[9] * 100) for row in CURRENT_INPUT['rows']) / 100
@@ -116,7 +121,7 @@ with sync_playwright() as p:
 
 
         if optimized and 'Pilot' not in name:
-            # Modulo CDI sem planilha: nao deve assumir economia, nem alterar outras bases.
+            # O CSV atualiza as transferencias; os 44 custos ausentes permanecem pendentes.
             page.wait_for_function("window.CDI_TRANSFER_CONTROL && document.querySelector('#cdi-transfer-panel')", timeout=20000)
             cdi=page.evaluate("""() => {
               const api=window.CDI_TRANSFER_CONTROL, m=api.summary();
@@ -130,11 +135,20 @@ with sync_playwright() as p:
               try{api.validate({...fixture,transfers:[{...r,date:'2026-05-06'}]})}catch(e){beforeRejected=true}
               try{api.validate({...fixture,transfers:[r,r]})}catch(e){duplicateRejected=true}
               return {m,cost:verified[0].comparisonCents,verified:verified[0].validatedCents,
-                beforeRejected,duplicateRejected,card:document.querySelector('#cdi-transfer-panel #cdtr-count').textContent};
+                missingCost:api.getRows().filter(x=>x.sourceValueCents===null&&x.movedCents===null).length,
+                originalValue:api.getRows().filter(x=>x.sourceValueCents!==null).reduce((n,x)=>n+x.sourceValueCents,0),
+                beforeRejected,duplicateRejected,card:document.querySelector('#cdi-transfer-panel #cdtr-count').textContent,
+                valueLabel:document.querySelector('#cdtr-value-label').textContent,
+                coverageText:document.querySelector('#cdtr-foot').textContent};
             }""")
-            assert cdi['m']['approvalDate']=='2026-05-07' and cdi['m']['rows']==184 and cdi['m']['status']=='REGISTRADO', cdi
+            assert cdi['m']['approvalDate']=='2026-05-07' and cdi['m']['rows']==228 and cdi['m']['status']=='REGISTRADO', cdi
+            assert cdi['m']['pricedRecords']==184 and cdi['m']['unpricedRecords']==44, cdi
+            assert cdi['m']['valueCoverage']=='partial' and cdi['m']['latestTransferDate']=='2026-11-25', cdi
+            assert cdi['m']['movedCents']==cdi['m']['importedValueCents']==cdi['originalValue']==6277990, cdi
+            assert cdi['missingCost']==44 and cdi['m']['validatedCents'] is None, cdi
             assert cdi['cost']==2000 and cdi['verified']==2000 and cdi['beforeRejected'] and cdi['duplicateRejected'], cdi
-            assert cdi['card'].strip()=='184', cdi
+            assert cdi['card'].strip()=='228' and 'Subtotal conhecido' in cdi['valueLabel'], cdi
+            assert '184 com custo conhecido e 44 com custo pendente' in cdi['coverageText'], cdi
             # Todas as compras para estoque do 30115 sao para distribuicao, nao transferencias.
             purchase30115=page.evaluate("""() => {
               const base=window.CDI_DISTRIBUTION_PURCHASES,panel=document.getElementById('cdi-distribution-purchases');
@@ -147,36 +161,94 @@ with sync_playwright() as p:
                 ruleNoBefore:base.qualifies({codigo_local:30115,top:89,data:'06/05/2026'})};
             }""")
             assert purchase30115['meta']['classification']=='COMPRA_PARA_DISTRIBUICAO', purchase30115
-            assert purchase30115['meta']['localCode']=='30115' and purchase30115['meta']['lines']==256, purchase30115
-            assert purchase30115['meta']['totalCents']==15019467 and purchase30115['meta']['distinctSkuUnits']==208, purchase30115
-            assert purchase30115['groups']==14 and purchase30115['sumGroups']==15019467, purchase30115
-            assert purchase30115['sumMonths']==15019467 and purchase30115['hasPanel'], purchase30115
+            assert purchase30115['meta']['localCode']=='30115' and purchase30115['meta']['lines']==270, purchase30115
+            assert purchase30115['meta']['totalCents']==15430869 and purchase30115['meta']['distinctSkuUnits']==218, purchase30115
+            assert purchase30115['meta']['to']=='2026-11-10', purchase30115
+            assert purchase30115['groups']==14 and purchase30115['sumGroups']==15430869, purchase30115
+            assert purchase30115['sumMonths']==15430869 and purchase30115['hasPanel'], purchase30115
             assert purchase30115['ruleYes'] and not purchase30115['ruleNoOtherLocal'], purchase30115
             assert not purchase30115['ruleNoOtherType'] and not purchase30115['ruleNoBefore'], purchase30115
-            # Cascata real baseada nas 256 linhas XLSX (nao somente nos totais agregados).
-            page.wait_for_function("window.CDI_DISTRIBUTION_PURCHASES?.cascade?.getRows()?.length===256", timeout=20000)
+            # Cascata das 270 compras conciliadas, incluindo os custos atuais da fonte.
+            page.wait_for_function("window.CDI_DISTRIBUTION_PURCHASES?.cascade?.ready===true && window.CDI_DISTRIBUTION_PURCHASES.cascade.getRows().length===270", timeout=20000)
             cascade_initial=page.evaluate("""() => {
               const x=window.CDI_DISTRIBUTION_PURCHASES;
               return {rows:x.cascade.getRows().length,summary:x.filteredSummary,months:document.querySelectorAll('#dp-month option').length,
                 groups:document.querySelectorAll('#dp-group option').length,products:document.querySelectorAll('#dp-product option').length,
-                hasDocTable:document.querySelectorAll('#dp-records tr').length===256};
+                hasDocTable:document.querySelectorAll('#dp-records tr').length===270};
             }""")
-            assert cascade_initial['rows']==256 and cascade_initial['summary']['cents']==15019467, cascade_initial
-            assert cascade_initial['months']==8 and cascade_initial['groups']==15 and cascade_initial['products']==209, cascade_initial
+            assert cascade_initial['rows']==270 and cascade_initial['summary']['cents']==15430869, cascade_initial
+            assert cascade_initial['months']==8 and cascade_initial['groups']==15 and cascade_initial['products']==219, cascade_initial
             assert cascade_initial['hasDocTable'], cascade_initial
             page.locator('#dp-month').evaluate("(el)=>{el.value='2026-05';el.dispatchEvent(new Event('change',{bubbles:true}));}")
             month_summary=page.evaluate('window.CDI_DISTRIBUTION_PURCHASES.filteredSummary')
-            assert month_summary['lines']==37 and month_summary['cents']==4001950, month_summary
+            assert month_summary['lines']==len(EXPECTED_CDI_MAY_PURCHASES) and month_summary['cents']==EXPECTED_CDI_MAY_CENTS, month_summary
             first_group=page.locator('#dp-group option').nth(1).get_attribute('value')
             page.locator('#dp-group').evaluate("(el,v)=>{el.value=v;el.dispatchEvent(new Event('change',{bubbles:true}));}", first_group)
             group_summary=page.evaluate('window.CDI_DISTRIBUTION_PURCHASES.filteredSummary')
-            assert group_summary['lines']>0 and group_summary['lines']<=37, group_summary
+            assert group_summary['lines']>0 and group_summary['lines']<=len(EXPECTED_CDI_MAY_PURCHASES), group_summary
             first_product=page.locator('#dp-product option').nth(1).get_attribute('value')
             page.locator('#dp-product').evaluate("(el,v)=>{el.value=v;el.dispatchEvent(new Event('change',{bubbles:true}));}", first_product)
             product_summary=page.evaluate('window.CDI_DISTRIBUTION_PURCHASES.filteredSummary')
             assert product_summary['lines']>0 and product_summary['lines']<=group_summary['lines'], product_summary
             page.locator('#dp-reset').evaluate("(el)=>el.click()")
-            assert page.evaluate('window.CDI_DISTRIBUTION_PURCHASES.filteredSummary.cents')==15019467
+            assert page.evaluate('window.CDI_DISTRIBUTION_PURCHASES.filteredSummary.cents')==15430869
+
+            # A apuracao tem boot assincrono e deve estar pronta, sem aceitar apenas
+            # o painel de erro. Reservas de outras saidas nao viram ganho elegivel.
+            page.wait_for_function("window.DB_CDI_BULK_AUDIT?.ready===true && window.DB_UNIFIED_ECONOMY?.ready===true", timeout=20000)
+            allocation=page.evaluate("""() => {
+              const api=window.DB_CDI_BULK_AUDIT,p=api.data,received=api.getScenario('received');
+              return {version:p.v,rows:api.getRows().length,distribution:p.categories.DISTRIBUICAO,
+                chua:p.categories.CONSUMO_CHUA,losses:p.categories.PERDA_D410,
+                missingERP:p.rows.filter(r=>r.type==='DISTRIBUICAO'&&r.amountERPCents===null).length,
+                gain:p.purchaseGain,overall:p.meta.allPurchaseComparison,
+                eligible:p.rows.filter(r=>r.benefitEligible).reduce((n,r)=>n+(r.allocatedNetCents??0),0),
+                reserved:p.rows.filter(r=>!r.benefitEligible).reduce((n,r)=>n+(r.allocatedNetCents??0),0),
+                receivedDistribution:received.categories.DISTRIBUICAO,
+                receivedPendingLinks:received.rows.flatMap(r=>r.links).filter(l=>l.receipt!=='received').length,
+                certified:p.meta.financialSavingsCertified,noAdditionalSavings:p.meta.noAdditionalSavings,
+                unifiedNet:window.DB_UNIFIED_ECONOMY.summary().net};
+            }""")
+            assert allocation['version']==2 and allocation['rows']==901, allocation
+            distribution=allocation['distribution']
+            assert distribution['events']==228 and distribution['knownERPEvents']==184, allocation
+            assert distribution['missingERPEvents']==allocation['missingERP']==44 and distribution['amountERPCents']==6277990, allocation
+            assert distribution['matchedEvents']==124 and distribution['referenceEvents']==119, allocation
+            assert distribution['allocatedNetCents']==4390993 and allocation['chua']['allocatedNetCents']==179333, allocation
+            assert allocation['losses']['events']==54 and allocation['losses']['benefitEligible'] is False, allocation
+            gain=allocation['gain']
+            assert gain['netCents']==6596317 and gain['allocatedNetCents']+gain['residualNetCents']==gain['netCents'], allocation
+            assert gain['eligibleAllocatedNetCents']==allocation['eligible']==4570326, allocation
+            assert gain['excludedReservedNetCents']==allocation['reserved']==447906, allocation
+            assert allocation['eligible']+allocation['reserved']==gain['allocatedNetCents'], allocation
+            assert allocation['receivedDistribution']['allocatedNetCents']==288211 and allocation['receivedPendingLinks']==0, allocation
+            assert allocation['overall']['netCents']==allocation['unifiedNet']==9294618, allocation
+            assert gain['netCents']+allocation['overall']['directNetCents']==allocation['overall']['netCents'], allocation
+            assert allocation['certified'] is False and allocation['noAdditionalSavings'] is True, allocation
+
+            # Exercise only this panel's details and restore their previous state.
+            allocation_details=page.evaluate("""() => ['eu-audit','cea-details'].map(id=>{
+              const el=document.getElementById(id),previous={id,open:el.open};el.open=true;return previous;
+            })""")
+            try:
+                page.locator('#cea-scenario').evaluate("el=>{el.value='received';el.dispatchEvent(new Event('change',{bubbles:true}));}")
+                assert page.locator('#cea-count').text_content().strip()=='228'
+                assert '2.882,11' in page.locator('#cea-difference').text_content()
+                page.locator('#cea-scenario').evaluate("el=>{el.value='all';el.dispatchEvent(new Event('change',{bubbles:true}));}")
+                assert '43.909,93' in page.locator('#cea-difference').text_content()
+                assert 'Não informado' in page.locator('#cea-rows').text_content()
+                with page.expect_download() as allocation_download:
+                    page.locator('#cea-export').evaluate('el=>el.click()')
+                with Path(allocation_download.value.path()).open(encoding='utf-8-sig',newline='') as handle:
+                    allocation_csv=list(csv.DictReader(handle,delimiter=';'))
+                assert len(allocation_csv)==228, len(allocation_csv)
+                missing_cost_csv=[r for r in allocation_csv if r['Custo saida ERP centavos']=='']
+                assert len(missing_cost_csv)==44 and all(r['Seq saida']=='' for r in missing_cost_csv), missing_cost_csv
+                assert sum(int(r['Custo saida ERP centavos']) for r in allocation_csv if r['Custo saida ERP centavos'])==6277990
+                assert all(r['Elegivel utilizacao']=='SIM' and r['Cenario']=='all' for r in allocation_csv)
+            finally:
+                page.locator('#cea-scenario').evaluate("el=>{el.value='all';el.dispatchEvent(new Event('change',{bubbles:true}));}")
+                page.evaluate("states=>states.forEach(s=>{document.getElementById(s.id).open=s.open;})", allocation_details)
 
 
 

@@ -28,7 +28,7 @@
     '<header class="eu-heading"><div><span class="eu-kicker">GESTÃO DE ALMOXARIFADOS / VISÃO CONSOLIDADA</span>',
     '<h2 id="eu-title">Economias e reaproveitamento de materiais</h2>',
     '<p>Uma única visão do projeto aprovado em <b>07/05/2026</b>, com resultados de compras, CDI e realocações sem somar duas vezes o mesmo benefício.</p></div>',
-    '<span class="eu-asof" title="A remessa indica a atualização da base; as compras mantêm suas datas no ERP.">Datas das compras não disponíveis</span></header>',
+    '<span class="eu-asof" title="Compras e transferências mantêm suas próprias datas no ERP.">Datas das bases não disponíveis</span></header>',
     '<div class="eu-filter-row">',
     '<label>Ano<select id="eu-year"><option value="">Todos os anos</option></select></label>',
     '<label>Local da compra / destino<select id="eu-local"><option value="">Todas as unidades</option></select></label>',
@@ -65,7 +65,7 @@
     '#db-economia-unificada h3{font-size:15px;margin:0 0 6px;color:#205339;font-weight:900}',
     '#db-economia-unificada p{font-size:11px;line-height:1.55;color:#647c6a;margin:0}',
     '#db-economia-unificada .eu-asof{border:1px solid #d5e6d9;border-radius:20px;padding:8px 11px;',
-    'font-size:10px;font-weight:800;color:#50765d;white-space:nowrap}',
+    'font-size:10px;font-weight:800;color:#50765d;white-space:normal;max-width:320px;line-height:1.5}',
     '#db-economia-unificada .eu-filter-row{display:grid;grid-template-columns:.7fr 1.3fr 1.05fr 1.25fr 1.3fr auto;',
     'align-items:end;gap:8px;background:#f7faf7;border:1px solid #e3eee6;padding:12px;border-radius:11px;margin:0 0 14px}',
     '#db-economia-unificada label{min-width:0;font-weight:800;font-size:10px;color:#567560}',
@@ -166,6 +166,23 @@
     select.value=values.some(x=>x.value===keep)?keep:'';
     return select.value;
   }
+  function transferCoverage(rows){
+    const priced=rows.filter(r=>r.sourceValueCents!=null);
+    if(priced.some(r=>!Number.isSafeInteger(r.sourceValueCents)||r.sourceValueCents<0))
+      throw Error('Valor ERP original inválido nas transferências CDI');
+    return {importedRecords:rows.length,importedValueCents:priced.reduce((n,r)=>n+r.sourceValueCents,0),
+      pricedRecords:priced.length,unpricedRecords:rows.length-priced.length,
+      valueCoverage:priced.length===rows.length?'complete':'partial',
+      latestTransferDate:rows.map(r=>String(r.date)).sort().pop()||null};
+  }
+  function filteredTransfers(){
+    return transferRows.filter(r=>
+      (!state.year||String(r.date).slice(0,4)===state.year) &&
+      (!state.local||String(r.destinationLocal)===state.local) &&
+      (!state.group||String(r.group||'')===state.group) &&
+      (!state.product||String(r.code)===state.product) &&
+      (!state.query||normal([r.code,r.product,r.group,r.document,r.destination].join(' ')).includes(normal(state.query))));
+  }
   function prepare(){
     const api=window.DB_APPROVED_COST_COMPARISON;
     const reuse=window.DB_REALLOCATION_REUSE;
@@ -207,15 +224,23 @@
       throw Error('Reaproveitamento não reconciliado ou transferência duplicada');
     }
     transferRows=cdi.transfers || [];
-    if (transferRows.length!==cdi.audit.importedRecords ||
-        transferRows.reduce((n,r)=>n+(Number(r.sourceValueCents)||0),0)!==cdi.audit.importedValueCents ||
-        transferRows.some(r=>String(r.destinationLocal)==='10551')) {
+    const coverage=transferCoverage(transferRows),audit=cdi.audit||{};
+    if (transferRows.length!==audit.importedRecords ||
+        coverage.importedValueCents!==audit.importedValueCents ||
+        transferRows.some(r=>!r.id||String(r.destinationLocal)==='10551'||
+          !/^\d{4}-\d{2}-\d{2}$/.test(String(r.date))||r.date<'2026-05-07') ||
+        new Set(transferRows.map(r=>String(r.id))).size!==transferRows.length) {
       throw Error('Movimentações CDI não conciliadas');
+    }
+    for(const field of ['pricedRecords','unpricedRecords','valueCoverage','latestTransferDate']){
+      if(audit[field]!==undefined&&audit[field]!==coverage[field])
+        throw Error('Cobertura de custos CDI não conciliada: '+field);
     }
     const remessa=/^\d{2}\/\d{2}\/\d{4}$/.test(String(meta.lastUpdated||''))?meta.lastUpdated:null;
     const ultimaCompra=purchases.map(r=>r.date).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort().pop();
-    panel.querySelector('.eu-asof').textContent='Remessa: '+(remessa||'data não informada')+
-      ' · Compras até '+(ultimaCompra?dateBR(ultimaCompra):'data não informada');
+    panel.querySelector('.eu-asof').textContent='Remessa de compras: '+(remessa||'data não informada')+
+      ' · Compras até '+(ultimaCompra?dateBR(ultimaCompra):'data não informada')+
+      ' · Transferências até '+(coverage.latestTransferDate?dateBR(coverage.latestTransferDate):'data não informada');
     all=purchases.concat(reused);ready=true;return true;
   }
   function source(){
@@ -273,17 +298,15 @@
       bar('cdi',values.cdi,integerBR.format(data.cdi.length)+' linhas do local 30115 · compra reconhecida uma única vez',max),
       bar('reuse',values.reuse,integerBR.format(data.reuse.length)+' realocações · compra potencialmente evitada, não homologada',max)
     ].join('');
-    const isFull=!state.year&&!state.local&&!state.group&&!state.product&&!state.query;
-    const moved = isFull ? transferRows : transferRows.filter(r=>
-      (!state.year||String(r.date).slice(0,4)===state.year) &&
-      (!state.local||String(r.destinationLocal)===state.local) &&
-      (!state.product||String(r.code)===state.product) &&
-      (!state.query||normal([r.code,r.product,r.document,r.destination].join(' ')).includes(normal(state.query))));
-    const movedCents=moved.reduce((n,r)=>n+(Number(r.sourceValueCents)||0),0);
+    const moved=filteredTransfers(),coverage=transferCoverage(moved);
+    const movementText=integerBR.format(moved.length)+' transferências CDI nos filtros: '+
+      integerBR.format(coverage.pricedRecords)+' com custo ERP conhecido e '+
+      integerBR.format(coverage.unpricedRecords)+' com custo pendente. '+
+      (coverage.pricedRecords?(coverage.unpricedRecords?'Subtotal conhecido':'Valor distribuído')+
+        ': <b>'+money(coverage.importedValueCents)+'</b>. ':'Nenhum custo ERP informado neste recorte. ');
     $('eu-method').innerHTML='No comparativo de compras, <b>'+money(data.positive)+'</b> favoráveis '+
       'e <b>'+money(data.negative)+'</b> desfavoráveis formam o saldo de <b>'+money(data.net)+'</b>. '+
-      'As '+integerBR.format(moved.length)+' transferências CDI representam <b>'+money(movedCents)+'</b> em custo ERP '+
-      '(não entram como nova economia). Reaproveitamento de <b>'+money(values.reuse)+'</b> corresponde a compra '+
+      movementText+'As transferências não entram como nova economia. Reaproveitamento de <b>'+money(values.reuse)+'</b> corresponde a compra '+
       'potencialmente evitada, <b>fora do saldo de preços</b>. As duas bases não constituem economia financeira homologada.';
   }
   function csvExport(rows) {
@@ -355,7 +378,8 @@
     window.DB_UNIFIED_ECONOMY={
       ready:true,projectFrom:'2026-05-07',summary:()=>summary(all),
       filteredSummary:()=>summary(all.filter(match)),getPurchases:()=>purchases.slice(),
-      getReuse:()=>reused.slice()
+      getReuse:()=>reused.slice(),getTransfers:()=>transferRows.slice(),
+      transferSummary:()=>transferCoverage(transferRows),filteredTransferSummary:()=>transferCoverage(filteredTransfers())
     };
   }
   panel.addEventListener('click',e=>{
