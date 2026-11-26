@@ -372,6 +372,102 @@
     if(sameUnit)return Math.max(0,n(sameUnit.value));
     return Math.max(0,...records.map(x=>n(x.value)));
   }
+
+  // Grafico sob demanda: mesmas baixas mensais da reposicao; nunca somar
+  // quantidades de unidades de medida diferentes ou de outros almoxarifados.
+  const monthlyNames=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  function monthlyHistory(item){
+    const annual=item.network
+      ?(typeof CDI_NETWORK_YEARLY==='undefined'?[]:CDI_NETWORK_YEARLY)
+      :(typeof MOVEMENTS_YEARLY==='undefined'?[]:MOVEMENTS_YEARLY);
+    const byUnit=new Map();
+    for(const x of annual){
+      const year=Number(x.year);
+      if(year!==2025&&year!==2026)continue;
+      const code=item.network?str(x.k??x.codigo):str(x.codigo);
+      if(code!==str(item.codigo)||(!item.network&&str(x.codigo_local)!==str(item.codigo_local)))continue;
+      const un=norm(x.un)||'UN NÃO INFORMADA';
+      if(!byUnit.has(un))byUnit.set(un,{un,months:{2025:Array(12).fill(0),2026:Array(12).fill(0)}});
+      const values=byUnit.get(un).months[year];
+      for(let month=0;month<12;month++)values[month]+=n(x.months?.[month]);
+    }
+    return [...byUnit.values()].sort((a,b)=>
+      (a.un===norm(item.un)?-1:0)-(b.un===norm(item.un)?-1:0)||
+      a.un.localeCompare(b.un,'pt-BR'));
+  }
+  function monthlyChartHtml(item){
+    const rows=monthlyHistory(item);
+    const years=config.year?[Number(config.year)]:[2025,2026];
+    const dateParts=str(window.CURRENT_STOCK_META?.emissao).match(/^\d{1,2}\/(\d{1,2})\/(\d{4})/);
+    const stockMonth=dateParts?Number(dateParts[1]):11;
+    const stockYear=dateParts?Number(dateParts[2]):2026;
+    const endMonth=year=>year===stockYear?Math.min(12,stockMonth):(year<stockYear?12:0);
+    const hasPartial=years.includes(stockYear)&&endMonth(stockYear)>0;
+    const intro='<div class="dbmx-monthly-context">Almoxarifado: <b>'+esc(item.local)+
+      '</b> · Código: <b>'+esc(item.codigo)+'</b> · Período do filtro: <b>'+
+      esc(config.year||'2025 + 2026')+'</b></div>'+
+      '<p class="dbmx-monthly-note">Cada barra representa as baixas do produto naquele mês. '+
+      'Os meses sem baixa aparecem zerados. Transferências não são somadas ao consumo. '+
+      'As unidades são exibidas separadamente, quando diferentes. '+
+      (hasPartial?'O mês mais recente está em andamento e <b>não entra na média de reposição</b>. ':'')+
+      '</p>';
+    if(!rows.length)return intro+
+      '<p class="dbmx-monthly-empty">Não há baixas mensais identificadas para este produto neste '+
+      (item.network?'recorte da rede.':'almoxarifado.')+'</p>';
+    return intro+rows.map(series=>{
+      const max=Math.max(0,...years.flatMap(year=>series.months[year].slice(0,endMonth(year)).map(Math.abs)));
+      const total=years.reduce((sum,year)=>sum+
+        series.months[year].slice(0,endMonth(year)).reduce((a,b)=>a+b,0),0);
+      const blocks=years.map(year=>{
+        const count=endMonth(year);
+        const bars=series.months[year].slice(0,count).map((amount,index)=>{
+          const isPartial=year===stockYear&&index===count-1;
+          const height=max?Math.max(amount?4:0,Math.round(Math.abs(amount)/max*142)):0;
+          const label=monthlyNames[index]+' '+year+': '+qty(amount)+' '+series.un+
+            (isPartial?' (mês parcial)':'');
+          return '<div class="dbmx-monthly-month" data-month="'+(index+1)+'" data-value="'+amount+
+            '" aria-label="'+esc(label)+'" title="'+esc(label)+'">'+
+            '<span class="dbmx-monthly-amount">'+(amount?esc(qty(amount)):'0')+'</span>'+
+            '<div class="dbmx-monthly-bar-zone"><span class="dbmx-monthly-bar'+
+              (!amount?' is-zero':amount<0?' is-negative':'')+
+              (isPartial?' is-partial':'')+'" style="height:'+height+'px"></span></div>'+
+            '<span class="dbmx-monthly-month-label">'+monthlyNames[index]+
+            (isPartial?'*':'')+'</span></div>';
+        }).join('');
+        return '<section class="dbmx-monthly-year" data-year="'+year+'">'+
+          '<h4>'+year+'</h4><div class="dbmx-monthly-horizontal">'+
+          '<div class="dbmx-monthly-bars" role="group" aria-label="Consumo mensal de '+year+
+            ', unidade '+esc(series.un)+'">'+bars+'</div></div></section>';
+      }).join('');
+      return '<section class="dbmx-monthly-unit" data-unit="'+esc(series.un)+'">'+
+        '<h3>Baixas em '+esc(series.un)+' <small>Total exibido: '+esc(qty(total))+' '+esc(series.un)+'</small></h3>'+
+        blocks+'</section>';
+    }).join('')+(hasPartial?
+      '<p class="dbmx-monthly-footnote">* Mês parcial. O estoque mínimo continua calculado '+
+      'com meses completos até outubro de 2026.</p>':'');
+  }
+  let lastMonthlyTrigger=null;
+  function openMonthlyChart(item,trigger){
+    let dialog=document.getElementById('dbmx-monthly-dialog');
+    if(!dialog){
+      dialog=document.createElement('dialog');
+      dialog.id='dbmx-monthly-dialog';dialog.className='dbmx-monthly-dialog';
+      dialog.setAttribute('aria-labelledby','dbmx-monthly-title');
+      dialog.addEventListener('click',e=>{
+        if(e.target.closest('[data-dbmx-monthly-close]')||e.target===dialog)dialog.close();
+      });
+      dialog.addEventListener('close',()=>lastMonthlyTrigger?.focus());
+      document.body.appendChild(dialog);
+    }
+    dialog.innerHTML='<div class="dbmx-monthly-head"><div><span>HISTÓRICO DE BAIXAS</span>'+
+      '<h2 id="dbmx-monthly-title">'+esc(item.produto)+'</h2></div>'+
+      '<button type="button" data-dbmx-monthly-close aria-label="Fechar gráfico mensal">Fechar ×</button></div>'+
+      '<div class="dbmx-monthly-content">'+monthlyChartHtml(item)+'</div>';
+    lastMonthlyTrigger=trigger;
+    if(typeof dialog.showModal==='function')dialog.showModal();
+    else dialog.setAttribute('open','');
+  }
+
   function itemTable(rows){
     const sorted=rows.slice().sort((a,b)=>
       (config.tableSort==='withdrawals'
@@ -417,9 +513,14 @@
         return '<tr class="dbmx-state-'+kind+'" data-dbmx-situation="'+esc(x.condition)+
           '" data-dbmx-color="'+kind+'" data-dbmx-provisional="'+(x.provisionalExcess?'true':'false')+
           '" data-dbmx-withdrawal-sort="'+withdrawalSortQuantity(x)+
-           '" data-dbmx-replenishment-sort="'+x.purchaseValue+'">'+
+           '" data-dbmx-replenishment-sort="'+x.purchaseValue+
+          '" data-dbmx-code="'+esc(x.codigo)+
+          '" data-dbmx-local-code="'+esc(x.codigo_local)+
+          '" data-dbmx-un="'+esc(x.un)+
+          '" data-dbmx-product="'+esc(x.produto)+
+          '" data-dbmx-network="'+(x.network?'true':'false')+'">'+
           cell('Código',esc(x.codigo),'dbmx-code')+
-          cell('Produto',esc(x.produto),'dbmx-product')+
+          cell('Produto','<button type="button" class="dbmx-product-chart" title="Ver gráfico mensal de baixas" aria-label="Ver gráfico mensal de baixas de '+esc(x.produto)+'">'+esc(x.produto)+'</button>','dbmx-product')+
           cell('UN',esc(x.un))+
           cell('Qtd. baixada no período',esc(withdrawalText(x.withdrawals)),'num dbmx-withdrawn-cell',
             ' data-dbmx-withdrawn="'+esc(JSON.stringify(x.withdrawals))+'"')+
@@ -495,6 +596,14 @@
         clearTimeout(timer);timer=setTimeout(()=>render('search'),160);
       });
       panel.addEventListener('click',e=>{
+        const product=e.target.closest('button.dbmx-product-chart');
+        if(product){
+          const tr=product.closest('tr');
+          if(tr)openMonthlyChart({codigo:tr.dataset.dbmxCode,codigo_local:tr.dataset.dbmxLocalCode,
+            un:tr.dataset.dbmxUn,produto:tr.dataset.dbmxProduct,local:config.local,
+            network:tr.dataset.dbmxNetwork==='true'},product);
+          return;
+        }
         const local=e.target.closest('button[data-dbmx-local]');
         if(local){config.local=config.local===local.dataset.dbmxLocal?'':local.dataset.dbmxLocal;config.group='';config.tableStatus='all';render();return;}
         const group=e.target.closest('button[data-dbmx-group]');
@@ -670,6 +779,35 @@
         '#db-stock-maximum .dbmx-scroll th.dbmx-status-filter-th{vertical-align:middle}',
         '#db-stock-maximum .dbmx-scroll th #dbmx-table-status{box-sizing:border-box;display:block;min-width:0;width:100%;max-width:100%;min-height:25px!important;margin:6px 0 0;padding:2px 3px!important;border-radius:5px;border:1px solid #a7cfb6;background:#fff;color:var(--db-green-deep,#0d4726);font-size:10px;font-weight:750;line-height:1.3;cursor:pointer}',
         '#db-stock-maximum .dbmx-scroll th #dbmx-table-status:focus-visible{outline:2px solid var(--db-yellow,#faca04);outline-offset:1px}',
+        '#db-stock-maximum .dbmx-product-chart{display:inline;background:transparent;border:0;padding:2px 0;text-align:left;color:var(--db-green-deep,#0d4726);font:inherit;font-weight:800;line-height:1.4;text-decoration:underline;text-decoration-color:#a4cdb5;text-underline-offset:3px;cursor:pointer}',
+        '#db-stock-maximum .dbmx-product-chart:hover{color:#167b41;text-decoration-color:#167b41}',
+        '#db-stock-maximum .dbmx-product-chart:focus-visible{outline:2px solid var(--db-yellow,#faca04);outline-offset:2px;border-radius:2px}',
+        '.dbmx-monthly-dialog{box-sizing:border-box;width:min(850px,calc(100vw - 24px));max-width:none;max-height:calc(100dvh - 32px);margin:auto;padding:0;border:1px solid #bddec8;border-radius:14px;background:#fff;color:#174e30;box-shadow:0 20px 60px rgba(0,0,0,.22);overflow:auto}',
+        '.dbmx-monthly-dialog::backdrop{background:rgba(8,39,24,.65)}',
+        '.dbmx-monthly-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:17px 22px;border-bottom:3px solid #faca04;background:#0d542e;color:#fff}',
+        '.dbmx-monthly-head span{font-size:10px;font-weight:800;letter-spacing:.08em;color:#d8ebde}',
+        '.dbmx-monthly-head h2{margin:6px 0 0;font-size:20px;line-height:1.35;color:#fff}',
+        '.dbmx-monthly-head button{flex:none;padding:7px 12px;border:1px solid #b3d2bf;border-radius:7px;background:#fff;color:#114e2c;font-size:12px;font-weight:750;cursor:pointer}',
+        '.dbmx-monthly-content{padding:18px 22px 24px}',
+        '.dbmx-monthly-context{margin-bottom:10px;font-size:12px;line-height:1.6}',
+        '.dbmx-monthly-note,.dbmx-monthly-footnote{font-size:11px;line-height:1.65;color:#536d5d}',
+        '.dbmx-monthly-empty{padding:20px;border:1px dashed #bdd5c5;border-radius:8px;font-size:13px}',
+        '.dbmx-monthly-unit{margin:22px 0 0;border-top:1px solid #e0ebe4;padding-top:13px}',
+        '.dbmx-monthly-unit h3{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;margin:0 0 16px;font-size:15px}',
+        '.dbmx-monthly-unit h3 small{font-size:12px;font-weight:650;color:#526d5e}',
+        '.dbmx-monthly-year{margin:0 0 20px}',
+        '.dbmx-monthly-year h4{margin:0 0 8px;font-size:13px;color:#124d2c}',
+        '.dbmx-monthly-horizontal{width:100%;overflow-x:auto;padding:2px 0 8px}',
+        '.dbmx-monthly-bars{display:grid;grid-template-columns:repeat(12,minmax(44px,1fr));gap:8px;align-items:end;min-width:600px;border-bottom:2px solid #d7e6dc;background:repeating-linear-gradient(to top,#eef4ef 0,#eef4ef 1px,transparent 1px,transparent 40px)}',
+        '.dbmx-monthly-month{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;min-width:0;text-align:center}',
+        '.dbmx-monthly-amount{font-size:10px;font-weight:750;white-space:nowrap;color:#214b33}',
+        '.dbmx-monthly-bar-zone{height:145px;width:70%;display:flex;align-items:flex-end;justify-content:center}',
+        '.dbmx-monthly-bar{display:block;width:100%;min-height:0;border-radius:5px 5px 0 0;background:#188049}',
+        '.dbmx-monthly-bar.is-zero{height:2px!important;background:#c4d8ca}',
+        '.dbmx-monthly-bar.is-negative{background:#c36c3b}',
+        '.dbmx-monthly-bar.is-partial{background:#d9aa17}',
+        '.dbmx-monthly-month-label{font-size:11px;padding:6px 0;color:#365743;font-weight:700}',
+        '@media(max-width:600px){.dbmx-monthly-head{padding:13px 14px}.dbmx-monthly-head h2{font-size:16px}.dbmx-monthly-content{padding:12px}.dbmx-monthly-bars{gap:5px}}',
         '#db-stock-maximum .dbmx-filter-count{font-weight:700;color:var(--db-green-dark,#125c31)}',
         '#db-stock-maximum .dbmx-filter-empty{margin:9px 0 0;padding:9px 10px;border:1px solid var(--db-line,#d8e4dc);background:#fff;font-size:11px;color:var(--db-muted,#67716b)}',
         '@media(max-width:1320px){#db-stock-maximum .dbmx-scroll th{font-size:9px;padding:6px 2px}#db-stock-maximum .dbmx-scroll td{font-size:10px;padding:6px 2px}}',
