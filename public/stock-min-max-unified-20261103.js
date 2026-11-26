@@ -423,14 +423,14 @@
           const height=max?Math.max(amount?4:0,Math.round(Math.abs(amount)/max*142)):0;
           const label=monthlyNames[index]+' '+year+': '+qty(amount)+' '+series.un+
             (isPartial?' (mês parcial)':'');
-          return '<div class="dbmx-monthly-month" data-month="'+(index+1)+'" data-value="'+amount+
+          return '<button type="button" class="dbmx-monthly-month" data-year="'+year+'" data-month="'+(index+1)+'" data-value="'+amount+'" data-unit="'+esc(series.un)+'" aria-label="'+esc('Ver centros de resultado de '+monthlyNames[index]+' '+year+', '+qty(amount)+' '+series.un)+'" title="Clique para conferir os centros de resultado"+
             '" aria-label="'+esc(label)+'" title="'+esc(label)+'">'+
             '<span class="dbmx-monthly-amount">'+(amount?esc(qty(amount)):'0')+'</span>'+
             '<div class="dbmx-monthly-bar-zone"><span class="dbmx-monthly-bar'+
               (!amount?' is-zero':amount<0?' is-negative':'')+
               (isPartial?' is-partial':'')+'" style="height:'+height+'px"></span></div>'+
             '<span class="dbmx-monthly-month-label">'+monthlyNames[index]+
-            (isPartial?'*':'')+'</span></div>';
+            (isPartial?'*':'')+'</span></button>';
         }).join('');
         return '<section class="dbmx-monthly-year" data-year="'+year+'">'+
           '<h4>'+year+'</h4><div class="dbmx-monthly-horizontal">'+
@@ -442,6 +442,79 @@
         blocks+'</section>';
     }).join('');
   }
+
+  // Drilldown por centro de resultado: os totais do grafico sempre vem da base
+  // consolidada, e o detalhamento apenas da origem que contem o destino real.
+  let monthlySelection=null;
+  function resultCenterHtml(item,year,month,un,total){
+    const data=window.DB_RESULT_CENTER_DATA;
+    const monthLabel=monthlyNames[month-1]+' / '+year;
+    const title='<h3>Destinação das baixas · '+esc(monthLabel)+'</h3>'+
+      '<p class="dbmx-center-caption">Produto '+esc(item.codigo)+' · '+esc(item.produto)+
+      ' · total do gráfico: <b>'+esc(qty(total))+' '+esc(un)+'</b>.</p>';
+    if(!total)return title+'<p class="dbmx-center-empty">Não há baixas registradas neste mês para esta unidade.</p>';
+    if(!data||!Array.isArray(data.rows)||!Array.isArray(data.centers))
+      return title+'<p class="dbmx-center-empty">O histórico mensal disponível não informa o centro de resultado.'+
+      ' O detalhamento poderá ser exibido após a conciliação de uma planilha de baixas '+
+      'que contenha esse campo. Não atribuímos o consumo a um centro sem comprovação.</p>';
+    const monthKey=String(year)+'-'+String(month).padStart(2,'0');
+    const mapped=new Map();
+    for(const row of data.rows){
+      const [m,loc,code,unit,centerId,amount]=row;
+      if(monthKey!==('2026-'+String(m).padStart(2,'0'))||str(code)!==str(item.codigo)||
+         norm(unit)!==norm(un)||(!item.network&&str(loc)!==str(item.codigo_local)))continue;
+      const center=str(data.centers[centerId]||'CENTRO NÃO INFORMADO');
+      const k=(item.network?str(loc)+'|':'')+center;
+      const old=mapped.get(k)||{local:str(loc),center,qty:0};
+      old.qty+=n(amount);mapped.set(k,old);
+    }
+    const found=[...mapped.values()].sort((a,b)=>b.qty-a.qty||
+      a.center.localeCompare(b.center,'pt-BR'));
+    const covered=found.reduce((sum,x)=>sum+x.qty,0);
+    const from=str(data.from||'').slice(0,7),to=str(data.to||'').slice(0,7);
+    const eligible=year===2026&&monthKey>=from&&monthKey<=to;
+    if(!found.length){
+      return title+'<p class="dbmx-center-empty">'+(eligible?
+        'Nenhuma baixa com centro de resultado foi localizada nesta fonte parcial. ':
+        'Este mês não está coberto pela fonte de centros de resultado carregada. ')+
+        'O total do gráfico permanece válido, mas o destino ainda não está comprovado.</p>'+
+        '<p class="dbmx-center-source">Cobertura da fonte: '+esc(data.from||'não informada')+
+        ' a '+esc(data.to||'não informada')+'.</p>';
+    }
+    const delta=total-covered,matched=Math.abs(delta)<=Math.max(.01,Math.abs(total)*.00001);
+    const status=matched?'Quantidades coincidem no mês e na unidade selecionados.':
+      'A fonte cobre '+qty(covered)+' '+esc(un)+' dos '+qty(total)+
+        ' '+esc(un)+' exibidos. Diferença de '+qty(Math.abs(delta))+
+        ' '+esc(un)+' '+(delta>=0?'sem centro de resultado confirmado.':'em excesso na fonte, requer conciliação.');
+    return title+
+      '<div class="dbmx-center-coverage '+(matched?'is-matched':'is-partial')+'">'+status+
+      ' A fonte de centros é parcial e não altera a reposição.</div>'+
+      '<div class="dbmx-center-scroll"><table><thead><tr><th>Centro de resultado</th>'+
+      (item.network?'<th>Local de origem</th>':'')+
+      '<th>Quantidade baixada</th><th>% identificado</th></tr></thead><tbody>'+
+      found.map(x=>'<tr><td>'+esc(x.center)+'</td>'+
+        (item.network?'<td>'+esc(x.local)+'</td>':'')+
+        '<td class="num">'+qty(x.qty)+' '+esc(un)+'</td>'+
+        '<td class="num">'+(covered>0?qty(100*x.qty/covered):'0')+'%</td></tr>').join('')+
+      '</tbody></table></div>'+
+      '<p class="dbmx-center-source">Fonte: '+esc(data.source||'relatório de baixas do ERP')+
+      ' · período disponível: '+esc(data.from||'')+' a '+esc(data.to||'')+
+      '. Os percentuais referem-se apenas às baixas identificadas nessa fonte.</p>';
+  }
+  function showResultCenters(dialog,monthButton){
+    if(!monthlySelection)return;
+    const year=Number(monthButton.dataset.year),month=Number(monthButton.dataset.month);
+    const un=str(monthButton.dataset.unit);
+    const total=n(monthButton.dataset.value);
+    const area=dialog.querySelector('#dbmx-result-centers');
+    if(!area)return;
+    area.innerHTML=resultCenterHtml(monthlySelection,year,month,un,total);
+    dialog.querySelectorAll('.dbmx-monthly-month').forEach(b=>
+      b.setAttribute('aria-pressed',b===monthButton?'true':'false'));
+    area.hidden=false;
+    area.scrollIntoView({block:'nearest',behavior:'smooth'});
+  }
+
   let lastMonthlyTrigger=null;
   function openMonthlyChart(item,trigger){
     let dialog=document.getElementById('dbmx-monthly-dialog');
@@ -450,15 +523,19 @@
       dialog.id='dbmx-monthly-dialog';dialog.className='dbmx-monthly-dialog';
       dialog.setAttribute('aria-labelledby','dbmx-monthly-title');
       dialog.addEventListener('click',e=>{
+        const month=e.target.closest('button.dbmx-monthly-month');
+        if(month){showResultCenters(dialog,month);return;}
         if(e.target.closest('[data-dbmx-monthly-close]')||e.target===dialog)dialog.close();
       });
       dialog.addEventListener('close',()=>lastMonthlyTrigger?.focus());
       document.body.appendChild(dialog);
     }
+    monthlySelection=item;
     dialog.innerHTML='<div class="dbmx-monthly-head"><div><span>HISTÓRICO DE BAIXAS</span>'+
       '<h2 id="dbmx-monthly-title">'+esc(item.produto)+'</h2></div>'+
       '<button type="button" data-dbmx-monthly-close aria-label="Fechar gráfico mensal">Fechar ×</button></div>'+
-      '<div class="dbmx-monthly-content">'+monthlyChartHtml(item)+'</div>';
+      '<div class="dbmx-monthly-content"><p class="dbmx-monthly-tip">Clique em uma barra ou no mês para conferir os centros de resultado da baixa.</p>'+monthlyChartHtml(item)+
+      '<section id="dbmx-result-centers" class="dbmx-result-centers" aria-live="polite" hidden></section></div>';
     lastMonthlyTrigger=trigger;
     if(typeof dialog.showModal==='function')dialog.showModal();
     else dialog.setAttribute('open','');
@@ -795,7 +872,22 @@
         '.dbmx-monthly-year h4{margin:0 0 8px;font-size:13px;color:#124d2c}',
         '.dbmx-monthly-horizontal{width:100%;overflow-x:auto;padding:2px 0 8px}',
         '.dbmx-monthly-bars{display:grid;grid-template-columns:repeat(12,minmax(44px,1fr));gap:8px;align-items:end;min-width:600px;border-bottom:2px solid #d7e6dc;background:repeating-linear-gradient(to top,#eef4ef 0,#eef4ef 1px,transparent 1px,transparent 40px)}',
-        '.dbmx-monthly-month{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;min-width:0;text-align:center}',
+        '.dbmx-monthly-month{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;min-width:0;text-align:center;border:0;background:transparent;color:inherit;cursor:pointer;padding:0;font:inherit}',
+        '.dbmx-monthly-month:hover .dbmx-monthly-bar,.dbmx-monthly-month[aria-pressed="true"] .dbmx-monthly-bar{outline:3px solid #e7b512;outline-offset:2px}',
+        '.dbmx-monthly-month:focus-visible{outline:2px solid #e7b512;outline-offset:2px;border-radius:5px}',
+        '.dbmx-monthly-tip{font-size:12px;font-weight:750;color:#14653a;background:#e8f5eb;border:1px solid #c6ddcc;border-radius:7px;padding:8px 10px}',
+        '.dbmx-result-centers{margin-top:20px;padding:14px 16px;border:1px solid #bcd9c4;border-radius:10px;background:#f8fbf8}',
+        '.dbmx-result-centers[hidden]{display:none!important}',
+        '.dbmx-result-centers h3{margin:0 0 6px;font-size:16px}',
+        '.dbmx-center-caption,.dbmx-center-source{font-size:11px;color:#4f6e5a;line-height:1.55}',
+        '.dbmx-center-coverage{font-size:12px;line-height:1.65;padding:10px;border-radius:6px;margin:10px 0;border-left:4px solid #dba900;background:#fff8db}',
+        '.dbmx-center-coverage.is-matched{background:#e9f6ed;border-left-color:#188049}',
+        '.dbmx-center-empty{font-size:12px;line-height:1.6;padding:14px;background:#fff;border:1px dashed #c6d8c8;border-radius:6px}',
+        '.dbmx-center-scroll{overflow-x:auto;max-height:300px;overflow-y:auto}',
+        '.dbmx-center-scroll table{border-collapse:collapse;width:100%;font-size:12px}',
+        '.dbmx-center-scroll th{background:#0d542e;color:#fff;text-align:left;padding:9px;position:sticky;top:0}',
+        '.dbmx-center-scroll td{border-bottom:1px solid #dce9dd;padding:9px}',
+        '.dbmx-center-scroll td.num{text-align:right;white-space:nowrap}',
         '.dbmx-monthly-amount{font-size:10px;font-weight:750;white-space:nowrap;color:#214b33}',
         '.dbmx-monthly-bar-zone{height:145px;width:70%;display:flex;align-items:flex-end;justify-content:center}',
         '.dbmx-monthly-bar{display:block;width:100%;min-height:0;border-radius:5px 5px 0 0;background:#188049}',
