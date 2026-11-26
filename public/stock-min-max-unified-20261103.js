@@ -256,7 +256,8 @@
       'compra líquida = falta local Chuá + faltas das demais unidades − volume coberto pelo saldo livre CDI (mesmo código e unidade). '+
       '*Na simulação de '+months+' meses, reservas e metas máximas exigem 3 meses com baixas e unidade compatível; casos não validados mantêm mínimo de 2 meses. '+
       'Não redistribuir automaticamente códigos com unidades divergentes ('+int(total.unverifiedUnitProducts)+' sob revisão). '+
-      'Referências monetárias usam custo ERP disponível; '+int(total.missingPriceProducts)+' produtos em demanda não têm referência e não entram no valor. '+
+      'Referências monetárias usam o custo disponível na unidade de consumo, com as conversões conferidas; '+int(total.missingPriceProducts)+' produtos em demanda não têm referência e não entram no valor. '+
+      'Esta projeção usa uma referência por código e unidade, priorizando o custo da Chuá quando disponível. O cartão de reposição dos almoxarifados usa o custo de cada local. '+
       'Itens sem 3 meses com baixas são excedentes provisórios na análise física e não geram compra automática; '+
       'a reserva de consumo da Chuá é mantida até validação. '+
       'Transferências dependem de confirmação da disponibilidade e formalização fiscal. Valores são projeções, não economia realizada.</p></section>';
@@ -363,7 +364,7 @@
       '</span>';
   }
 
-  // Produtos ordenados pelo custo estimado de reposicao: necessidade x custo ERP.
+  // Produtos ordenados pelo custo estimado de reposicao na unidade de consumo.
   // Quantidades baixadas continuam detalhadas por unidade, sem somar PC com KG/LT.
   function withdrawalSortQuantity(row){
     const records=Array.isArray(row.withdrawals)?row.withdrawals:[];
@@ -382,12 +383,12 @@
     const cell=(label,html,classes='',attr='')=>
       '<td data-label="'+esc(label)+'" class="'+esc(classes)+'"'+attr+'>'+html+'</td>';
     return '<div class="dbmx-order-note">Produtos ordenados pelo <strong>valor de reposição: maior → menor</strong> · '+
-      'necessidade de compra × custo unitário ERP. Baixas por unidade de medida. '+
+      'necessidade de compra × custo unitário de referência. Baixas por unidade de medida. '+
       '<span class="dbmx-filter-count" aria-live="polite"></span></div>'+
       '<div class="dbmx-scroll"><table>'+colgroup+'<thead><tr>'+
       '<th>Código</th><th>Produto</th><th>UN</th><th>Qtd. baixada no período</th><th>Média/mês</th>'+
       '<th>Mínimo (2 meses)</th><th>Saldo atual</th><th>Máximo ('+config.months+' meses)</th>'+
-      '<th>Qtd. a repor</th><th>Custo unit. ERP</th>'+
+      '<th>Qtd. a repor</th><th>Custo unit. de referência</th>'+
       '<th>Qtd. excedente</th><th>Valor excedente</th>'+
       '<th class="dbmx-status-filter-th">Situação / possíveis transferências'+
       '<select id="dbmx-table-status" aria-label="Filtrar por situação: Todos, Repor ou Excedente">'+
@@ -420,7 +421,7 @@
           cell('Saldo atual',qty(x.stock),'num')+
           cell('Máximo ('+config.months+' meses)',x.maximum===null?'—':qty(x.maximum),'num')+
           cell('Qtd. a repor',qty(x.need),'num'+(x.need>0?' dbmx-need':''))+
-          cell('Custo unit. ERP',x.hasCost?brl(x.cost):'Não informado','num')+
+          cell('Custo unit. de referência',x.hasCost?brl(x.cost):'Não informado','num')+
           cell('Qtd. excedente',qty(x.excess),'num'+(x.excess>0?' dbmx-warn':''))+
           cell('Valor excedente',x.excess>0&&!x.hasCost?'Sem custo':brl(x.excessValue),'num dbmx-warn')+
           cell('Situação / possíveis transferências',
@@ -696,6 +697,20 @@
   }
 
   let timer=0;
+  function normalizationNote(physical){
+    const keys=new Set(physical.map(x=>str(x.codigo_local)+'|'+str(x.codigo)+'|'+norm(x.un)));
+    const changes=(window.DB_APPROVED_STOCK_UNIT_AUDIT?.changes||[]).filter(x=>
+      keys.has(str(x.codigo_local)+'|'+str(x.codigo)+'|'+norm(x.unidade)));
+    if(!changes.length)return '';
+    const precise=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:6,maximumFractionDigits:6});
+    return '<details id="dbmx-unit-normalization-note" style="margin:0 18px 14px;padding:12px 16px;border:1px solid #c8dfd1;border-radius:8px;background:#f5faf7;color:#24523a;font-size:12px;line-height:1.6">'+
+      '<summary style="cursor:pointer;font-weight:700">Unidade de estoque conferida · ver conversão aplicada</summary>'+
+      changes.map(x=>'<p style="margin:8px 0 0"><b>'+esc(x.codigo)+' · '+esc(x.produto)+'</b> · '+esc(x.local)+': '+
+        qty(x.saldoErpOriginal)+' rolos × '+qty(x.fator)+' metros = <b>'+qty(x.saldoNormalizado)+' metros</b>. '+
+        'Custo por metro: '+precise.format(n(x.custoNormalizado))+'. Valor do estoque preservado: '+brl(x.valorNormalizado)+'.</p>').join('')+
+      '</details>';
+  }
+
   const renderPerformance={completed:0,skippedHidden:0,lastMs:0,maxMs:0};
   function render(reason){
     const panel=ensurePanel();
@@ -759,7 +774,7 @@
       int(locals.filter(x=>!x.network&&(x.needCount>0||x.excessCount>0)).length)+'</strong></div>'+
       '<div class="dbmx-kpi"><span>Excedentes por histórico insuficiente</span><strong>'+int(provisional.length)+'</strong>'+
       '<small>Sem 3 meses com baixas; revisar antes de realocar</small></div>'+
-      '</div>'+shared.html+'<div class="dbmx-list"><div class="dbmx-list-heading"><h3>1. Almoxarifados</h3>'+
+      '</div>'+normalizationNote(physical)+shared.html+'<div class="dbmx-list"><div class="dbmx-list-heading"><h3>1. Almoxarifados</h3>'+
       '<span>Ordem: maior valor a repor primeiro. Clique para abrir grupos e produtos.</span></div>'+
       '<div class="dbmx-legend">'+
       '<span><b class="dbmx-legend--need"></b>Amarelo: Repor</span>'+
@@ -792,7 +807,7 @@
       '<div class="dbmx-note"><b>Critérios:</b> mínimo de referência = média das baixas × 2 meses; máximo = média × '+
       config.months+' meses somente com histórico suficiente; a compra automática exige série confiável. '+
       'Excedente confirmado = máximo entre zero e (saldo − máximo); excedente a revisar = saldo físico quando o histórico tiver menos de 3 meses com baixas. '+
-      'Valores são estimativas pelo custo unitário ERP, não economia já realizada. '+
+      'Valores são estimativas pelo custo de referência na mesma unidade de consumo, não economia já realizada. '+
       'Excedente confirmado = saldo acima do teto de '+config.months+' meses (com 3 ou mais meses com baixas e unidade consistente). '+
       'Com menos de 3 meses com baixas, todo saldo físico é sinalizado como excedente <b>provisório</b>: entra nos indicadores de excedente, '+
       'mas não gera compra nem transferência automática. Unidade divergente exige conferência. Pneus, câmaras e cimento '+

@@ -33,8 +33,25 @@
   const costAudit={positions:0,originalCents:0,correctedCents:0,deltaCents:0,
     policy:'Ajuste gerencial aprovado. O valor do ERP e as notas fiscais originais permanecem preservados.',
     changes:[]};
+  const unitAudit={positions:0,originalCents:0,normalizedCents:0,deltaCents:0,
+    policy:'Quantidade e custo na mesma unidade de consumo. A posição original do ERP e seu valor total são preservados.',
+    changes:[]};
   for(const row of P.rows){
-    const x={};cols.forEach((c,i)=>x[c]=row[i]);
+    let x={};cols.forEach((c,i)=>x[c]=row[i]);
+    if(typeof window.DB_NORMALIZE_STOCK_UNIT==='function'){
+      x=window.DB_NORMALIZE_STOCK_UNIT(x,P.meta);
+      if(x.normalizacao_unidade_aprovada){
+        const originalCents=Math.round(x.valor_erp_original*100);
+        const normalizedCents=Math.round(Number(x.valor_estoque)*100);
+        if(originalCents!==normalizedCents)throw Error('Normalização de unidade alterou o valor do estoque '+x.codigo);
+        unitAudit.positions++;unitAudit.originalCents+=originalCents;unitAudit.normalizedCents+=normalizedCents;
+        unitAudit.changes.push({codigo:String(x.codigo),local:String(x.local),codigo_local:String(x.codigo_local),
+          produto:String(x.produto),unidade:String(x.un),saldoErpOriginal:x.estoque_erp_original,
+          saldoNormalizado:Number(x.estoque),fator:x.fator_conversao_unidade,
+          custoErpOriginal:x.custo_erp_original,custoNormalizado:Number(x.custo_estoque),
+          valorErpOriginal:x.valor_erp_original,valorNormalizado:Number(x.valor_estoque),fonte:x.normalizacao_unidade_fonte});
+      }
+    }
     const approved=approvedCosts[String(x.codigo)];
     if(approved&&String(x.un).toUpperCase()===approved.unidade){
       const originalCents=Math.round((Number(x.valor_estoque)||0)*100);
@@ -68,6 +85,8 @@
   }
   costAudit.deltaCents=costAudit.correctedCents-costAudit.originalCents;
   window.DB_APPROVED_PRODUCT_COST_AUDIT=costAudit;
+  unitAudit.deltaCents=unitAudit.normalizedCents-unitAudit.originalCents;
+  window.DB_APPROVED_STOCK_UNIT_AUDIT=unitAudit;
   next.sort((a,b)=>(Number(b.valor_estoque)||0)-(Number(a.valor_estoque)||0)||String(a.local).localeCompare(String(b.local),'pt-BR'));
   STOCK.splice(0,STOCK.length,...next);
 
@@ -123,6 +142,7 @@
     valorErpOriginal:P.meta?.valor,
     valorGerencialAjustado:Math.round(total*100)/100,
     correcaoGerencial124928:costAudit.changes,
+    normalizacaoUnidades:unitAudit.changes,
     variacaoGerencialCentavos:costAudit.deltaCents};
   setTimeout(()=>{try{document.querySelector('#view-executivo .capital-crumb[data-level="local"]')?.click()}catch(e){}},0);
   window.dispatchEvent(new CustomEvent('stock-position-updated',{detail:P.meta||{}}));

@@ -94,6 +94,7 @@ class DashboardInjector {
       (this.pilot ? `<script src="/${this.chua ? 'chua-pilot' : 'sao-joao-pilot'}.js?v=20261015-1"></script>` : '') +
       '<script>(function(){var s=document.getElementById("db-boot-screen");if(s)s.remove();document.documentElement.classList.remove("db-booting");})();</script>' +
       '<script src="/approved-product-costs-20261113.js?v=124928-798258"></script>' +
+      '<script src="/approved-stock-units-20261126.js?v=20261126-wire-rolls-v1"></script>' +
       '<script src="/stock-update.js?v=20260908"></script>' +
       '<script src="/stock-latest-data.js?v=20260908-1530"></script>' +
       '<script src="/stock-latest.js?v=20260908-1530"></script>' +
@@ -143,7 +144,7 @@ class DashboardInjector {
 
 
 
-      '<script src="/current-stock-loader-20260911.js?v=20261103-1558"></script>' +
+      '<script src="/current-stock-loader-20260911.js?v=20261126-wire-rolls-v1"></script>' +
       '<script src="/movement-full-base-20261103.js?v=20261103-1525"></script>' +
       '<script src="/movement-full-01-20261103.js?v=20261103-1525"></script>' +
       '<script src="/movement-full-02-20261103.js?v=20261103-1525"></script>' +
@@ -153,7 +154,7 @@ class DashboardInjector {
       '<script src="/cdi-current-stock-policy-20261126.js?v=20261126-current-stock-v1"></script>' +
       (this.pilot ? '' : '<script src="/movement-history-ui-20261103.js?v=20261103-1525"></script>' +
         '<script src="/baixas-consolidadas-20261103.js?v=20261103-1"></script>' +
-        '<script src="/stock-min-max-unified-20261103.js?v=20261126-navigation-1"></script>' +
+        '<script src="/stock-min-max-unified-20261103.js?v=20261126-wire-rolls-v1"></script>' +
         '<script src="/baixas-erp-conferido-20261106.js?v=20261106-custo-total-erp"></script>'+
         '<script src="/cdi-transfer-data.js?v=20261106-cdi-aprovacao"></script>'+
         '<script src="/cdi-transfer-savings.js?v=20261106-cdi-aprovacao"></script>'+ 

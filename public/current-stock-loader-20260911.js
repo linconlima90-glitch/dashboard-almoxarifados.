@@ -27,7 +27,7 @@
     delete window.STOCK_REVISED_MONTHLY_20261015;
     window.CURRENT_STOCK_GZ='';
     const script=document.createElement('script');
-    script.src='/current-stock-apply-20260911.js?v=20261105-1919';
+    script.src='/current-stock-apply-20260911.js?v=20261126-wire-rolls-v1';
     script.async=false;
     document.head.appendChild(script);
   }catch(err){console.error('Falha ao carregar estoque de 05/11/2026',err)}

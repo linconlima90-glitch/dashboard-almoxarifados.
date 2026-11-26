@@ -119,6 +119,7 @@ test('regressão com o build real: remove saldos zero indevidos e exclusões, pr
     .match(/window\.CURRENT_STOCK_GZ(?:\+)?='([^']+)';/)[1];
   evaluate(gunzipSync(Buffer.from(b64, 'base64')).toString('utf8'), 'stock-data');
   evaluate(read('public/approved-product-costs-20261113.js'), 'approved-costs');
+  evaluate(read('public/approved-stock-units-20261126.js'), 'approved-stock-units');
   evaluate(read('public/current-stock-apply-20260911.js'), 'stock-apply');
   for (const p of ['base', '01', '02', '03', '04']) evaluate(read('dist/movement-full-' + p + '-20261103.js'), 'movements-' + p);
   evaluate(read('dist/movement-reconcile-full-20261103.js'), 'reconciliation');

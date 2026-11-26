@@ -372,6 +372,87 @@ def check_management_navigation(page):
         page.evaluate("open=>{document.querySelector('.filters').classList.toggle('clean-open',open);window.DB_NAVIGATION.refresh();}", previous['filtersOpen'])
 
 
+def check_replenishment_units(page, meta):
+    """Use the independently audited 26/11 snapshot as a monetary regression oracle."""
+    audit = page.evaluate("""() => {
+      const same = row => String(row.codigo)==='102793' && String(row.codigo_local)==='50115';
+      const stock=STOCK.filter(same),movement=MOVEMENTS.find(same);
+      const raw=window.CURRENT_STOCK_20260911.rows.filter(row=>
+        String(row[3])==='102793' && String(row[1])==='50115');
+      return {stock,raw,movement,units:window.DB_APPROVED_STOCK_UNIT_AUDIT,
+        summary:window.DB_STOCK_UNIFIED.getSummary(),
+        normalization:window.CURRENT_STOCK_META.normalizacaoUnidades};
+    }""")
+    assert len(audit['stock']) == len(audit['raw']) == 1, audit
+    wire = audit['stock'][0]
+    original = audit['raw'][0]
+    assert original[6:10] == ['MT', 5, 483.84, 2419.21], original
+    assert wire['un'] == 'MT' and wire['estoque'] == 5000, wire
+    assert wire['estoque_erp_original'] == 5 and wire['custo_erp_original'] == 483.84, wire
+    assert wire['valor_estoque'] == wire['valor_erp_original'] == 2419.21, wire
+    assert math.isclose(wire['custo_estoque'], 2419.21 / (5 * 1000), abs_tol=1e-12), wire
+    assert wire['normalizacao_unidade_aprovada'] and wire['fator_conversao_unidade'] == 1000, wire
+    units = audit['units']
+    assert units['positions'] == 1 and units['deltaCents'] == 0, units
+    assert units['originalCents'] == units['normalizedCents'] == 241921, units
+    assert len(units['changes']) == len(audit['normalization']) == 1, units
+    movement = audit['movement']
+    assert movement['complete_total'] == 45000, movement
+    assert math.isclose(movement['avg'], 45000 / 22, abs_tol=1e-10), movement
+    assert movement['minimum'] == 4090.91 and movement['stock'] == 5000, movement
+    assert movement['need'] == movement['need_value'] == 0, movement
+    assert math.isclose(movement['cost'], 2419.21 / 5000, abs_tol=1e-12), movement
+
+    # These expected values come from the source audit, not the displayed totals.
+    # The former 5 MT / R$ 483.842 basis alone generated R$ 1,976,934.86622.
+    assert meta['physicalNeedItems'] == 160, meta
+    assert math.isclose(meta['physicalNeedValue'], 22027.12823036052, abs_tol=0.0001), meta
+    assert audit['summary']['items'] == 160, audit['summary']
+    assert math.isclose(audit['summary']['value'], 22027.12823036052, abs_tol=0.0001), audit['summary']
+    shared = meta['sharedChua']
+    for field, expected in [('minGrossValue', 22683.44425772809),
+                            ('minCoverValue', 1312.2530700999419),
+                            ('minPurchaseValue', 21371.19118762815),
+                            ('maxPurchaseValue', 57220.51073632259)]:
+        assert math.isclose(shared[field], expected, abs_tol=0.0001), (field, shared)
+
+    panel = page.locator('#db-stock-maximum')
+    note = panel.locator('#dbmx-unit-normalization-note')
+    assert note.count() == 1 and note.locator('summary').is_visible()
+    assert note.evaluate('el=>el.open') is False
+    note.locator('summary').click()
+    assert '102793' in note.inner_text() and '5.000' in note.inner_text(), note.inner_text()
+    note.locator('summary').click()
+    local = panel.locator('.dbmx-local[data-dbmx-local="ALMOXARIFADO GERAL F SJ"]')
+    assert local.get_attribute('aria-expanded') == 'false'
+    local.click()
+    group_selector = '.dbmx-group[data-dbmx-group=' + json.dumps(wire['grupo'], ensure_ascii=False) + ']'
+    panel.locator(group_selector).click()
+    displayed = panel.locator('.dbmx-code', has_text=re.compile(r'^102793$')).locator('..')
+    assert displayed.count() == 1 and displayed.is_visible()
+
+    def quantity(label):
+        text = displayed.locator('td[data-label=' + json.dumps(label, ensure_ascii=False) + ']').inner_text()
+        return float(re.sub(r'[^0-9,-]', '', text).replace(',', '.'))
+
+    assert quantity('Mínimo (2 meses)') == 4090.91
+    assert quantity('Saldo atual') == 5000
+    assert quantity('Qtd. a repor') == 0
+    assert quantity('Custo unit. de referência') == 0.48
+    assert float(displayed.get_attribute('data-dbmx-replenishment-sort')) == 0
+    assert displayed.get_attribute('data-dbmx-color') == 'ok'
+    local.click()
+    page.locator('.tab[data-view="geral"]').evaluate('(el)=>el.click()')
+    page.wait_for_function("""() => {
+      const text=document.getElementById('db-summary-need')?.textContent||'';
+      return Number(text.replace(/[^0-9,]/g,'').replace(',','.'))===22027.13;
+    }""")
+    page.locator('.tab[data-view="minimo"]').evaluate('(el)=>el.click()')
+    page.wait_for_function("window.DB_STOCK_UNIFIED.meta.physicalNeedItems===160")
+    return {'physicalItems': 160, 'physicalValue': meta['physicalNeedValue'],
+            'netNetworkPurchaseValue': shared['minPurchaseValue'], 'wireStockMeters': wire['estoque']}
+
+
 BAIXAS_AUDIT = json.loads((root / 'build-baixas-audit.json').read_text(encoding='utf-8'))
 # The runtime is checked against the audited inputs of the current build,
 # rather than keeping an obsolete stock value in several unrelated tests.
@@ -1027,8 +1108,8 @@ with sync_playwright() as p:
             # Preserve every current fiscal position. A former two-company
             # product is no longer in this snapshot and cannot be a fixed fixture.
             fiscal_positions=page.evaluate("""() => STOCK.map(x=>[
-                String(x.empresa),String(x.codigo_local),String(x.codigo),String(x.un),
-                Number(x.estoque),Math.round(Number(x.valor_erp_original??x.valor_estoque)*100)
+                String(x.empresa),String(x.codigo_local),String(x.codigo),String(x.unidade_erp_original??x.un),
+                Number(x.estoque_erp_original??x.estoque),Math.round(Number(x.valor_erp_original??x.valor_estoque)*100)
             ])""")
             assert sorted(fiscal_positions)==EXPECTED_FISCAL_POSITIONS,'ERP fiscal positions differ from the current source'
         if optimized and 'Pilot' not in name:
@@ -1235,6 +1316,7 @@ with sync_playwright() as p:
                        meta4['physicalNeedValue'])<0.02, meta4
             assert abs(sum(x['amount'] for x in meta4['locations'] if not x['virtual']) -
                        meta4['physicalExcessValue'])<0.02, meta4
+            results[name]['replenishmentUnits'] = check_replenishment_units(page, meta4)
             panel.locator('#dbmx-months').select_option('3')
             page.wait_for_function("window.DB_STOCK_UNIFIED.meta.months===3")
             meta3=page.evaluate("window.DB_STOCK_UNIFIED.meta")
@@ -1433,7 +1515,7 @@ with sync_playwright() as p:
             assert panel.locator('.dbmx-detail').count()==1
             panel.locator('.dbmx-group').first.click()
             for header in ['Mínimo (2 meses)','Máximo (4 meses)','Saldo atual','Qtd. a repor',
-                           'Qtd. excedente','Valor excedente','Custo unit. ERP']:
+                           'Qtd. excedente','Valor excedente','Custo unit. de referência']:
                 assert panel.get_by_text(header, exact=True).count()>0, header
             assert panel.locator('.dbmx-scroll th').count()==13
             assert panel.locator('.dbmx-scroll th', has_text='Valor a comprar').count()==0
