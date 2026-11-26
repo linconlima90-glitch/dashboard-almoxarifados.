@@ -100,7 +100,7 @@
     return '<div class="dbx-scroll"><table class="dbx-table"><thead><tr><th>#</th><th>Código</th><th>Produto</th><th>UN</th><th class="dbx-num">Qtd. baixada</th><th class="dbx-num">Lançamentos</th>'+
       (withLocals?'<th class="dbx-num">Locais</th>':'')+
       '<th class="dbx-num">Custo_Total ERP</th></tr></thead><tbody>'+
-      items.map((x,i)=>'<tr class="dbx-item-row'+(state.item===x.key?' dbx-selected':'')+'" data-dbx-action="item" data-dbx-key="'+esc(x.key)+'" tabindex="0" role="button" aria-label="Filtrar pelo produto '+esc(x.produto)+'"><td>'+number(i+1)+'</td><td>'+esc(x.codigo)+'</td><td>'+esc(x.produto)+'</td><td>'+esc(x.un)+
+      items.map((x,i)=>'<tr class="dbx-item-row'+(state.item===x.key?' dbx-selected':'')+'" data-dbx-action="item" data-dbx-key="'+esc(x.key)+'" tabindex="0" role="button" aria-label="Filtrar pelo produto '+esc(x.produto)+'"><td>'+number(i+1)+'</td><td>'+esc(x.codigo)+'</td><td><button type="button" class="dbx-product-monthly" data-dbx-action="monthly" data-dbx-key="'+esc(x.key)+'" aria-label="Ver consumo mensal, centros de resultado e placas de '+esc(x.produto)+'">'+esc(x.produto)+'</button></td><td>'+esc(x.un)+
       '</td><td class="dbx-num">'+qty(x.quantidade)+'</td><td class="dbx-num">'+number(x.records)+'</td>'+
       (withLocals?'<td class="dbx-num">'+number(x.locais)+'</td>':'')+
       '<td class="dbx-num dbx-value">'+brlCents(x.cents)+'</td></tr>').join('')+'</tbody></table></div>';
@@ -257,6 +257,9 @@
       #${rootId} .dbx-table td{padding:10px 8px;border-bottom:1px solid #e9efeb}
       #${rootId} .dbx-table .dbx-num{text-align:right;white-space:nowrap}
       #${rootId} .dbx-table .dbx-value{font-weight:800;color:#145f35}
+      #${rootId} .dbx-product-monthly{border:0;background:transparent;padding:2px 0;text-align:left;font-size:11px;color:#125832;font-weight:800;text-decoration:underline;text-underline-offset:3px;text-decoration-color:#9ccdad;cursor:pointer}
+      #${rootId} .dbx-product-monthly:hover{color:#168147;text-decoration-color:#168147}
+      #${rootId} .dbx-product-monthly:focus-visible{outline:3px solid #d5a80d;outline-offset:2px}
       #${rootId} .dbx-item-row{cursor:pointer}
       #${rootId} .dbx-item-row:hover,#${rootId} .dbx-item-row.dbx-selected{background:#edf7f0}
       #${rootId} .dbx-muted{padding:15px 2px}
@@ -275,6 +278,21 @@
     panel.addEventListener('click',event=>{
       const btn=event.target.closest('[data-dbx-action]');if(!btn||!panel.contains(btn))return;
       const action=btn.dataset.dbxAction,key=btn.dataset.dbxKey||'';
+      if(action==='monthly'){
+        const record=filtered.find(r=>[r.codigo,r.un].join('|')===key);
+        const subset=filtered.filter(r=>[r.codigo,r.un].join('|')===key);
+        const names={};
+        for(const row of subset)names[row.codigoLocal]=row.local;
+        if(record&&subset.length&&typeof window.DB_MOVEMENT_MONTHLY?.open==='function'){
+          window.DB_MOVEMENT_MONTHLY.open({
+            codigo:record.codigo,produto:record.produto,un:record.un,
+            period:state.period,localCodes:[...new Set(subset.map(r=>r.codigoLocal))],
+            localNames:names,localLabel:state.local||'Todos os almoxarifados',
+            rows:subset
+          },btn);
+        }
+        return;
+      }
       if(action==='mode-local'||action==='mode-all'){
         state.mode=action==='mode-all'?'all':'local';state.local='';state.group='';state.item='';
       }else if(action==='local'){
