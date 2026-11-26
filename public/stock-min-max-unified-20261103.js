@@ -2,7 +2,7 @@
 (function(){
   'use strict';
   if(window.DB_STOCK_UNIFIED)return;
-  const config={months:4,year:'',mode:'all',local:'',group:'',query:'',tableStatus:'all'};
+  const config={months:4,year:'',mode:'all',local:'',group:'',query:'',tableStatus:'all',tableSort:'value'};
   const n=v=>Number(v)||0;
   const str=v=>String(v??'');
   const norm=v=>str(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
@@ -364,7 +364,7 @@
       '</span>';
   }
 
-  // Produtos ordenados pelo custo estimado de reposicao na unidade de consumo.
+  // Ordenacao da tabela por valor de reposicao ou quantidade baixada, sem alterar os calculos.
   // Quantidades baixadas continuam detalhadas por unidade, sem somar PC com KG/LT.
   function withdrawalSortQuantity(row){
     const records=Array.isArray(row.withdrawals)?row.withdrawals:[];
@@ -374,16 +374,23 @@
   }
   function itemTable(rows){
     const sorted=rows.slice().sort((a,b)=>
-      b.purchaseValue-a.purchaseValue||
-      b.need-a.need||b.excessValue-a.excessValue||
+      (config.tableSort==='withdrawals'
+        ?withdrawalSortQuantity(b)-withdrawalSortQuantity(a)
+        :b.purchaseValue-a.purchaseValue)||
+      b.purchaseValue-a.purchaseValue||b.need-a.need||b.excessValue-a.excessValue||
       a.produto.localeCompare(b.produto,'pt-BR')||
       a.codigo.localeCompare(b.codigo,'pt-BR'));
     const columns=[6,18,3,10,6,6,5,6,6,8,6,8,12];
     const colgroup='<colgroup>'+columns.map(width=>'<col style="width:'+width+'%">').join('')+'</colgroup>';
     const cell=(label,html,classes='',attr='')=>
       '<td data-label="'+esc(label)+'" class="'+esc(classes)+'"'+attr+'>'+html+'</td>';
-    return '<div class="dbmx-order-note">Produtos ordenados pelo <strong>valor de reposição: maior → menor</strong> · '+
-      'necessidade de compra × custo unitário de referência. Baixas por unidade de medida. '+
+    return '<div class="dbmx-order-note">Ordenar produtos por <select id="dbmx-table-sort" aria-label="Ordenar produtos da reposição">'+
+      [['value','Maior valor de reposição'],['withdrawals','Maior quantidade baixada']].map(([value,label])=>
+        '<option value="'+value+'"'+(config.tableSort===value?' selected':'')+'>'+label+'</option>').join('')+
+      '</select> · '+(config.tableSort==='withdrawals'
+        ?'quantidade baixada no período em ordem decrescente, respeitando a unidade de cada produto.'
+        :'necessidade de compra × custo unitário de referência, do maior para o menor valor.')+' '+
+      'Baixas apresentadas por unidade de medida. '+
       '<span class="dbmx-filter-count" aria-live="polite"></span></div>'+
       '<div class="dbmx-scroll"><table>'+colgroup+'<thead><tr>'+
       '<th>Código</th><th>Produto</th><th>UN</th><th>Qtd. baixada no período</th><th>Média/mês</th>'+
@@ -467,6 +474,10 @@
       panel.dataset.dbmxEvents='1';
       panel.addEventListener('change',e=>{
         const target=e.target;
+        if(target.id==='dbmx-table-sort'){
+          config.tableSort=target.value==='withdrawals'?'withdrawals':'value';
+          render();return;
+        }
         if(target.id==='dbmx-table-status'){
           config.tableStatus=['all','need','excess'].includes(target.value)?target.value:'all';
           filterProductRows(panel);
@@ -838,7 +849,7 @@
       insufficientHistoryItems:manual.length,missingCostItems:missingExcess,
       minimumMonths:2,integrated:true,inlineCascade:true,colorCoding:true,brandPalette:'DB verde/amarelo',
       sharedChua:shared.summary,
-      compactSummary:true,withdrawalDetailOnly:true,sortedByWithdrawalsDesc:false,sortedByReplenishmentValueDesc:true,fullWidthProducts:true,
+      compactSummary:true,withdrawalDetailOnly:true,sortedByWithdrawalsDesc:config.tableSort==='withdrawals',sortedByReplenishmentValueDesc:config.tableSort==='value',tableSort:config.tableSort,fullWidthProducts:true,
       columnStatusFilter:true,columnStatusOptions:['all','need','excess'],
       screenshotCardLayout:true,tabLabel:'Estoque mínimo / Estoque máximo',
       allProductColumnsHorizontal:true,purchaseValueColumnHidden:true,
