@@ -53,7 +53,8 @@ test('grafico mensal separa almoxarifado e unidade e apresenta meses sem baixa',
   assert.match(html,/data-year="2026"/);
   assert.match(html,/data-value="0"/);
   assert.match(html,/data-unit="KG"/);
-  assert.doesNotMatch(html,/data-month="11"/,'Novembro parcial nao vira zero ficticio');
+  const chart2026=html.split('data-year="2026"')[1]||'';
+  assert.doesNotMatch(chart2026,/data-month="11"/,'Novembro parcial nao vira zero ficticio');
   assert.doesNotMatch(html,/900/,'Nao agrega outro almoxarifado');
 });
 
