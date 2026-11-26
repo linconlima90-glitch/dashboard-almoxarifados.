@@ -1,6 +1,8 @@
 """Compare the actual legacy and optimized application in Chromium."""
 import csv
+import base64
 import functools
+import gzip
 import http.server
 import json
 import os
@@ -10,29 +12,31 @@ from playwright.sync_api import sync_playwright
 
 root = Path(__file__).resolve().parents[1]
 BAIXAS_AUDIT = json.loads((root / 'build-baixas-audit.json').read_text(encoding='utf-8'))
-REMESSA_AUDIT = json.loads((root / 'build-remessa-20261117.json').read_text(encoding='utf-8'))
-BAIXAS_AUDIT['revisedRecords'] = REMESSA_AUDIT['withdrawals']['totalRecords']
-BAIXAS_AUDIT['totalValue'] = REMESSA_AUDIT['withdrawals']['totalCents'] / 100
-BAIXAS_AUDIT['annual']['2026']['records'] += REMESSA_AUDIT['withdrawals']['added']
-BAIXAS_AUDIT['annual']['2026']['value'] = round(
-    BAIXAS_AUDIT['annual']['2026']['value'] + REMESSA_AUDIT['withdrawals']['addedCents'] / 100, 2)
-BAIXAS_AUDIT['november']['records'] += REMESSA_AUDIT['withdrawals']['added']
-BAIXAS_AUDIT['november']['value'] = round(
-    BAIXAS_AUDIT['november']['value'] + REMESSA_AUDIT['withdrawals']['addedCents'] / 100, 2)
-REMESSA_19 = json.loads((root / 'build-remessa-20261119.json').read_text(encoding='utf-8'))
-BAIXAS_AUDIT['revisedRecords'] = REMESSA_19['withdrawals']['totalRecords']
-BAIXAS_AUDIT['totalValue'] = REMESSA_19['withdrawals']['totalCents'] / 100
-BAIXAS_AUDIT['annual']['2026']['records'] += REMESSA_19['withdrawals']['added']
-BAIXAS_AUDIT['annual']['2026']['value'] = round(BAIXAS_AUDIT['annual']['2026']['value'] + REMESSA_19['withdrawals']['addedCents'] / 100, 2)
-BAIXAS_AUDIT['november']['records'] += REMESSA_19['withdrawals']['added']
-BAIXAS_AUDIT['november']['value'] = round(BAIXAS_AUDIT['november']['value'] + REMESSA_19['withdrawals']['addedCents'] / 100, 2)
-REMESSA_22 = json.loads((root / 'build-remessa-20261122.json').read_text(encoding='utf-8'))
-BAIXAS_AUDIT['revisedRecords'] = REMESSA_22['withdrawals']['totalRecords']
-BAIXAS_AUDIT['totalValue'] = REMESSA_22['withdrawals']['totalCents'] / 100
-BAIXAS_AUDIT['annual']['2026']['records'] += REMESSA_22['withdrawals']['added']
-BAIXAS_AUDIT['annual']['2026']['value'] = round(BAIXAS_AUDIT['annual']['2026']['value'] + REMESSA_22['withdrawals']['addedCents'] / 100, 2)
-BAIXAS_AUDIT['november']['records'] += REMESSA_22['withdrawals']['added']
-BAIXAS_AUDIT['november']['value'] = round(BAIXAS_AUDIT['november']['value'] + REMESSA_22['withdrawals']['addedCents'] / 100, 2)
+# The runtime is checked against the audited inputs of the current build,
+# rather than keeping an obsolete stock value in several unrelated tests.
+for batch in ('20261117', '20261119', '20261122', '20261126'):
+    imported = json.loads((root / f'build-remessa-{batch}.json').read_text(encoding='utf-8'))
+    withdrawals = imported['withdrawals']
+    BAIXAS_AUDIT['revisedRecords'] = withdrawals['totalRecords']
+    BAIXAS_AUDIT['totalValue'] = withdrawals['totalCents'] / 100
+    for period in (BAIXAS_AUDIT['annual']['2026'], BAIXAS_AUDIT['november']):
+        period['records'] += withdrawals['added']
+        period['value'] = round(period['value'] + withdrawals['addedCents'] / 100, 2)
+CURRENT_REMESSA = imported
+CURRENT_INPUT = json.loads(gzip.decompress(base64.b64decode(
+    (root / 'data/remessa-delta-20261126.b64').read_text(encoding='utf-8'))))
+EXPECTED_STOCK_ROWS = len(CURRENT_INPUT['rows'])
+EXPECTED_STOCK_DATE = CURRENT_INPUT['meta']['date']
+EXPECTED_STOCK_ERP = sum(round(row[9] * 100) for row in CURRENT_INPUT['rows']) / 100
+EXPECTED_FISCAL_POSITIONS = sorted([
+    [str(row[0]), str(row[1]), str(row[3]), str(row[6]), row[7], round(row[9] * 100)]
+    for row in CURRENT_INPUT['rows']
+])
+assert CURRENT_REMESSA['stock']['records'] == EXPECTED_STOCK_ROWS
+assert CURRENT_REMESSA['stock']['date'] == EXPECTED_STOCK_DATE
+assert CURRENT_REMESSA['stock']['cents'] == round(EXPECTED_STOCK_ERP * 100)
+assert CURRENT_REMESSA['withdrawals']['added'] == len(CURRENT_INPUT['withdrawals']['rows'])
+assert CURRENT_REMESSA['withdrawals']['addedCents'] == sum(row[9] for row in CURRENT_INPUT['withdrawals']['rows'])
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -320,14 +324,19 @@ with sync_playwright() as p:
                 unified:window.DB_UNIFIED_ECONOMY.summary(),
                 purchaseRows:window.DB_UNIFIED_ECONOMY.getPurchases().length
             })""")
-            nov13=economy['cost']['newPurchasesAudit']
-            assert economy['cost']['purchaseLines']==417 and economy['purchaseRows']==417, economy
-            assert economy['cost']['purchaseCents']==23737560, economy
+            nov13=economy['cost']['purchaseUpdates']['20261113']
+            nov17=economy['cost']['purchaseUpdates']['20261117']
+            assert economy['cost']['purchaseLines']==441 and economy['purchaseRows']==441, economy
+            assert economy['cost']['purchaseCents']==24522074, economy
             assert nov13['records']==8 and nov13['cents']==401105, economy
             assert nov13['matchedReference']+nov13['missingReference']==8, economy
+            assert nov17['records']==24 and nov17['cents']==784514, economy
+            assert economy['cost']['comparisonBasis']=='CUSTO_TOTAL_ERP', economy
+            assert economy['cost']['financialSavingsCertified'] is False, economy
             correction=economy['cost']['approvedProductCostCorrections']['124928']
             assert correction['referenceMicro']==7982580000 and correction['originalInvoicesPreserved'] is True,economy
-            assert economy['cost']['netCents']==9289159+nov13['netCents']+correction['netDeltaCents'], economy
+            assert economy['cost']['netCents']==9294618, economy
+            assert economy['cost']['positiveCents']==9926664 and economy['cost']['negativeCents']==-632046, economy
             assert economy['unified']['net']==economy['cost']['netCents'], economy
             # A aba de atualizacao consulta tres fontes mas nao edita ERP ou
             # indicadores gerenciais sem auditoria e publicacao oficial.
@@ -345,6 +354,12 @@ with sync_playwright() as p:
                   .find(p=>p[1]==='105090'&&p[4]==='KG')?.[6],
                 stockTotal:STOCK.reduce((s,x)=>s+(Number(x.valor_estoque)||0),0),
                 correction:window.DB_APPROVED_PRODUCT_COST_AUDIT,
+                costRows:window.DB_COST_UPDATE.getRows().filter(x=>
+                  x.code==='124928'&&x.unit==='PC'&&x.hasStock).map(x=>({
+                    erp:x.stockCost,management:x.managementCost,
+                    erpValue:x.stockValueERP,managementValue:x.stockValue,
+                    adjusted:x.stockCostAdjusted
+                  })),
                 correiaRows:STOCK.filter(x=>String(x.codigo)==='124928').map(x=>({
                   local:x.local,qty:x.estoque,cost:x.custo_estoque,value:x.valor_estoque,
                   erpCostOriginal:x.custo_erp_original,erpValueOriginal:x.valor_erp_original
@@ -361,8 +376,11 @@ with sync_playwright() as p:
             assert all(abs(r['cost']-7982.58)<0.001 and abs(r['value']-r['qty']*7982.58)<0.01
                        for r in cost_state['correiaRows']),cost_state
             assert cost_state['referenceCorreia']==7982580000,cost_state
+            assert cost_state['costRows'],cost_state
+            assert all(abs(r['erp']-9391.27)<0.001 and abs(r['management']-7982.58)<0.001
+                       and r['adjusted'] is True for r in cost_state['costRows']),cost_state
             assert abs(cost_state['stockTotal']-
-                       (2435923.56+cost_state['correction']['deltaCents']/100))<0.01,cost_state
+                       (EXPECTED_STOCK_ERP+cost_state['correction']['deltaCents']/100))<0.01,cost_state
             assert page.locator('#cu-local option').count()>2
             # Filtro em cascata: grupos e produtos ordenados pelo valor do
             # saldo fisico, sem confundir referencias de preco com estoque.
@@ -468,9 +486,29 @@ with sync_playwright() as p:
                 preserveMin:window.STOCK_MINIMUM_MONTHS===2,
                 adjustment:window.DB_APPROVED_PRODUCT_COST_AUDIT?.deltaCents||0
             })""")
-            assert stockmeta['emitted']=='22/11/2026 14:52:02', stockmeta
-            assert abs(stockmeta['total']-(2435923.56+stockmeta['adjustment']/100))<0.01 and stockmeta['warehouses']==9, stockmeta
+            assert stockmeta['emitted']==EXPECTED_STOCK_DATE, stockmeta
+            assert abs(stockmeta['total']-(EXPECTED_STOCK_ERP+stockmeta['adjustment']/100))<0.01 and stockmeta['warehouses']==9, stockmeta
             assert stockmeta['preserveHistory'] and stockmeta['preserveMin'], stockmeta
+            # CDI demand must read the current physical 30115 stock by product
+            # and unit, including products added after the original base.
+            cdi_current=page.evaluate("""() => {
+              const key=x=>String(x.codigo)+'|'+String(x.un||'').trim().toUpperCase();
+              const physical=new Map();
+              for(const x of STOCK.filter(x=>String(x.codigo_local)==='30115'))
+                physical.set(key(x),(physical.get(key(x))||0)+(Number(x.estoque)||0));
+              const rows=cdiNetworkAllRows();
+              return {
+                mismatches:rows.filter(x=>Math.abs((Number(x.stock)||0)-(physical.get(key(x))||0))>1e-8)
+                  .map(x=>({code:x.codigo,unit:x.un,actual:x.stock,expected:physical.get(key(x))||0})),
+                excluded:rows.filter(x=>window.DB_MINIMUM_EXCLUDED(x)).map(x=>x.codigo),
+                correia:rows.find(x=>String(x.codigo)==='115220'&&x.un==='PC'),
+                allTwoMonths:rows.every(x=>Math.abs(x.minimum-minimumRoundUp(x.avg*2,x.un))<1e-8)
+              };
+            }""")
+            assert not cdi_current['mismatches'] and not cdi_current['excluded'],cdi_current
+            assert cdi_current['allTwoMonths'],cdi_current
+            assert cdi_current['correia']['stock']==14 and cdi_current['correia']['minimum']==5,cdi_current
+            assert cdi_current['correia']['need']==0,cdi_current
             october=page.evaluate("""() => ({
                 month:window.MOVEMENTS_OCTOBER_META,
                 full:window.MOVEMENTS_REVISED_META && {
@@ -509,17 +547,49 @@ with sync_playwright() as p:
             if 'Pilot' not in name:
                 page.wait_for_function("document.querySelector('#full-movement-history') !== null", timeout=20000)
                 assert page.locator('#full-movement-history').count()==1, historical
+                history_labels=page.evaluate("""() => ({
+                  total:Number(document.querySelector('#full-movement-history > summary > b')
+                    .textContent.replace(/[^0-9]/g,'')),
+                  annual:[...document.querySelectorAll('#full-movement-history .erp-h-years > div')]
+                    .map(el=>({year:el.querySelector('small').textContent.slice(0,4),
+                      records:Number(el.querySelector('b').textContent.replace(/[^0-9]/g,'')),
+                      value:Number(el.querySelector('span').textContent.replace(/[^0-9,]/g,'').replace(',','.'))}))
+                })""")
+                assert history_labels['total']==BAIXAS_AUDIT['revisedRecords'],history_labels
+                for annual in history_labels['annual']:
+                    expected=BAIXAS_AUDIT['annual'][annual['year']]
+                    assert annual['records']==expected['records'],history_labels
+                    assert abs(annual['value']-expected['value'])<0.01,history_labels
+                # Exercise the on-demand daily file as well as the monthly totals.
+                page.locator('.tab[data-view="baixas"]').evaluate('(el)=>el.click()')
+                page.locator('#full-movement-history > summary').click()
+                page.wait_for_function("window.DB_HISTORICO_BAIXAS.yearLoaded('2024')",timeout=20000)
+                page.locator('#erp-h-year').select_option('2026')
+                page.wait_for_function("window.DB_HISTORICO_BAIXAS.yearLoaded('2026')",timeout=20000)
+                daily_history=page.evaluate("""() => ({
+                  records:Number(document.querySelector('#erp-h-stat').textContent.split(' baixas')[0].replace(/[^0-9]/g,'')),
+                  value:Number(document.querySelector('#erp-h-value').textContent.replace(/[^0-9,]/g,'').replace(',','.')),
+                  lastDate:document.querySelector('#erp-h-body tr td')?.textContent,
+                  request:performance.getEntriesByType('resource').some(x=>
+                    x.name.endsWith('/baixas-detalhe-2026.json.gz?v=20261126'))
+                })""")
+                assert daily_history['records']==BAIXAS_AUDIT['annual']['2026']['records'],daily_history
+                assert abs(daily_history['value']-BAIXAS_AUDIT['annual']['2026']['value'])<0.01,daily_history
+                assert daily_history['lastDate']=='25/11/2026' and daily_history['request'],daily_history
+                page.locator('#full-movement-history > summary').click()
             else:
                 assert not historical['historyPanel'], 'Consulta consolidada nao pertence ao piloto'
 
 
 
 
-            # The same product/local can have two fiscal-company positions.
-            fiscal_positions=page.evaluate("""() => STOCK.filter(x =>
-                String(x.codigo_local)==='50115' && String(x.codigo)==='106763' &&
-                String(x.un)==='PC').map(x=>String(x.empresa))""")
-            assert len(fiscal_positions)==2 and len(set(fiscal_positions))==2, fiscal_positions
+            # Preserve every current fiscal position. A former two-company
+            # product is no longer in this snapshot and cannot be a fixed fixture.
+            fiscal_positions=page.evaluate("""() => STOCK.map(x=>[
+                String(x.empresa),String(x.codigo_local),String(x.codigo),String(x.un),
+                Number(x.estoque),Math.round(Number(x.valor_erp_original??x.valor_estoque)*100)
+            ])""")
+            assert sorted(fiscal_positions)==EXPECTED_FISCAL_POSITIONS,'ERP fiscal positions differ from the current source'
         if optimized and 'Pilot' not in name:
             # Posicoes de estoque: cascata local -> grupo -> produto preserva
             # quantidade, custo e referencia de precos do ERP.
@@ -527,7 +597,7 @@ with sync_playwright() as p:
             page.wait_for_function("window.DB_STOCK_LOCATION_CASCADE?.meta?.rows>0",timeout=20000)
             source_meta=page.evaluate("window.DB_STOCK_LOCATION_CASCADE.meta")
             assert source_meta['viewLevels']==['Almoxarifado','Grupo','Produto'],source_meta
-            assert source_meta['rows']==4459,source_meta
+            assert source_meta['rows']==EXPECTED_STOCK_ROWS,source_meta
             assert source_meta['visiblePositions']==source_meta['rows'],source_meta
             cascade=page.locator('#db-stock-cascade')
             print('DBSC_VISIBILITY_DEBUG',page.evaluate("""() => {
@@ -698,7 +768,7 @@ with sync_playwright() as p:
             page.wait_for_function("window.DB_STOCK_UNIFIED?.meta?.integrated===true", timeout=15000)
             meta4=page.evaluate("window.DB_STOCK_UNIFIED.meta")
             assert meta4['warehouseCount']>=9 and meta4['networkExcludedFromTotals'], meta4
-            assert meta4['stockDate']=='22/11/2026 14:52:02', meta4
+            assert meta4['stockDate']==EXPECTED_STOCK_DATE, meta4
             assert meta4['minimumMonths']==2 and meta4['months']==4, meta4
             assert meta4['physicalNeedItems']>0 and meta4['physicalNeedValue']>0, meta4
             assert meta4['physicalExcessItems']>=0 and meta4['physicalExcessValue']>=0, meta4
@@ -1070,7 +1140,7 @@ with sync_playwright() as p:
             assert all(no_withdrawals[x] for x in ['locationCounts','groupCounts','locationValues','groupValues']), no_withdrawals
             assert no_withdrawals['networkDefault'] and no_withdrawals['filtered']==no_withdrawals['networkRows'] and no_withdrawals['purchaseHistoryAvailable'], no_withdrawals
             assert no_withdrawals['rows']>0 and no_withdrawals['filtered']>0 and no_withdrawals['filtered']<=no_withdrawals['rows'], no_withdrawals
-            assert no_withdrawals['position']=='22/11/2026 14:52:02', no_withdrawals
+            assert no_withdrawals['position']==EXPECTED_STOCK_DATE, no_withdrawals
             assert no_withdrawals['header']=='Estoque sem baixas registradas' and no_withdrawals['groupLabel'], no_withdrawals
 
             def open_no_withdrawal_group(key):
@@ -1265,7 +1335,7 @@ with sync_playwright() as p:
             assert sj_no_withdrawals['rows']>0 and sj_no_withdrawals['display']>0, sj_no_withdrawals
             assert sj_no_withdrawals['localRows'] and sj_no_withdrawals['valid'] and sj_no_withdrawals['ordered'], sj_no_withdrawals
             assert sj_no_withdrawals['purchaseLocal'] and sj_no_withdrawals['meta']==BAIXAS_AUDIT['revisedRecords'], sj_no_withdrawals
-            assert sj_no_withdrawals['date']=='22/11/2026 14:52:02', sj_no_withdrawals
+            assert sj_no_withdrawals['date']==EXPECTED_STOCK_DATE, sj_no_withdrawals
             assert page.locator('#sj-nw-scope').input_value()=='rede', 'Sao Joao deve iniciar sem baixas em toda a rede'
             page.locator('#sj-nw-sort').select_option('unitario')
             sorted_unit=page.evaluate("""() => [...document.querySelectorAll('#sj-nw-view tr[data-sj-nw-unit]')]
@@ -1368,13 +1438,13 @@ with sync_playwright() as p:
             assert 'São João' not in page.locator('#sj-pilot-root').inner_text()
         results[name]['errors'] = errors.copy()
         page.close()
-    assert results['fast']['stockRows'] == 4459, 'Unexpected stock positions'
-    assert results['fastPilot']['stockRows'] == 4459, 'Unexpected Sao Joao stock positions'
-    assert results['fastChuaPilot']['stockRows'] == 4459, 'Unexpected Chua stock positions'
+    assert results['fast']['stockRows'] == EXPECTED_STOCK_ROWS, 'Unexpected stock positions'
+    assert results['fastPilot']['stockRows'] == EXPECTED_STOCK_ROWS, 'Unexpected Sao Joao stock positions'
+    assert results['fastChuaPilot']['stockRows'] == EXPECTED_STOCK_ROWS, 'Unexpected Chua stock positions'
     approved_audit=results['fast']['approvedCostAudit']
     assert approved_audit is not None and approved_audit['positions']>=1, approved_audit
     expected_adjustment=approved_audit['deltaCents']/100
-    assert abs(results['fast']['stockValue'] - (2435923.56 + expected_adjustment)) < 0.01, 'Unexpected stock value'
+    assert abs(results['fast']['stockValue'] - (EXPECTED_STOCK_ERP + expected_adjustment)) < 0.01, 'Unexpected stock value'
     if snapshots['legacy'] != snapshots['fast']:
         for field in snapshots['legacy']:
             left, right = snapshots['legacy'][field], snapshots['fast'][field]
