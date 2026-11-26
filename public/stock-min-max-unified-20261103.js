@@ -422,6 +422,52 @@
     }
     return [...mapped.values()].sort((a,b)=>b.qty-a.qty||a.center.localeCompare(b.center,'pt-BR'));
   }
+
+  const plateYears=new Map(),plateInFlight=new Map(),plateUnavailable=new Set();
+  async function loadPlateYear(year){
+    if(plateYears.has(year))return plateYears.get(year);
+    if(plateUnavailable.has(year))return null;
+    if(plateInFlight.has(year))return plateInFlight.get(year);
+    const promise=(async()=>{
+      const url='/centros-resultado-placas-20261126-'+year+'.b64';
+      const response=await fetch(url,{cache:'no-store'});
+      if(response.status===404){plateUnavailable.add(year);return null;}
+      if(!response.ok)throw Error('Detalhe de placas indisponivel ('+response.status+')');
+      const b64=(await response.text()).trim();
+      if(!/^[A-Za-z0-9+/=]+$/.test(b64)||typeof DecompressionStream==='undefined')
+        throw Error('Formato do detalhamento de placas invalido');
+      const bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+      const data=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+      if(data.schema!==1||data.year!==year||data.sourceSHA256!==centerSourceSHA256||
+         data.records!==(year===2025?7315:13988)||!Array.isArray(data.rows)||
+         !data.dict||!Array.isArray(data.dict.center)||!Array.isArray(data.dict.plate)||
+         !Array.isArray(data.dict.vehicle))
+        throw Error('Conferencia de origem do detalhe por placas falhou');
+      plateYears.set(year,data);
+      return data;
+    })();
+    plateInFlight.set(year,promise);
+    try{return await promise;}finally{plateInFlight.delete(year);}
+  }
+  function plateRowsForItem(item,year,month,un){
+    const data=plateYears.get(year);
+    if(!data)return null;
+    const D=data.dict,pi=D.product.indexOf(str(item.codigo));
+    const ui=D.unit.indexOf(norm(un)),li=D.local.indexOf(str(item.codigo_local));
+    if(pi<0||ui<0||(!item.network&&li<0))return [];
+    const group=new Map();
+    for(const [m,localIndex,productIndex,unitIndex,centerIndex,plateIndex,vehicleIndex,amount] of data.rows){
+      if(m!==month||productIndex!==pi||unitIndex!==ui||
+         (!item.network&&localIndex!==li))continue;
+      const loc=str(D.local[localIndex]),center=str(D.center[centerIndex]||'CENTRO NAO INFORMADO');
+      const plate=str(D.plate[plateIndex]||''),vehicle=str(D.vehicle[vehicleIndex]||'');
+      const k=loc+'|'+center+'|'+plate+'|'+vehicle;
+      const x=group.get(k)||{local:loc,center,plate,vehicle,qty:0};
+      x.qty+=n(amount);group.set(k,x);
+    }
+    return [...group.values()];
+  }
+
   function centerMonthlyHistory(item){
     const years=config.year?[Number(config.year)]:[2025,2026];
     const byUnit=new Map();
@@ -535,6 +581,7 @@
       '<div class="dbmx-center-coverage '+(matched?'is-matched':'is-partial')+'">'+status+'</div>'+
       '<div class="dbmx-center-scroll"><table><thead><tr><th>Centro de resultado</th>'+
       (item.network?'<th>Local de origem</th>':'')+
+      (plateYears.has(year)?'<th>Placa / identificação</th><th>Veículo / equipamento</th>':'')+
       '<th>Quantidade baixada</th><th>% identificado</th></tr></thead><tbody>'+
       found.map(x=>'<tr><td>'+esc(x.center)+'</td>'+
         (item.network?'<td>'+esc(x.local)+'</td>':'')+
@@ -555,6 +602,7 @@
     area.innerHTML='<p class="dbmx-center-empty">Consultando os centros de resultado...</p>';
     try {
       await loadResultYear(year);
+      await loadPlateYear(year).catch(()=>null);
       if(!dialog.open||monthlySelection.codigo!==dialog.dataset.dbmxActiveProduct)return;
       area.innerHTML=resultCenterHtml(monthlySelection,year,month,un,total);
     } catch (error) {
