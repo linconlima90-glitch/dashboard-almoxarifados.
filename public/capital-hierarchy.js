@@ -9,6 +9,7 @@
   const brCompact=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',notation:'compact',maximumFractionDigits:1}).format(Number(v)||0);
   const n1=v=>new Intl.NumberFormat('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:1}).format(Number(v)||0);
   const pct=v=>new Intl.NumberFormat('pt-BR',{style:'percent',minimumFractionDigits:1,maximumFractionDigits:1}).format(Number(v)||0);
+  const scopedStock=()=>typeof stockFiltered==='function'?stockFiltered():STOCK;
 
   const style=document.createElement('style');
   style.textContent=`
@@ -117,7 +118,7 @@
 
     const byLocal=()=>{
       const m=new Map();
-      for(const x of STOCK){
+      for(const x of scopedStock()){
         const k=String(x.local||'SEM LOCAL'),a=m.get(k)||{local:k,valor:0,produtos:new Set(),grupos:new Set()};
         a.valor+=Number(x.valor_estoque)||0;a.produtos.add(String(x.codigo));a.grupos.add(String(x.grupo||'SEM GRUPO'));m.set(k,a);
       }
@@ -125,7 +126,7 @@
     };
     const byGroup=local=>{
       const m=new Map();
-      for(const x of STOCK){
+      for(const x of scopedStock()){
         if(String(x.local)!==local)continue;
         const k=String(x.grupo||'SEM GRUPO'),a=m.get(k)||{grupo:k,valor:0,produtos:new Set()};
         a.valor+=Number(x.valor_estoque)||0;a.produtos.add(String(x.codigo));m.set(k,a);
@@ -134,7 +135,7 @@
     };
     const byProduct=(local,group)=>{
       const m=new Map();
-      for(const x of STOCK){
+      for(const x of scopedStock()){
         if(String(x.local)!==local||String(x.grupo||'SEM GRUPO')!==group)continue;
         const k=String(x.codigo),a=m.get(k)||{codigo:x.codigo,produto:x.produto,un:x.un,estoque:0,valor:0};
         a.estoque+=Number(x.estoque)||0;a.valor+=Number(x.valor_estoque)||0;m.set(k,a);
@@ -211,6 +212,13 @@
       else if(level==='group')renderProduct(selectedLocal,x.grupo);
     });
 
+    window.DB_CAPITAL_HIERARCHY={refresh:renderLocal};
+    for(const id of ['fEmpresa','fLocal','fGrupo','fUn','fFornecedor','fBusca']){
+      const control=document.getElementById(id);
+      control?.addEventListener(id==='fBusca'?'input':'change',renderLocal);
+    }
+    for(const event of ['dashboard-ready','stock-position-updated','stocks-updated','purchases-updated'])
+      window.addEventListener(event,renderLocal);
     renderLocal();
     return true;
   }

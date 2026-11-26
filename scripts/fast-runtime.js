@@ -13,7 +13,7 @@
     if (booting) return;
     const active = activeView();
     for (const [name, entry] of registry) {
-      if (!dirty.has(name) || entry.view !== active) continue;
+      if (!dirty.has(name) || !entry.views.has(active)) continue;
       dirty.delete(name);
       try {
         entry.fn.apply(entry.self, entry.args || []);
@@ -30,12 +30,19 @@
     stats,
     wrap(name, view, fn) {
       if (typeof fn !== 'function') throw new Error('Missing renderer: ' + name);
-      const entry = { view, fn, self: window, args: [] };
+      const entry = { view, views: new Set([view]), fn, self: window, args: [] };
       registry.set(name, entry); dirty.add(name);
       return function (...args) {
         stats.requested++; entry.self = this; entry.args = args;
         dirty.add(name); schedule();
       };
+    },
+    addViews(name, views) {
+      const entry = registry.get(name);
+      if (!entry) return false;
+      for (const view of views) entry.views.add(view);
+      dirty.add(name); schedule();
+      return true;
     },
     requestAll() {
       stats.requested++;
@@ -59,7 +66,7 @@
   };
   document.addEventListener('click', event => {
     if (event.target?.closest?.('.tab,.clean-sub-btn,.clean-primary-btn')) {
-      for (const [name, entry] of registry) if (entry.view === activeView()) dirty.add(name);
+      for (const [name, entry] of registry) if (entry.views.has(activeView())) dirty.add(name);
       schedule();
     }
   });

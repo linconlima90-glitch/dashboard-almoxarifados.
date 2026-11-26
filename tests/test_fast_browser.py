@@ -180,6 +180,198 @@ def check_variation_excel_export(page):
             page.locator('.tab[data-view="' + previous['view'] + '"]').evaluate('(el)=>el.click()')
 
 
+def check_management_navigation(page):
+    """Exercise the visible, consolidated menus without altering the business data."""
+    filter_ids = ['fEmpresa', 'fLocal', 'fGrupo', 'fUn', 'fFornecedor', 'fBusca']
+    previous = page.evaluate("""ids => ({view:document.querySelector('.tab.active')?.dataset.view,
+      filters:Object.fromEntries(ids.map(id=>[id,document.getElementById(id)?.value||''])),
+      filtersOpen:document.querySelector('.filters')?.classList.contains('clean-open')||false})""", filter_ids)
+    fingerprint = """() => ({stockRows:STOCK.length,
+      stockCents:Math.round(STOCK.reduce((n,r)=>n+Number(r.valor_estoque||0),0)*100),
+      purchaseRows:PURCHASES.length,purchaseCents:Math.round(PURCHASES.reduce((n,r)=>n+Number(r.valor||0),0)*100),
+      movementRows:MOVEMENTS.length,comparison:window.DB_UNIFIED_ECONOMY.summary().net})"""
+    before = page.evaluate(fingerprint)
+
+    def expect_view(view, group):
+        page.wait_for_function("""({view,group}) =>
+          document.querySelector('.tab.active')?.dataset.view===view &&
+          document.querySelector('.clean-primary-btn.active')?.dataset.group===group &&
+          document.getElementById('view-'+view)?.classList.contains('active')""",
+                               arg={'view': view, 'group': group})
+        assert page.locator('.view.active').count() == 1
+        assert page.locator('#view-' + view).is_visible()
+
+    def set_filters(values):
+        page.evaluate("""values => {
+          for(const [id,value] of Object.entries(values))document.getElementById(id).value=value;
+          document.getElementById('fGrupo').dispatchEvent(new Event('change',{bubbles:true}));
+          document.getElementById('fBusca').dispatchEvent(new Event('input',{bubbles:true}));
+        }""", values)
+
+    def filters():
+        return page.evaluate("ids=>Object.fromEntries(ids.map(id=>[id,document.getElementById(id).value]))", filter_ids)
+
+    try:
+        page.wait_for_function("window.DB_NAVIGATION && document.querySelector('#view-resultados #db-economia-unificada')")
+        primary = page.locator('.clean-primary-btn')
+        assert primary.all_text_contents() == ['Resumo', 'Estoque', 'Compras', 'Economia e resultados']
+        assert primary.evaluate_all("items=>items.map(item=>item.dataset.group)") == ['resumo', 'estoque', 'compras', 'resultados']
+        groups = {
+            'estoque': ['estoque', 'minimo', 'baixas', 'inventarios'],
+            'compras': ['historico', 'produtos', 'compras-programadas', 'orcamentos'],
+            'resultados': ['resultados', 'economia'],
+        }
+        for group, views in groups.items():
+            page.locator('.clean-primary-btn[data-group="' + group + '"]').click()
+            page.wait_for_function("group=>document.querySelector('.clean-primary-btn.active')?.dataset.group===group", arg=group)
+            actual = page.locator('.clean-sub-btn').evaluate_all("items=>items.map(item=>item.dataset.view)")
+            assert actual == views, (group, actual)
+            assert len(actual) == len(set(actual)), 'Duplicated secondary destinations'
+            for view in views:
+                page.locator('.clean-sub-btn[data-view="' + view + '"]').click()
+                expect_view(view, group)
+
+        # One physical economy panel, with its audit still available on demand.
+        page.locator('.clean-sub-btn[data-view="resultados"]').click()
+        expect_view('resultados', 'resultados')
+        assert page.locator('#db-economia-unificada').count() == 1
+        assert page.locator('#view-geral #db-economia-unificada').count() == 0
+        assert page.locator('#view-resultados #db-economia-unificada').is_visible()
+        assert not page.locator('#eu-audit').evaluate('el=>el.open')
+        assert page.locator('#eu-source-panels > section').count() == 5
+        assert page.locator('#db-navigation-context').get_attribute('data-scope') in ['own', 'mixed']
+        assert page.locator('#db-navigation-context .clean-context-note').inner_text().strip()
+
+        # The former executive route now opens the same summary as the main menu.
+        page.locator('.tab[data-view="executivo"]').evaluate('(el)=>el.click()')
+        expect_view('geral', 'resumo')
+        assert page.locator('#db-management-summary').is_visible()
+        assert page.locator('#view-geral .capital-hierarchy').is_visible()
+        assert page.locator('.clean-sub-btn[data-view="executivo"]').count() == 0
+        assert not page.locator('#view-executivo').evaluate("el=>el.classList.contains('view')")
+        cards = page.locator('#db-management-summary .db-summary-card[data-target]')
+        assert cards.count() == 5
+        assert not page.locator('#db-summary-extra').evaluate('el=>el.open')
+        for view, group in [('estoque', 'estoque'), ('sem-baixas', 'estoque'),
+                            ('minimo', 'estoque'), ('historico', 'compras'),
+                            ('resultados', 'resultados')]:
+            page.locator('.clean-primary-btn[data-group="resumo"]').click()
+            page.locator('#db-management-summary .db-summary-card[data-target="' + view + '"]').click()
+            expect_view(view, group)
+
+        # The stock modes are reachable from one position/replenishment destination.
+        for canonical, mode in [('estoque', 'sem-baixas'), ('minimo', 'cdi')]:
+            page.locator('.clean-primary-btn[data-group="estoque"]').click()
+            page.locator('.clean-sub-btn[data-view="' + canonical + '"]').click()
+            page.locator('#db-navigation-modes .clean-mode-btn[data-view="' + mode + '"]').click()
+            expect_view(mode, 'estoque')
+            assert page.locator('.clean-sub-btn.active').get_attribute('data-view') == canonical
+            assert page.locator('.clean-sub-btn[data-view="' + mode + '"]').count() == 0
+
+        # Select a real product in both current stock and purchase history.
+        fixture = page.evaluate("""() => {
+          const allowed=id=>new Set([...document.getElementById(id).options].map(o=>o.value));
+          const locals=allowed('fLocal'),groups=allowed('fGrupo'),units=allowed('fUn');
+          const row=PURCHASES.find(r=>Number(r.preco)>0&&!window.DB_IS_TIRE_OR_CAMERA(r)&&
+            locals.has(r.local)&&groups.has(r.grupo)&&units.has(r.un)&&
+            STOCK.some(s=>String(s.codigo)===String(r.codigo)&&s.local===r.local&&s.un===r.un&&Number(s.estoque)>0));
+          return row?{code:String(row.codigo),local:row.local,group:row.grupo,unit:row.un}:null;
+        }""")
+        assert fixture, 'Expected a current product with comparable purchases'
+        selected = {**{key: '' for key in filter_ids}, 'fLocal': fixture['local'],
+                    'fGrupo': fixture['group'], 'fUn': fixture['unit'], 'fBusca': fixture['code']}
+        set_filters(selected)
+        page.evaluate("window.DB_NAVIGATION.go('estoque')")
+        expect_view('estoque', 'estoque')
+        assert filters() == selected
+        page.locator('.clean-primary-btn[data-group="compras"]').click()
+        page.locator('.clean-sub-btn[data-view="historico"]').click()
+        expect_view('historico', 'compras')
+        page.wait_for_function("document.querySelectorAll('#tbodyHistorico tr').length>0")
+        assert filters() == selected
+        assert page.evaluate("p=>purchasesFiltered().every(r=>r.local===p.local&&r.grupo===p.group&&r.un===p.unit)", fixture)
+        page.locator('#db-navigation-modes .clean-mode-btn[data-view="fornecedores"]').click()
+        expect_view('fornecedores', 'compras')
+        assert page.locator('.clean-sub-btn.active').get_attribute('data-view') == 'historico'
+        assert filters() == selected
+        page.locator('.clean-sub-btn[data-view="produtos"]').click()
+        expect_view('produtos', 'compras')
+        assert filters() == selected
+        assert page.locator('#db-navigation-context').get_attribute('data-scope') == 'mixed'
+        assert page.locator('#db-navigation-context .clean-context-note').inner_text().strip()
+        page.locator('#view-produtos .purchase-workspace-modes [data-pw-view="variacao"]').click()
+        expect_view('variacao', 'compras')
+        page.wait_for_function("window.DB_PURCHASE_VARIATION_EXPORT.getRows().length>0 && !document.getElementById('variationExportExcel').disabled")
+        assert filters() == selected
+        assert page.locator('.clean-sub-btn.active').get_attribute('data-view') == 'produtos'
+        assert page.locator('#variationExportExcel').is_visible()
+        visible_filters = page.locator('#db-navigation-context .clean-context-filters').inner_text()
+        assert fixture['local'] in visible_filters and fixture['code'] in visible_filters
+        history_link = page.locator('#variationRows [data-pw-history]').first
+        history_link.wait_for(state='visible')
+        selected['fBusca'] = history_link.get_attribute('data-pw-history')
+        selected['fUn'] = history_link.get_attribute('data-pw-unit')
+        history_link.click()
+        expect_view('historico', 'compras')
+        assert filters() == selected, 'Product history lost the selected warehouse/group'
+        page.wait_for_function("document.querySelectorAll('#tbodyHistorico tr').length>0")
+        page.locator('.clean-sub-btn[data-view="produtos"]').click()
+        page.locator('#view-produtos .purchase-workspace-modes [data-pw-view="variacao"]').click()
+        expect_view('variacao', 'compras')
+        page.locator('#view-variacao .purchase-workspace-modes [data-pw-view="atualizacao-custos"]').click()
+        expect_view('atualizacao-custos', 'compras')
+        assert filters() == selected
+        assert page.locator('#db-navigation-context').get_attribute('data-scope') in ['own', 'mixed']
+        assert page.locator('#db-navigation-context .clean-context-note').inner_text().strip()
+        assert page.evaluate(fingerprint) == before, 'Navigation changed source totals'
+        assert not page.evaluate('DB_FAST.stats.errors'), page.evaluate('DB_FAST.stats.errors')
+        # Check responsive geometry and controls without creating image artifacts.
+        viewport = page.viewport_size
+        try:
+            page.set_viewport_size({'width': 430, 'height': 932})
+            page.evaluate("window.DB_NAVIGATION.go('geral');window.DB_MANAGEMENT_OVERVIEW.refresh();window.scrollTo(0,0)")
+            expect_view('geral', 'resumo')
+            page.evaluate('()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
+            mobile_summary = page.evaluate("""() => {
+              const fits=selector=>[...document.querySelectorAll(selector)].every(el=>{
+                const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=-1&&r.right<=innerWidth+1;
+              });
+              return {width:innerWidth,menus:document.querySelectorAll('.clean-primary-btn').length,
+                cards:document.querySelectorAll('#db-management-summary .db-summary-card').length,
+                menuFits:fits('.clean-primary-btn'),cardsFit:fits('#db-management-summary .db-summary-card'),
+                bodyFits:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth)<=innerWidth+1};
+            }""")
+            assert mobile_summary == {'width': 430, 'menus': 4, 'cards': 5,
+                                      'menuFits': True, 'cardsFit': True, 'bodyFits': True}, mobile_summary
+            assert filters() == selected
+            page.locator('.clean-primary-btn[data-group="compras"]').click()
+            page.locator('.clean-sub-btn[data-view="produtos"]').click()
+            expect_view('produtos', 'compras')
+            for source, target in [('produtos', 'variacao'), ('variacao', 'atualizacao-custos'),
+                                   ('atualizacao-custos', 'produtos')]:
+                mode = page.locator('#view-' + source + ' .purchase-workspace-modes [data-pw-view="' + target + '"]')
+                assert mode.is_visible()
+                mode.click()
+                expect_view(target, 'compras')
+                assert filters() == selected, 'Mobile price navigation changed the selected filters'
+                assert page.evaluate("Math.max(document.documentElement.scrollWidth,document.body.scrollWidth)<=innerWidth+1"), target
+            assert page.evaluate(fingerprint) == before, 'Responsive navigation changed source totals'
+        finally:
+            if viewport:
+                page.set_viewport_size(viewport)
+        return {'primaryMenus': 4, 'secondaryDestinations': sum(map(len, groups.values())),
+                'singleEconomyPanel': True, 'executiveAlias': 'geral',
+                'summaryShortcuts': 5, 'filtersPreserved': True,
+                'priceModes': 3, 'productHistoryShortcut': True, 'dataUnchanged': True,
+                'responsive': {'width': 430, 'menus': 4, 'summaryCards': 5,
+                               'priceModesReachable': True, 'noBodyOverflow': True}}
+    finally:
+        set_filters(previous['filters'])
+        if previous['view']:
+            page.evaluate('view=>window.DB_NAVIGATION.go(view)', previous['view'])
+        page.evaluate("open=>{document.querySelector('.filters').classList.toggle('clean-open',open);window.DB_NAVIGATION.refresh();}", previous['filtersOpen'])
+
+
 BAIXAS_AUDIT = json.loads((root / 'build-baixas-audit.json').read_text(encoding='utf-8'))
 # The runtime is checked against the audited inputs of the current build,
 # rather than keeping an obsolete stock value in several unrelated tests.
@@ -590,7 +782,8 @@ with sync_playwright() as p:
             cost_tab=page.locator('.tab[data-view="atualizacao-custos"]')
             assert cost_tab.count()==1
             page.locator('.clean-primary-btn[data-group="compras"]').click()
-            visible_cost=page.locator('.clean-sub-btn[data-view="atualizacao-custos"]')
+            page.locator('.clean-sub-btn[data-view="produtos"]').click()
+            visible_cost=page.locator('#view-produtos .purchase-workspace-modes [data-pw-view="atualizacao-custos"]')
             assert visible_cost.count()==1 and visible_cost.is_visible()
             visible_cost.click()
             assert page.locator('#view-atualizacao-custos.active').count()==1
@@ -934,7 +1127,7 @@ with sync_playwright() as p:
             # O atalho "Local" e o botao de retorno permitem sair de Grupo e Produto
             # sem perder dados, filtros ou a visao geral dos almoxarifados.
             capital_nav=page.evaluate("""() => {
-              const panel=document.querySelector('#view-executivo .capital-hierarchy');
+              const panel=document.querySelector('#view-geral .capital-hierarchy');
               if(!panel)return {installed:false};
               const columns=()=>[...panel.querySelectorAll('.capital-column[data-index]')];
               const count=columns().length;
@@ -970,17 +1163,17 @@ with sync_playwright() as p:
             # titulo redirecionava a tela Estoque mesmo apos o breadcrumb voltar.
             exec_view=page.locator('.tab[data-view="executivo"]')
             exec_view.evaluate("(el)=>el.click()")
-            capital_panel=page.locator('#view-executivo .capital-hierarchy')
+            capital_panel=page.locator('#view-geral .capital-hierarchy')
             capital_panel.wait_for(state='visible')
             original_local_count=capital_panel.locator('.capital-column[data-index]').count()
             assert original_local_count>=2
             def ensure_executive_local():
-                assert page.locator('.tab[data-view="executivo"].active').count()==1, 'Navegacao saiu do Resumo Executivo'
+                assert page.locator('.tab[data-view="geral"].active').count()==1, 'Navegacao saiu do Resumo unificado'
                 assert capital_panel.locator('.capital-crumb[data-level="group"]').count()==0, 'Nao voltou aos locais'
                 assert capital_panel.locator('.capital-column[data-index]').count()==original_local_count, 'Locais alterados'
             capital_panel.locator('.capital-column[data-index]').first.click()
             assert capital_panel.locator('.capital-crumb[data-level="group"]').count()==1
-            assert page.locator('.tab[data-view="executivo"].active').count()==1
+            assert page.locator('.tab[data-view="geral"].active').count()==1
             capital_panel.locator('.capital-crumb[data-level="local"]').click()
             ensure_executive_local()
             capital_panel.locator('.capital-column[data-index]').first.click()
@@ -994,7 +1187,7 @@ with sync_playwright() as p:
             ensure_executive_local()
             capital_panel.locator('.board-title h3').click()
             ensure_executive_local()
-            for view in ['geral', 'estoque', 'sem-baixas', 'baixas', 'minimo', 'produtos', 'fornecedores', 'historico', 'cdi', 'variacao', 'economia', 'orcamentos']:
+            for view in ['geral', 'estoque', 'sem-baixas', 'baixas', 'minimo', 'produtos', 'fornecedores', 'historico', 'cdi', 'variacao', 'resultados', 'economia', 'orcamentos']:
                 selector = f'.tab[data-view="{view}"]'
                 if not page.locator(selector).count():
                     continue
@@ -1029,7 +1222,7 @@ with sync_playwright() as p:
             assert panel.is_visible(), 'Unified dashboard should be the only visible stock analysis'
             assert panel.get_by_text('Estoque mínimo / Estoque máximo', exact=True).count()==1
             assert page.locator('.tab[data-view="minimo"]').inner_text().strip()=='Estoque mínimo / Estoque máximo'
-            assert page.locator('.clean-sub-btn[data-view="minimo"]').inner_text().strip()=='Estoque mínimo / Estoque máximo'
+            assert page.locator('.clean-sub-btn[data-view="minimo"]').inner_text().strip()=='Reposição'
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.screenshotCardLayout") is True
             assert page.evaluate("window.DB_STOCK_UNIFIED.meta.tabLabel") == 'Estoque mínimo / Estoque máximo'
             assert panel.locator('.dbmx-kpi').count()==6
@@ -1686,6 +1879,8 @@ with sync_playwright() as p:
             assert chua_no_withdrawals['purchasesOnlyChua'] and chua_no_withdrawals['date']==chua_no_withdrawals['stockDate'], chua_no_withdrawals
             assert page.locator('#sj-nw-scope').input_value()=='rede', 'Chua deve iniciar sem baixas em toda a rede'
             assert 'São João' not in page.locator('#sj-pilot-root').inner_text()
+        if optimized and name == 'fast':
+            results[name]['managementNavigation'] = check_management_navigation(page)
         results[name]['errors'] = errors.copy()
         page.close()
     assert results['fast']['stockRows'] == EXPECTED_STOCK_ROWS, 'Unexpected stock positions'

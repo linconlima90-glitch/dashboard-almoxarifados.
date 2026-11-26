@@ -51,7 +51,7 @@ class DashboardHeadInjector {
           .db-boot-title{font-size:17px;margin-left:11px}.db-boot-content{padding:11px 10px}.db-boot-card{height:300px}
         }
       </style>
-      <link rel="preload" href="/layout-clean-v2.js?v=20261015-2" as="script">
+      <link rel="preload" href="/layout-clean-v2.js?v=20261126-navigation-1" as="script">
       <link rel="preload" href="/db-brand-theme.js?v=20261008-1" as="script">
       <link rel="preload" href="/db-brand-fixes.js?v=20261008-1" as="script">
     `, { html: true });
@@ -82,11 +82,11 @@ class DashboardInjector {
     `, { html: true });
 
     element.append(
-      (this.pilot ? '' : '<script src="/stock-no-withdrawals-tab-20261015.js?v=20261103-full-history"></script>') +
+      (this.pilot ? '' : '<script src="/stock-no-withdrawals-tab-20261015.js?v=20261126-navigation-1"></script>') +
       (this.pilot ? '' : '<script src="/inventory-audit-data.js?v=20261030-sj-cor-final"></script><script src="/inventory-history-tab.js?v=20261030-sj-cor-final"></script>') +
       (this.pilot ? '' : '<script src="/cdi-sankhya-requests-data.js?v=20261112-correias-110998"></script><script src="/cdi-sankhya-control.js?v=20261112-historico-sankhya-v1"></script>') +
       (this.pilot ? '' : '<script src="/stock-location-group-product-cascade.js?v=20261112-cascata-posicoes-v1"></script>') +
-      '<script src="/layout-clean-v2.js?v=20261015-2"></script>' +
+      '<script src="/layout-clean-v2.js?v=20261126-navigation-1"></script>' +
       '<script src="/db-brand-theme.js?v=20261008-1"></script>' +
       '<script src="/db-brand-fixes.js?v=20261008-1"></script>' +
       (this.pilot ? `<script src="/${this.chua ? 'chua-no-withdrawals' : 'sao-joao-no-withdrawals'}.js?v=20261103-full-history"></script>` : '') +
@@ -121,7 +121,7 @@ class DashboardInjector {
       '<script src="/executive-board-v3.js?v=20261008-2"></script>' +
       '<script src="/executive-product-filter.js?v=20260909"></script>' +
       '<script src="/executive-interactive.js?v=20261028-capital-nav-fix"></script>' +
-      '<script src="/capital-hierarchy.js?v=20261028-capital-nav-fix"></script>' +
+      '<script src="/capital-hierarchy.js?v=20261126-navigation-1"></script>' +
       '<script src="/executive-only-capital.js?v=20260911-1"></script>' +
       '<script src="/cdi-minimum-layout.js?v=20261103-full-history"></script>' +
       '<script src="/minimum-policy-2months-20261008.js?v=20261103-graficos-topo-safe"></script>' +
@@ -153,7 +153,7 @@ class DashboardInjector {
       '<script src="/cdi-current-stock-policy-20261126.js?v=20261126-current-stock-v1"></script>' +
       (this.pilot ? '' : '<script src="/movement-history-ui-20261103.js?v=20261103-1525"></script>' +
         '<script src="/baixas-consolidadas-20261103.js?v=20261103-1"></script>' +
-        '<script src="/stock-min-max-unified-20261103.js?v=20261103-status-column-filter-v8"></script>' +
+        '<script src="/stock-min-max-unified-20261103.js?v=20261126-navigation-1"></script>' +
         '<script src="/baixas-erp-conferido-20261106.js?v=20261106-custo-total-erp"></script>'+
         '<script src="/cdi-transfer-data.js?v=20261106-cdi-aprovacao"></script>'+
         '<script src="/cdi-transfer-savings.js?v=20261106-cdi-aprovacao"></script>'+ 
@@ -167,7 +167,9 @@ class DashboardInjector {
         '<script src="/economia-tabela-custo-aprovada-data-20261109.js?v=20261109-custo-corrigido"></script>'+ 
         '<script src="/economia-tabela-custo-aprovada-ui-20261109.js?v=20261109-custo-corrigido"></script>'+
         '<script src="/economia-unificada-20261109.js?v=20261109-painel-unico-v1"></script>'+ 
-        '<script src="/cost-reference-update-tab.js?v=20261113-auditoria-custos-v1"></script>'),
+        '<script src="/cost-reference-update-tab.js?v=20261113-auditoria-custos-v1"></script>'+
+        '<script src="/management-overview-20261126.js?v=20261126-navigation-1"></script>'+
+        '<script src="/purchase-workspace-20261126.js?v=20261126-navigation-1"></script>'),
       { html: true }
     );
   }

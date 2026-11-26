@@ -350,5 +350,10 @@
   window.addEventListener('stock-position-updated',invalidate);
   window.addEventListener('movements-updated',invalidate);
   window.addEventListener('purchases-updated',invalidate);
-  window.STOCK_NO_WITHDRAWAL={open:()=>tab.click(),getRows:()=>sourceRows.slice(),refresh:invalidate};
+  window.STOCK_NO_WITHDRAWAL={open:()=>tab.click(),getRows:()=>sourceRows.slice(),refresh:invalidate,
+    getSummary:()=>{
+      if(dirty&&!refreshSource())return null;
+      const rows=filteredRows();
+      return {value:rows.reduce((sum,row)=>sum+row.valor,0),items:rows.length,filters:getFilters()};
+    }};
 })();

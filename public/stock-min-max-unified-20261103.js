@@ -454,7 +454,7 @@
     const tabName='Estoque mínimo / Estoque máximo';
     const oldTab=document.querySelector('.tabs .tab[data-view="minimo"]');
     if(oldTab&&oldTab.textContent.trim()!==tabName)oldTab.textContent=tabName;
-    document.querySelectorAll('.clean-sub-btn[data-view="minimo"]').forEach(button=>{
+    if(!window.DB_NAVIGATION)document.querySelectorAll('.clean-sub-btn[data-view="minimo"]').forEach(button=>{
       if(button.textContent.trim()!==tabName)button.textContent=tabName;
     });
     // Mantem o DOM da analise antiga para compatibilidade, mas a exibicao e unica.
@@ -844,6 +844,13 @@
 
   function schedule(){clearTimeout(timer);timer=setTimeout(render,90);}
   const api={render,refresh:schedule,meta:null,performance:renderPerformance,
+    getSummary(){
+      if(!window.CURRENT_STOCK_META||!window.MOVEMENTS_REVISED_META)return null;
+      const physical=items().filter(row=>!row.network),low=physical.filter(row=>row.need>0);
+      return {value:low.reduce((sum,row)=>sum+row.purchaseValue,0),items:low.length,
+        missingCostItems:low.filter(row=>!row.hasCost).length,
+        minimumMonths:2,year:config.year||'2025 + 2026',networkExcludedFromTotals:true};
+    },
     version:'20261113-lazy-min-max-performance-v1'};
   window.DB_STOCK_UNIFIED=api;
   window.DB_STOCK_MAXIMUM=api; // Retem os pontos de observacao da versao anterior.
