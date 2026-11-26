@@ -562,6 +562,46 @@
   // Drilldown por centro de resultado: os totais do grafico sempre vem da base
   // consolidada, e o detalhamento apenas da origem que contem o destino real.
   let monthlySelection=null;
+
+  // As placas complementam os centros: nenhuma quantidade e contada duas vezes.
+  function centerTableRows(item,year,month,un,covered,found){
+    const entries=plateRowsForItem(item,year,month,un);
+    if(entries===null){
+      return found.map(x=>'<tr><td>'+esc(x.center)+'</td>'+
+        (item.network?'<td>'+esc(x.local)+'</td>':'')+
+        '<td class="num">'+qty(x.qty)+' '+esc(un)+'</td>'+
+        '<td class="num">'+(covered>0?qty(100*x.qty/covered):'0')+'%</td></tr>').join('');
+    }
+    const grouped=new Map();
+    for(const e of entries){
+      const key=(item.network?e.local+'|':'')+e.center;
+      if(!grouped.has(key))grouped.set(key,[]);
+      grouped.get(key).push(e);
+    }
+    return found.map(center=>{
+      const key=(item.network?center.local+'|':'')+center.center;
+      const parts=grouped.get(key)||[];
+      if(!parts.length){
+        // Nunca atribuir placa/veiculo sem registro de origem.
+        return '<tr><td>'+esc(center.center)+'</td>'+
+          (item.network?'<td>'+esc(center.local)+'</td>':'')+
+          '<td>Não identificada</td><td>—</td>'+
+          '<td class="num">'+qty(center.qty)+' '+esc(un)+'</td>'+
+          '<td class="num">'+(covered>0?qty(100*center.qty/covered):'0')+'%</td></tr>';
+      }
+      parts.sort((a,b)=>b.qty-a.qty||a.plate.localeCompare(b.plate,'pt-BR'));
+      return parts.map((part,index)=>'<tr>'+
+        (index===0?'<td rowspan="'+parts.length+'" class="dbmx-center-label">'+esc(center.center)+
+          '<small>Total: '+qty(center.qty)+' '+esc(un)+'</small></td>':'')+
+        (item.network&&index===0?'<td rowspan="'+parts.length+'">'+esc(center.local)+'</td>':'')+
+        '<td>'+esc(part.plate||'Sem placa informada')+'</td>'+
+        '<td>'+esc(part.vehicle||'—')+'</td>'+
+        '<td class="num">'+qty(part.qty)+' '+esc(un)+'</td>'+
+        '<td class="num">'+(covered>0?qty(100*part.qty/covered):'0')+'%</td></tr>'
+      ).join('');
+    }).join('');
+  }
+
   function resultCenterHtml(item,year,month,un,total){
     const label=monthlyNames[month-1]+' / '+year;
     const title='<h3>Destinação das baixas · '+esc(label)+'</h3>'+
@@ -583,10 +623,7 @@
       (item.network?'<th>Local de origem</th>':'')+
       (plateYears.has(year)?'<th>Placa / identificação</th><th>Veículo / equipamento</th>':'')+
       '<th>Quantidade baixada</th><th>% identificado</th></tr></thead><tbody>'+
-      found.map(x=>'<tr><td>'+esc(x.center)+'</td>'+
-        (item.network?'<td>'+esc(x.local)+'</td>':'')+
-        '<td class="num">'+qty(x.qty)+' '+esc(un)+'</td>'+
-        '<td class="num">'+(covered>0?qty(100*x.qty/covered):'0')+'%</td></tr>').join('')+
+      centerTableRows(item,year,month,un,covered,found)+
       '</tbody></table></div>'+
       '<p class="dbmx-center-source">Fonte: Conferência de custo X baixas · 26/11/2026 (Dt.Neg.). '+
       'Centro de resultado informado pelo ERP. Não inclui transferências; não altera estoque ou reposição.</p>';
@@ -1002,6 +1039,8 @@
         '.dbmx-center-scroll th{background:#0d542e;color:#fff;text-align:left;padding:9px;position:sticky;top:0}',
         '.dbmx-center-scroll td{border-bottom:1px solid #dce9dd;padding:9px}',
         '.dbmx-center-scroll td.num{text-align:right;white-space:nowrap}',
+        '.dbmx-center-label{font-weight:750;vertical-align:top;color:#145d37}',
+        '.dbmx-center-label small{display:block;font-weight:500;color:#617d6b;margin-top:4px}',
         '.dbmx-monthly-amount{font-size:10px;font-weight:750;white-space:nowrap;color:#214b33}',
         '.dbmx-monthly-bar-zone{height:145px;width:70%;display:flex;align-items:flex-end;justify-content:center}',
         '.dbmx-monthly-bar{display:block;width:100%;min-height:0;border-radius:5px 5px 0 0;background:#188049}',
