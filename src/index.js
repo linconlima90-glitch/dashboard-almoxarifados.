@@ -100,7 +100,8 @@ class DashboardInjector {
       '<script src="/purchase-data-20261030.js?v=20261030-1553"></script>' +
       '<script src="/audited-purchases-20261103-data.js?v=20261103-auditoria-aprovada"></script>' +
       '<script src="/purchase-update.js?v=20261103-auditoria-aprovada"></script>' +
-      '<script src="/purchase-variation.js?v=20260908-2"></script>' +
+      '<script src="/xlsx-export.js?v=20261126-1"></script>' +
+      '<script src="/purchase-variation.js?v=20261126-excel-1"></script>' +
       '<script src="/purchase-savings-detail.js?v=20261103-1"></script>' +
       '<script src="/quote-update-newfix-45978601.js?v=20260908"></script>' +
       '<script src="/quote-update-lima-ferramentas-03092026.js?v=20260908"></script>' +

@@ -15,6 +15,13 @@
     #view-variacao .variation-table .var-high{font-weight:900;color:var(--red)}
     #view-variacao .variation-table .var-mid{font-weight:850;color:var(--orange)}
     #view-variacao .variation-table .var-low{font-weight:800;color:var(--green)}
+    #view-variacao .variation-table .tablehead{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+    #view-variacao .variation-export-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    #view-variacao .variation-export{border:1px solid #17643b;border-radius:8px;background:#17643b;color:#fff;padding:10px 14px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+    #view-variacao .variation-export:hover{background:#104c2c}
+    #view-variacao .variation-export:focus-visible{outline:3px solid #f4d440;outline-offset:3px}
+    #view-variacao .variation-export:disabled{opacity:.5;cursor:default}
+    #view-variacao #variationExportStatus{font-size:11px;color:var(--muted)}
     @media(max-width:900px){#view-variacao .variation-cards{grid-template-columns:repeat(2,1fr)}}
   `;
   document.head.appendChild(style);
@@ -41,6 +48,7 @@
     <div class="tablepanel variation-table">
       <div class="tablehead">
         <div><h2>Variação histórica de compra por item</h2><div class="hint">Mesmo código + unidade • pneus e câmaras excluídos • maior variação primeiro</div></div>
+        <div class="variation-export-tools"><button type="button" class="variation-export" id="variationExportExcel" disabled>Exportar para Excel</button><span id="variationExportStatus" role="status" aria-live="polite"></span></div>
       </div>
       <div class="tablewrap" style="max-height:760px">
         <table>
@@ -84,6 +92,8 @@
 
   function renderVariation(){
     const rows=buildRows();
+    document.getElementById('variationExportExcel').disabled=rows.length===0;
+    document.getElementById('variationExportStatus').textContent='';
     document.getElementById('variationCount').textContent=num.format(rows.length);
     document.getElementById('variationMax').textContent=rows.length?perc.format(rows[0].varPct):'0,0%';
     document.getElementById('variationOver20').textContent=num.format(rows.filter(x=>x.varPct>.20).length);
@@ -100,6 +110,74 @@
       </tr>`;
     }).join('');
   }
+
+  function createWorkbook(rows=buildRows(),now=new Date()){
+    if(typeof window.DB_CREATE_XLSX!=='function')throw Error('Exportação Excel indisponível');
+    const columns=[
+      {header:'#',width:7,type:'integer'},
+      {header:'Código',width:14,type:'text'},
+      {header:'Produto',width:52,type:'text'},
+      {header:'Grupo',width:34,type:'text'},
+      {header:'UN',width:9,type:'text'},
+      {header:'Menor preço',width:18,type:'currency'},
+      {header:'Data menor',width:15,type:'date'},
+      {header:'Fornecedor menor',width:48,type:'text'},
+      {header:'Maior preço',width:18,type:'currency'},
+      {header:'Data maior',width:15,type:'date'},
+      {header:'Fornecedor maior',width:48,type:'text'},
+      {header:'Variação R$',width:18,type:'currency'},
+      {header:'Variação %',width:16,type:'percent'},
+      {header:'Compras',width:12,type:'integer'}
+    ];
+    const data=rows.map((row,i)=>[i+1,String(row.codigo),row.produto,row.grupo,row.un,
+      row.minPrice,row.min.data,row.min.fornecedor,row.maxPrice,row.max.data,row.max.fornecedor,
+      row.diff,row.varPct,row.count]);
+    const filterValue=(id,fallback)=>{
+      const element=document.getElementById(id);
+      if(!element||!String(element.value||'').trim())return fallback;
+      return element.selectedOptions?.length?
+        Array.from(element.selectedOptions).map(option=>option.textContent).join(', '):String(element.value);
+    };
+    const metadata=[
+      ['Relatório','Variação histórica de compra por item'],
+      ['Gerado em',new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'medium'}).format(now)+' · Brasília'],
+      ['Itens exportados',String(rows.length)],
+      ['Empresa',filterValue('fEmpresa','Todas')],
+      ['Almoxarifado',filterValue('fLocal','Todos')],
+      ['Grupo',filterValue('fGrupo','Todos')],
+      ['Unidade',filterValue('fUn','Todas')],
+      ['Fornecedor',filterValue('fFornecedor','Todos')],
+      ['Pesquisa',filterValue('fBusca','Sem pesquisa')],
+      ['Ordenação','Maior variação percentual; depois maior diferença em reais e nome do produto'],
+      ['Regra','Mesmo código e unidade; preços positivos; pneus e câmaras excluídos'],
+      ['Variação percentual','(Maior preço − menor preço) ÷ menor preço'],
+      ['Valores','Números originais preservados; a formatação das células não altera os valores']
+    ];
+    return window.DB_CREATE_XLSX({createdAt:now,sheets:[
+      {name:'Variação de compras',columns,rows:data,autoFilter:true,freezeHeader:true},
+      {name:'Filtros',columns:[{header:'Informação',width:26,type:'text'},{header:'Valor',width:100,type:'text'}],
+        rows:metadata,autoFilter:false,freezeHeader:true}
+    ]});
+  }
+  function exportExcel(){
+    const exportButton=document.getElementById('variationExportExcel'),status=document.getElementById('variationExportStatus');
+    const rows=buildRows();
+    if(!rows.length){exportButton.disabled=true;status.textContent='Sem itens para exportar nos filtros aplicados.';return}
+    exportButton.disabled=true;status.textContent='Preparando Excel…';
+    try{
+      const now=new Date(),bytes=createWorkbook(rows,now);
+      const parts=Object.fromEntries(new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'})
+        .formatToParts(now).map(part=>[part.type,part.value]));
+      const url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+      const link=document.createElement('a');link.href=url;link.download='variacao_compras_'+parts.year+'-'+parts.month+'-'+parts.day+'.xlsx';
+      document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+      status.textContent='Excel gerado com '+num.format(rows.length)+' '+(rows.length===1?'item.':'itens.');
+    }catch(error){
+      status.textContent='Não foi possível gerar o Excel. Tente novamente.';console.error('Exportação da variação de compras',error);
+    }finally{exportButton.disabled=buildRows().length===0}
+  }
+  document.getElementById('variationExportExcel').addEventListener('click',exportExcel);
+  window.DB_PURCHASE_VARIATION_EXPORT={getRows:buildRows,createWorkbook};
 
   btn.addEventListener('click',()=>{
     document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));

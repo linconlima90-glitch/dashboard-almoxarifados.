@@ -6,11 +6,180 @@ import gzip
 import http.server
 import json
 import os
+import math
+import posixpath
+import re
+import tempfile
 import threading
+import zipfile
+import xml.etree.ElementTree as ET
+from datetime import date
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 root = Path(__file__).resolve().parents[1]
+
+
+def verify_variation_xlsx(path, expected, supplier=None):
+    """Read the actual browser download using only Python's standard library."""
+    ns = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+    relation_ns = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    with zipfile.ZipFile(path) as archive:
+        assert archive.testzip() is None, 'XLSX ZIP checksum failed'
+        assert '[Content_Types].xml' in archive.namelist()
+        workbook = ET.fromstring(archive.read('xl/workbook.xml'))
+        sheets = workbook.findall('m:sheets/m:sheet', ns)
+        assert [sheet.get('name') for sheet in sheets] == ['Variação de compras', 'Filtros']
+        relationships = ET.fromstring(archive.read('xl/_rels/workbook.xml.rels'))
+        targets = {rel.get('Id'): rel.get('Target') for rel in relationships}
+        assert all(rel.get('TargetMode') != 'External' for rel in relationships)
+        shared = []
+        if 'xl/sharedStrings.xml' in archive.namelist():
+            strings = ET.fromstring(archive.read('xl/sharedStrings.xml'))
+            shared = [''.join(item.itertext()) for item in strings]
+
+        def worksheet(sheet):
+            target = targets[sheet.get('{' + relation_ns + '}id')]
+            name = target.lstrip('/') if target.startswith('/') else posixpath.normpath('xl/' + target)
+            return ET.fromstring(archive.read(name))
+
+        def text(cell):
+            if cell.get('t') == 'inlineStr':
+                return ''.join(node.text or '' for node in cell.findall('.//m:t', ns))
+            value = cell.findtext('m:v', default='', namespaces=ns)
+            return shared[int(value)] if cell.get('t') == 's' else value
+
+        def number(cell):
+            assert cell.get('t') in (None, 'n'), 'Excel numeric value exported as text'
+            value = float(cell.findtext('m:v', namespaces=ns))
+            assert math.isfinite(value)
+            return value
+
+        style = ET.fromstring(archive.read('xl/styles.xml'))
+        custom_formats = {int(item.get('numFmtId')): item.get('formatCode')
+                          for item in style.findall('m:numFmts/m:numFmt', ns)}
+        cell_formats = style.findall('m:cellXfs/m:xf', ns)
+
+        def format_of(cell):
+            index = int(cell.get('s', '0'))
+            assert index < len(cell_formats)
+            code = int(cell_formats[index].get('numFmtId', '0'))
+            return code, custom_formats.get(code, '')
+
+        main = worksheet(sheets[0])
+        assert not main.findall('.//m:f', ns), 'Export must contain literal values, not formulas'
+        rows = main.findall('m:sheetData/m:row', ns)
+        assert len(rows) == len(expected) + 1, 'XLSX omitted filtered rows'
+        header = [text(cell) for cell in rows[0].findall('m:c', ns)]
+        assert header == ['#', 'Código', 'Produto', 'Grupo', 'UN', 'Menor preço',
+                          'Data menor', 'Fornecedor menor', 'Maior preço', 'Data maior',
+                          'Fornecedor maior', 'Variação R$', 'Variação %', 'Compras'], header
+        assert main.find('m:autoFilter', ns).get('ref') == f'A1:N{len(rows)}'
+        pane = main.find('m:sheetViews/m:sheetView/m:pane', ns)
+        assert pane is not None and pane.get('state') == 'frozen' and pane.get('ySplit') == '1'
+        for index, (record, original) in enumerate(zip(rows[1:], expected), 1):
+            cells = record.findall('m:c', ns)
+            assert len(cells) == 14, f'Incomplete XLSX row {index}'
+            assert number(cells[0]) == index
+            for column, field in ((1, 'codigo'), (2, 'produto'), (3, 'grupo'), (4, 'un')):
+                assert text(cells[column]) == str(original.get(field) or ''), (index, field)
+            assert cells[1].get('t') in ('s', 'inlineStr'), 'Product codes must remain text'
+            for column, field in ((5, 'minPrice'), (8, 'maxPrice'), (11, 'diff'), (12, 'varPct')):
+                assert math.isclose(number(cells[column]), original[field], rel_tol=1e-12, abs_tol=1e-12), (index, field)
+            assert number(cells[13]) == original['count']
+            assert text(cells[7]) == original['min']['fornecedor']
+            assert text(cells[10]) == original['max']['fornecedor']
+            for column, source in ((6, original['min']), (9, original['max'])):
+                day, month, year = map(int, source['data'].split('/'))
+                serial = (date(year, month, day) - date(1899, 12, 30)).days
+                assert number(cells[column]) == serial, (index, 'date')
+                builtin, pattern = format_of(cells[column])
+                assert builtin in range(14, 23) or all(part in pattern.lower() for part in ['d', 'm', 'y'])
+            builtin, pattern = format_of(cells[12])
+            assert builtin in (9, 10) or '%' in pattern, 'Excel percentage format missing'
+        filters = worksheet(sheets[1])
+        filter_values = [text(cell) for cell in filters.findall('.//m:c', ns)]
+        if supplier:
+            assert supplier in filter_values, 'Applied supplier missing from Excel filters'
+    return {'rows': len(expected), 'columns': 14, 'sheets': 2}
+
+
+def check_variation_excel_export(page):
+    filter_ids = ['fEmpresa', 'fLocal', 'fGrupo', 'fUn', 'fFornecedor', 'fBusca']
+    previous = page.evaluate("""ids => ({view:document.querySelector('.tab.active')?.dataset.view,
+      filters:Object.fromEntries(ids.map(id=>[id,document.getElementById(id)?.value||'']))})""", filter_ids)
+
+    def set_filters(values):
+        page.evaluate("""values => {
+          for(const [id,value] of Object.entries(values))document.getElementById(id).value=value;
+          document.getElementById('fGrupo').dispatchEvent(new Event('change',{bubbles:true}));
+          document.getElementById('fBusca').dispatchEvent(new Event('input',{bubbles:true}));
+        }""", values)
+
+    def current_rows():
+        return page.evaluate("""() => window.DB_PURCHASE_VARIATION_EXPORT.getRows().map(r=>({
+          codigo:String(r.codigo),produto:r.produto,grupo:r.grupo,un:r.un,
+          minPrice:r.minPrice,maxPrice:r.maxPrice,diff:r.diff,varPct:r.varPct,count:r.count,
+          min:{data:r.min.data,fornecedor:r.min.fornecedor},
+          max:{data:r.max.data,fornecedor:r.max.fornecedor}}))""")
+
+    try:
+        page.locator('.tab[data-view="variacao"]').evaluate('(el)=>el.click()')
+        page.wait_for_function("window.DB_PURCHASE_VARIATION_EXPORT && document.querySelector('#view-variacao.active')")
+        button = page.locator('#variationExportExcel')
+        button.wait_for(state='visible')
+        assert button.inner_text().strip() == 'Exportar para Excel'
+        set_filters({key: '' for key in filter_ids})
+        page.wait_for_function("!document.getElementById('variationExportExcel').disabled && "
+                               "document.querySelectorAll('#variationRows tr').length===window.DB_PURCHASE_VARIATION_EXPORT.getRows().length")
+        complete = current_rows()
+        assert len(complete) > 1
+        visible_keys = page.locator('#variationRows').evaluate("""body => Array.from(body.rows)
+          .map(row=>row.cells[1].textContent.trim()+'|'+row.cells[4].textContent.trim())""")
+        assert visible_keys == [row['codigo'] + '|' + row['un'] for row in complete]
+        supplier = page.evaluate("""() => {
+          const totals=new Map();
+          for(const row of PURCHASES.filter(r=>!window.DB_IS_TIRE_OR_CAMERA(r)&&Number(r.preco)>0))
+            totals.set(row.fornecedor,(totals.get(row.fornecedor)||0)+1);
+          return [...totals].sort((a,b)=>b[1]-a[1])[0][0];
+        }""")
+        with tempfile.TemporaryDirectory(prefix='variation-export-') as directory:
+            with page.expect_download(timeout=15000) as pending:
+                button.click()
+            downloaded = pending.value
+            assert re.fullmatch(r'variacao_compras_\d{4}-\d{2}-\d{2}\.xlsx', downloaded.suggested_filename)
+            assert downloaded.failure() is None
+            path = Path(directory) / 'all.xlsx'
+            downloaded.save_as(path)
+            assert path.read_bytes().startswith(b'PK\x03\x04')
+            all_result = verify_variation_xlsx(path, complete)
+            set_filters({**{key: '' for key in filter_ids}, 'fFornecedor': supplier})
+            page.wait_for_function("""supplier => {
+              const rows=window.DB_PURCHASE_VARIATION_EXPORT.getRows();
+              return rows.length>0&&!document.getElementById('variationExportExcel').disabled&&
+                rows.every(r=>r.min.fornecedor===supplier&&r.max.fornecedor===supplier)&&
+                document.querySelectorAll('#variationRows tr').length===rows.length;
+            }""", arg=supplier)
+            filtered = current_rows()
+            assert 0 < len(filtered) < len(complete)
+            with page.expect_download(timeout=15000) as pending:
+                button.click()
+            downloaded = pending.value
+            assert downloaded.failure() is None
+            path = Path(directory) / 'supplier.xlsx'
+            downloaded.save_as(path)
+            supplier_result = verify_variation_xlsx(path, filtered, supplier)
+            set_filters({**{key: '' for key in filter_ids}, 'fBusca': '__nenhum_produto_exportacao_excel__'})
+            page.wait_for_function("window.DB_PURCHASE_VARIATION_EXPORT.getRows().length===0 && document.getElementById('variationExportExcel').disabled")
+            assert button.is_disabled()
+            assert 'Sem compras' in page.locator('#variationRows').inner_text()
+            return {'all': all_result, 'supplier': supplier_result, 'emptyDisabled': True}
+    finally:
+        set_filters(previous['filters'])
+        if previous['view']:
+            page.locator('.tab[data-view="' + previous['view'] + '"]').evaluate('(el)=>el.click()')
+
+
 BAIXAS_AUDIT = json.loads((root / 'build-baixas-audit.json').read_text(encoding='utf-8'))
 # The runtime is checked against the audited inputs of the current build,
 # rather than keeping an obsolete stock value in several unrelated tests.
@@ -832,6 +1001,8 @@ with sync_playwright() as p:
                 page.locator(selector).evaluate('(el)=>el.click()')
                 page.wait_for_timeout(120)
                 assert page.locator('#view-' + view).evaluate("el=>el.classList.contains('active')"), view
+
+            results[name]['variationExcelExport'] = check_variation_excel_export(page)
 
             # Analise unica: preserva o minimo, adiciona o maximo e elimina a duplicacao visual.
             page.locator('.tab[data-view="minimo"]').evaluate('(el)=>el.click()')
