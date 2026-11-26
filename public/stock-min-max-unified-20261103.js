@@ -376,7 +376,76 @@
   // Grafico sob demanda: mesmas baixas mensais da reposicao; nunca somar
   // quantidades de unidades de medida diferentes ou de outros almoxarifados.
   const monthlyNames=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  // Planilha 26/11: resumo por mes/produto/local/unidade/centro, sem documentos
+  // individuais. Carregamento sob demanda para nao atrasar o dashboard.
+  const resultYears=new Map(),resultInFlight=new Map();
+  const centerSourceSHA256='e163e240a08fc4477932905abccec791f894ac925d0ab12247b0e4610cd55678';
+  async function loadResultYear(year){
+    if(resultYears.has(year))return resultYears.get(year);
+    if(resultInFlight.has(year))return resultInFlight.get(year);
+    const task=(async()=>{
+      const url='/centros-resultado-20261126-'+year+'.b64';
+      const response=await fetch(url,{cache:'force-cache'});
+      if(!response.ok)throw Error('Arquivo de centros indisponivel ('+response.status+')');
+      const b64=(await response.text()).trim();
+      if(!/^[A-Za-z0-9+/=]+$/.test(b64))throw Error('Formato de centros invalido');
+      if(typeof DecompressionStream==='undefined')throw Error('Navegador sem suporte a descompactacao');
+      const bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+      const data=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+      if(data.schema!==2||data.year!==year||data.sourceSHA256!==centerSourceSHA256||
+         !data.dict||!Array.isArray(data.rows)||!Array.isArray(data.dict.center)||
+         data.totalRecords!==(year===2025?7315:13988))
+        throw Error('Fonte de centros nao confere com a planilha auditada');
+      resultYears.set(year,data);
+      return data;
+    })();
+    resultInFlight.set(year,task);
+    try{return await task;}finally{resultInFlight.delete(year);}
+  }
+  function centerRowsForItem(item,year,month,un){
+    const data=resultYears.get(year);
+    if(!data)return null;
+    const D=data.dict;
+    const localIndex=new Map(D.local.map((value,index)=>[str(value),index]));
+    const productIndex=D.product.indexOf(str(item.codigo)),unitIndex=D.unit.indexOf(norm(un));
+    const warehouseIndex=localIndex.get(str(item.codigo_local));
+    if(productIndex<0||unitIndex<0||(!item.network&&warehouseIndex===undefined))return [];
+    const mapped=new Map();
+    for(const [m,li,pi,ui,ci,q] of data.rows){
+      if(m!==month||pi!==productIndex||ui!==unitIndex||(!item.network&&li!==warehouseIndex))continue;
+      const center=str(D.center[ci]||'CENTRO NAO INFORMADO');
+      const local=str(D.local[li]);
+      const key=(item.network?local+'|':'')+center;
+      const row=mapped.get(key)||{local,center,qty:0};
+      row.qty+=n(q);mapped.set(key,row);
+    }
+    return [...mapped.values()].sort((a,b)=>b.qty-a.qty||a.center.localeCompare(b.center,'pt-BR'));
+  }
+  function centerMonthlyHistory(item){
+    const years=config.year?[Number(config.year)]:[2025,2026];
+    const byUnit=new Map();
+    for(const year of years){
+      const data=resultYears.get(year);
+      if(!data)continue;
+      const D=data.dict,pi=D.product.indexOf(str(item.codigo));
+      if(pi<0)continue;
+      const li=D.local.indexOf(str(item.codigo_local));
+      for(const [m,loc,prod,unit,center,q] of data.rows){
+        if(prod!==pi||(!item.network&&loc!==li))continue;
+        const un=norm(D.unit[unit])||'UN NAO INFORMADA';
+        if(!byUnit.has(un))byUnit.set(un,{un,months:{2025:Array(12).fill(0),2026:Array(12).fill(0)}});
+        byUnit.get(un).months[year][m-1]+=n(q);
+      }
+    }
+    return [...byUnit.values()].sort((a,b)=>
+      (a.un===norm(item.un)?-1:0)-(b.un===norm(item.un)?-1:0)||
+      a.un.localeCompare(b.un,'pt-BR'));
+  }
+
   function monthlyHistory(item){
+    if(resultYears.size&&(config.year?resultYears.has(Number(config.year)):resultYears.has(2025)&&resultYears.has(2026)))
+      return centerMonthlyHistory(item);
     const annual=item.network
       ?(typeof CDI_NETWORK_YEARLY==='undefined'?[]:CDI_NETWORK_YEARLY)
       :(typeof MOVEMENTS_YEARLY==='undefined'?[]:MOVEMENTS_YEARLY);
@@ -400,14 +469,16 @@
     const years=config.year?[Number(config.year)]:[2025,2026];
     // MOVEMENTS_YEARLY encerra o ultimo ano em outubro de 2026. Meses
     // parciais nao devem aparecer como "zero baixas" no historico.
-    const endMonth=year=>year===2026?10:12;
+    const updated=resultYears.has(2026);
+    const endMonth=year=>year===2026?(updated?11:10):12;
     const intro='<div class="dbmx-monthly-context">Almoxarifado: <b>'+esc(item.local)+
       '</b> · Código: <b>'+esc(item.codigo)+'</b> · Período do filtro: <b>'+
       esc(config.year||'2025 + 2026')+'</b></div>'+
       '<p class="dbmx-monthly-note">Cada barra representa as baixas do produto naquele mês. '+
       'Os meses sem baixa aparecem zerados. Transferências não são somadas ao consumo. '+
       'As unidades são exibidas separadamente, quando diferentes. '+
-      '2026 contém somente janeiro a outubro (meses completos), conforme a base usada na reposição.'+
+      (updated?'As baixas de novembro de 2026 são parciais; a média da reposição permanece calculada com meses completos até outubro. ':'2026 contém janeiro a outubro (meses completos). ')+
+      'Os totais do gráfico atualizado são da planilha ERP de 26/11/2026 e podem divergir da média de reposição até a conciliação completa.'+
       '</p>';
     if(!rows.length)return intro+
       '<p class="dbmx-monthly-empty">Não há baixas mensais identificadas para este produto neste '+
@@ -419,7 +490,7 @@
       const blocks=years.map(year=>{
         const count=endMonth(year);
         const bars=series.months[year].slice(0,count).map((amount,index)=>{
-          const isPartial=false;
+          const isPartial=year===2026&&index===10&&updated;
           const height=max?Math.max(amount?4:0,Math.round(Math.abs(amount)/max*142)):0;
           const label=monthlyNames[index]+' '+year+': '+qty(amount)+' '+series.un+
             (isPartial?' (mês parcial)':'');
@@ -447,48 +518,22 @@
   // consolidada, e o detalhamento apenas da origem que contem o destino real.
   let monthlySelection=null;
   function resultCenterHtml(item,year,month,un,total){
-    const data=window.DB_RESULT_CENTER_DATA;
-    const monthLabel=monthlyNames[month-1]+' / '+year;
-    const title='<h3>Destinação das baixas · '+esc(monthLabel)+'</h3>'+
+    const label=monthlyNames[month-1]+' / '+year;
+    const title='<h3>Destinação das baixas · '+esc(label)+'</h3>'+
       '<p class="dbmx-center-caption">Produto '+esc(item.codigo)+' · '+esc(item.produto)+
       ' · total do gráfico: <b>'+esc(qty(total))+' '+esc(un)+'</b>.</p>';
-    if(!total)return title+'<p class="dbmx-center-empty">Não há baixas registradas neste mês para esta unidade.</p>';
-    if(!data||!Array.isArray(data.rows)||!Array.isArray(data.centers))
-      return title+'<p class="dbmx-center-empty">O histórico mensal disponível não informa o centro de resultado.'+
-      ' O detalhamento poderá ser exibido após a conciliação de uma planilha de baixas '+
-      'que contenha esse campo. Não atribuímos o consumo a um centro sem comprovação.</p>';
-    const monthKey=String(year)+'-'+String(month).padStart(2,'0');
-    const mapped=new Map();
-    for(const row of data.rows){
-      const [m,loc,code,unit,centerId,amount]=row;
-      if(monthKey!==('2026-'+String(m).padStart(2,'0'))||str(code)!==str(item.codigo)||
-         norm(unit)!==norm(un)||(!item.network&&str(loc)!==str(item.codigo_local)))continue;
-      const center=str(data.centers[centerId]||'CENTRO NÃO INFORMADO');
-      const k=(item.network?str(loc)+'|':'')+center;
-      const old=mapped.get(k)||{local:str(loc),center,qty:0};
-      old.qty+=n(amount);mapped.set(k,old);
-    }
-    const found=[...mapped.values()].sort((a,b)=>b.qty-a.qty||
-      a.center.localeCompare(b.center,'pt-BR'));
-    const covered=found.reduce((sum,x)=>sum+x.qty,0);
-    const from=str(data.from||'').slice(0,7),to=str(data.to||'').slice(0,7);
-    const eligible=year===2026&&monthKey>=from&&monthKey<=to;
-    if(!found.length){
-      return title+'<p class="dbmx-center-empty">'+(eligible?
-        'Nenhuma baixa com centro de resultado foi localizada nesta fonte parcial. ':
-        'Este mês não está coberto pela fonte de centros de resultado carregada. ')+
-        'O total do gráfico permanece válido, mas o destino ainda não está comprovado.</p>'+
-        '<p class="dbmx-center-source">Cobertura da fonte: '+esc(data.from||'não informada')+
-        ' a '+esc(data.to||'não informada')+'.</p>';
-    }
-    const delta=total-covered,matched=Math.abs(delta)<=Math.max(.01,Math.abs(total)*.00001);
-    const status=matched?'Quantidades coincidem no mês e na unidade selecionados.':
-      'A fonte cobre '+qty(covered)+' '+esc(un)+' dos '+qty(total)+
-        ' '+esc(un)+' exibidos. Diferença de '+qty(Math.abs(delta))+
-        ' '+esc(un)+' '+(delta>=0?'sem centro de resultado confirmado.':'em excesso na fonte, requer conciliação.');
+    if(!total)return title+'<p class="dbmx-center-empty">Não há baixas neste mês para essa unidade.</p>';
+    const found=centerRowsForItem(item,year,month,un);
+    if(found===null)return title+'<p class="dbmx-center-empty">Dados por centro ainda não carregados.</p>';
+    if(!found.length)return title+
+      '<p class="dbmx-center-empty">Não há centro de resultado identificado para esse produto, unidade e mês na planilha atualizada.</p>';
+    const covered=found.reduce((sum,x)=>sum+x.qty,0),delta=total-covered;
+    const matched=Math.abs(delta)<=Math.max(.01,Math.abs(total)*.00001);
+    const status=matched?'O total por centro confere com o gráfico.':
+      'Total do gráfico: '+qty(total)+' '+esc(un)+' · total por centros: '+
+      qty(covered)+' '+esc(un)+'. Diferença a conferir: '+qty(delta)+' '+esc(un)+'.';
     return title+
-      '<div class="dbmx-center-coverage '+(matched?'is-matched':'is-partial')+'">'+status+
-      ' A fonte de centros é parcial e não altera a reposição.</div>'+
+      '<div class="dbmx-center-coverage '+(matched?'is-matched':'is-partial')+'">'+status+'</div>'+
       '<div class="dbmx-center-scroll"><table><thead><tr><th>Centro de resultado</th>'+
       (item.network?'<th>Local de origem</th>':'')+
       '<th>Quantidade baixada</th><th>% identificado</th></tr></thead><tbody>'+
@@ -497,18 +542,26 @@
         '<td class="num">'+qty(x.qty)+' '+esc(un)+'</td>'+
         '<td class="num">'+(covered>0?qty(100*x.qty/covered):'0')+'%</td></tr>').join('')+
       '</tbody></table></div>'+
-      '<p class="dbmx-center-source">Fonte: '+esc(data.source||'relatório de baixas do ERP')+
-      ' · período disponível: '+esc(data.from||'')+' a '+esc(data.to||'')+
-      '. Os percentuais referem-se apenas às baixas identificadas nessa fonte.</p>';
+      '<p class="dbmx-center-source">Fonte: Conferência de custo X baixas · 26/11/2026 (Dt.Neg.). '+
+      'Centro de resultado informado pelo ERP. Não inclui transferências; não altera estoque ou reposição.</p>';
   }
-  function showResultCenters(dialog,monthButton){
+  async function showResultCenters(dialog,monthButton){
     if(!monthlySelection)return;
     const year=Number(monthButton.dataset.year),month=Number(monthButton.dataset.month);
     const un=str(monthButton.dataset.unit);
     const total=n(monthButton.dataset.value);
     const area=dialog.querySelector('#dbmx-result-centers');
     if(!area)return;
-    area.innerHTML=resultCenterHtml(monthlySelection,year,month,un,total);
+    area.hidden=false;
+    area.innerHTML='<p class="dbmx-center-empty">Consultando os centros de resultado...</p>';
+    try {
+      await loadResultYear(year);
+      if(!dialog.open||monthlySelection.codigo!==dialog.dataset.dbmxActiveProduct)return;
+      area.innerHTML=resultCenterHtml(monthlySelection,year,month,un,total);
+    } catch (error) {
+      area.innerHTML='<p class="dbmx-center-empty">Não foi possível consultar os centros de resultado: '+
+        esc(error.message)+'</p>';
+    }
     dialog.querySelectorAll('.dbmx-monthly-month').forEach(b=>
       b.setAttribute('aria-pressed',b===monthButton?'true':'false'));
     area.hidden=false;
@@ -531,6 +584,7 @@
       document.body.appendChild(dialog);
     }
     monthlySelection=item;
+    dialog.dataset.dbmxActiveProduct=item.codigo;
     dialog.innerHTML='<div class="dbmx-monthly-head"><div><span>HISTÓRICO DE BAIXAS</span>'+
       '<h2 id="dbmx-monthly-title">'+esc(item.produto)+'</h2></div>'+
       '<button type="button" data-dbmx-monthly-close aria-label="Fechar gráfico mensal">Fechar ×</button></div>'+
@@ -539,6 +593,19 @@
     lastMonthlyTrigger=trigger;
     if(typeof dialog.showModal==='function')dialog.showModal();
     else dialog.setAttribute('open','');
+    // Carregar o histórico mais recente e reexibir o gráfico para conciliar
+    // seus totais com os centros. Os parâmetros de reposição não mudam.
+    const years=config.year?[Number(config.year)]:[2025,2026];
+    Promise.all(years.map(loadResultYear)).then(()=>{
+      if(!dialog.open||dialog.dataset.dbmxActiveProduct!==item.codigo)return;
+      const content=dialog.querySelector('.dbmx-monthly-content');
+      if(content)content.innerHTML='<p class="dbmx-monthly-tip">Clique em uma barra ou mês para conferir os centros de resultado.</p>'+
+        monthlyChartHtml(item)+'<section id="dbmx-result-centers" class="dbmx-result-centers" aria-live="polite" hidden></section>';
+    }).catch(error=>{
+      const content=dialog.querySelector('.dbmx-monthly-content');
+      if(content&&dialog.open)content.insertAdjacentHTML('afterbegin',
+        '<p class="dbmx-center-coverage">A consulta dos centros está indisponível: '+esc(error.message)+'</p>');
+    });
   }
 
   function itemTable(rows){
