@@ -1,0 +1,24 @@
+name: Exportar base para conferência de estoque 27-11
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/export-stock-baseline.yml']
+permissions:
+  contents: read
+jobs:
+  exportar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obter base do ERP
+        uses: actions/checkout@v4
+      - name: Validar arquivo anterior
+        run: |
+          test -s data/stock-snapshot-20261126.b64
+          test -s data/baixas-20261127.b64
+      - name: Disponibilizar base para conciliação
+        uses: actions/upload-artifact@v4
+        with:
+          name: stock-baseline-20261126
+          path: data/stock-snapshot-20261126.b64
+          if-no-files-found: error
+          retention-days: 1
