@@ -14,6 +14,7 @@ import { applyStock20261123 } from './apply-stock-20261123.mjs';
 import { applyRemessa20261126 } from './apply-remessa-20261126.mjs';
 import { applyStock20261126 } from './apply-stock-20261126.mjs';
 import { applyStock20261127 } from './apply-stock-20261127.mjs';
+import { applyBaixas20261127 } from './apply-baixas-20261127.mjs';
 import { applyCdiTransfers20261126 } from './apply-cdi-transfers-20261126.mjs';
 import { applyCdiAllocation20261126 } from './apply-cdi-allocation-20261126.mjs';
 
@@ -133,6 +134,7 @@ const currentRemessaAudit=applyRemessa20261126(root,out);
 report.remessa20261126=currentRemessaAudit;
 const latestStockAudit=applyStock20261126(root,out);
 report.estoqueAtualizado20261126=latestStockAudit;
+report.baixasAtualizadas20261127=applyBaixas20261127(root,out);
 report.estoqueAtualizado20261127=applyStock20261127(root,out);
 report.transferencias20261126=applyCdiTransfers20261126(root,out);
 report.atribuicaoCdi20261126=applyCdiAllocation20261126(root,out);
