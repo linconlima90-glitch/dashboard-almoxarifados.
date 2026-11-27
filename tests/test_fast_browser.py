@@ -1114,11 +1114,11 @@ with sync_playwright() as p:
                   value:Number(document.querySelector('#erp-h-value').textContent.replace(/[^0-9,]/g,'').replace(',','.')),
                   lastDate:document.querySelector('#erp-h-body tr td')?.textContent,
                   request:performance.getEntriesByType('resource').some(x=>
-                    x.name.endsWith('/baixas-detalhe-2026.json.gz?v=20261126'))
+                    x.name.endsWith('/baixas-detalhe-2026.json.gz?v=20261127'))
                 })""")
                 assert daily_history['records']==BAIXAS_AUDIT['annual']['2026']['records'],daily_history
                 assert abs(daily_history['value']-BAIXAS_AUDIT['annual']['2026']['value'])<0.01,daily_history
-                assert daily_history['lastDate']=='25/11/2026' and daily_history['request'],daily_history
+                assert daily_history['lastDate']=='26/11/2026' and daily_history['request'],daily_history
                 page.locator('#full-movement-history > summary').click()
             else:
                 assert not historical['historyPanel'], 'Consulta consolidada nao pertence ao piloto'
