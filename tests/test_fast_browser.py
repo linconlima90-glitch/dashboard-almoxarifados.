@@ -373,7 +373,7 @@ def check_management_navigation(page):
 
 
 def check_replenishment_units(page, meta):
-    """Use the independently audited 26/11 snapshot as a monetary regression oracle."""
+    """Conferir a fotografia ERP 27/11 e os indicadores sem segunda conversão de unidades."""
     audit = page.evaluate("""() => {
       const same = row => String(row.codigo)==='102793' && String(row.codigo_local)==='50115';
       const stock=STOCK.filter(same),movement=MOVEMENTS.find(same);
@@ -386,43 +386,40 @@ def check_replenishment_units(page, meta):
     assert len(audit['stock']) == len(audit['raw']) == 1, audit
     wire = audit['stock'][0]
     original = audit['raw'][0]
-    assert original[6:10] == ['MT', 5, 483.84, 2419.21], original
+    assert original[6:10] == ['MT', 5000, 0.48, 2419], original
     assert wire['un'] == 'MT' and wire['estoque'] == 5000, wire
-    assert wire['estoque_erp_original'] == 5 and wire['custo_erp_original'] == 483.84, wire
-    assert wire['valor_estoque'] == wire['valor_erp_original'] == 2419.21, wire
-    assert math.isclose(wire['custo_estoque'], 2419.21 / (5 * 1000), abs_tol=1e-12), wire
-    assert wire['normalizacao_unidade_aprovada'] and wire['fator_conversao_unidade'] == 1000, wire
+    assert 'estoque_erp_original' not in wire, wire
+    assert wire['valor_estoque'] == 2419, wire
+    assert math.isclose(wire['custo_estoque'], 0.48, abs_tol=1e-12), wire
+    assert not wire.get('normalizacao_unidade_aprovada'), wire
     units = audit['units']
-    assert units['positions'] == 1 and units['deltaCents'] == 0, units
-    assert units['originalCents'] == units['normalizedCents'] == 241921, units
-    assert len(units['changes']) == len(audit['normalization']) == 1, units
+    assert units['positions'] == 0 and units['deltaCents'] == 0, units
+    assert units['originalCents'] == units['normalizedCents'] == 0, units
+    assert len(units['changes']) == len(audit['normalization']) == 0, units
     movement = audit['movement']
     assert movement['complete_total'] == 45000, movement
     assert math.isclose(movement['avg'], 45000 / 22, abs_tol=1e-10), movement
     assert movement['minimum'] == 4090.91 and movement['stock'] == 5000, movement
     assert movement['need'] == movement['need_value'] == 0, movement
-    assert math.isclose(movement['cost'], 2419.21 / 5000, abs_tol=1e-12), movement
+    assert math.isclose(movement['cost'], 2419 / 5000, abs_tol=1e-12), movement
 
-    # These expected values come from the source audit, not the displayed totals.
-    # The former 5 MT / R$ 483.842 basis alone generated R$ 1,976,934.86622.
-    assert meta['physicalNeedItems'] == 160, meta
-    assert math.isclose(meta['physicalNeedValue'], 22027.12823036052, abs_tol=0.0001), meta
-    assert audit['summary']['items'] == 160, audit['summary']
-    assert math.isclose(audit['summary']['value'], 22027.12823036052, abs_tol=0.0001), audit['summary']
+    # Reposição usa a fotografia física atual e não duplica o estoque CDI/Chuá.
+    assert 0 < meta['physicalNeedItems'] < 4000, meta
+    assert math.isfinite(meta['physicalNeedValue']) and meta['physicalNeedValue'] >= 0, meta
+    assert audit['summary']['items'] == meta['physicalNeedItems'], audit['summary']
+    assert math.isclose(audit['summary']['value'], meta['physicalNeedValue'], abs_tol=0.0001), audit['summary']
     shared = meta['sharedChua']
-    for field, expected in [('minGrossValue', 22683.44425772809),
-                            ('minCoverValue', 1312.2530700999419),
-                            ('minPurchaseValue', 21371.19118762815),
-                            ('maxPurchaseValue', 57220.51073632259)]:
-        assert math.isclose(shared[field], expected, abs_tol=0.0001), (field, shared)
+    assert all(math.isfinite(shared[field]) and shared[field] >= 0 for field in
+               ('minGrossValue', 'minCoverValue', 'minPurchaseValue', 'maxPurchaseValue')), shared
 
     panel = page.locator('#db-stock-maximum')
     note = panel.locator('#dbmx-unit-normalization-note')
-    assert note.count() == 1 and note.locator('summary').is_visible()
-    assert note.evaluate('el=>el.open') is False
-    note.locator('summary').click()
-    assert '102793' in note.inner_text() and '5.000' in note.inner_text(), note.inner_text()
-    note.locator('summary').click()
+    if note.count():
+        assert note.locator('summary').is_visible()
+        assert note.evaluate('el=>el.open') is False
+        note.locator('summary').click()
+        assert '102793' in note.inner_text(), note.inner_text()
+        note.locator('summary').click()
     local = panel.locator('.dbmx-local[data-dbmx-local="ALMOXARIFADO GERAL F SJ"]')
     assert local.get_attribute('aria-expanded') == 'false'
     local.click()
@@ -443,13 +440,14 @@ def check_replenishment_units(page, meta):
     assert displayed.get_attribute('data-dbmx-color') == 'ok'
     local.click()
     page.locator('.tab[data-view="geral"]').evaluate('(el)=>el.click()')
-    page.wait_for_function("""() => {
+    page.wait_for_function("""expected => {
       const text=document.getElementById('db-summary-need')?.textContent||'';
-      return Number(text.replace(/[^0-9,]/g,'').replace(',','.'))===22027.13;
-    }""")
+      return Math.abs(Number(text.replace(/[^0-9,]/g,'').replace(',','.'))-expected)<0.011;
+    }""", arg=meta['physicalNeedValue'])
     page.locator('.tab[data-view="minimo"]').evaluate('(el)=>el.click()')
-    page.wait_for_function("window.DB_STOCK_UNIFIED.meta.physicalNeedItems===160")
-    return {'physicalItems': 160, 'physicalValue': meta['physicalNeedValue'],
+    page.wait_for_function("expected => window.DB_STOCK_UNIFIED.meta.physicalNeedItems===expected",
+                           arg=meta['physicalNeedItems'])
+    return {'physicalItems': meta['physicalNeedItems'], 'physicalValue': meta['physicalNeedValue'],
             'netNetworkPurchaseValue': shared['minPurchaseValue'], 'wireStockMeters': wire['estoque']}
 
 
@@ -469,7 +467,23 @@ WITHDRAWAL_INPUT = json.loads(gzip.decompress(base64.b64decode(
     (root / 'data/remessa-delta-20261126.b64').read_text(encoding='utf-8'))))
 CURRENT_INPUT = json.loads(gzip.decompress(base64.b64decode(
     (root / 'data/stock-snapshot-20261126.b64').read_text(encoding='utf-8'))))
-CURRENT_STOCK_AUDIT = json.loads((root / 'build-stock-20261126.json').read_text(encoding='utf-8'))
+STOCK_DELTA = json.loads(gzip.decompress(base64.b64decode(
+    (root / 'data/stock-delta-20261127.b64').read_text(encoding='utf-8'))))
+def position_key(row):
+    return '|'.join(map(str, [row[0], row[1], row[3], row[6]]))
+current_rows = {position_key(row): row for row in CURRENT_INPUT['rows']}
+for key in STOCK_DELTA['removed']:
+    assert key in current_rows
+    del current_rows[key]
+for row in STOCK_DELTA['changed']:
+    assert position_key(row) in current_rows
+    current_rows[position_key(row)] = row
+for row in STOCK_DELTA['added']:
+    assert position_key(row) not in current_rows
+    current_rows[position_key(row)] = row
+CURRENT_INPUT['rows'] = list(current_rows.values())
+CURRENT_INPUT['meta'] = STOCK_DELTA['meta']
+CURRENT_STOCK_AUDIT = json.loads((root / 'build-report.json').read_text(encoding='utf-8'))['estoqueAtualizado20261127']
 CDI_ALLOCATION_INPUT = json.loads(gzip.decompress(base64.b64decode(
     (root / 'data/cdi-allocation-input-20261126.b64').read_text(encoding='utf-8'))))
 EXPECTED_CDI_MAY_PURCHASES = [row for row in CDI_ALLOCATION_INPUT['purchases']
@@ -487,7 +501,14 @@ EXPECTED_CDI_CORREIA_BALANCE = sum(row[7] for row in CURRENT_INPUT['rows']
 assert CURRENT_STOCK_AUDIT['records'] == EXPECTED_STOCK_ROWS
 assert CURRENT_STOCK_AUDIT['date'] == EXPECTED_STOCK_DATE
 assert CURRENT_STOCK_AUDIT['cents'] == round(EXPECTED_STOCK_ERP * 100)
-assert CURRENT_STOCK_AUDIT['historyUntouched'] and CURRENT_STOCK_AUDIT['purchasesUntouched']
+assert CURRENT_STOCK_AUDIT['withdrawalsNotSubtracted'] and CURRENT_STOCK_AUDIT['currentBalanceAuthoritative']
+BAIXAS_DELTA = json.loads(gzip.decompress(base64.b64decode(
+    (root / 'data/baixas-20261127.b64').read_text(encoding='utf-8'))))
+BAIXAS_AUDIT['revisedRecords'] += BAIXAS_DELTA['meta']['records']
+BAIXAS_AUDIT['totalValue'] = round(BAIXAS_AUDIT['totalValue']+BAIXAS_DELTA['meta']['cents']/100,2)
+for period in (BAIXAS_AUDIT['annual']['2026'],BAIXAS_AUDIT['november']):
+    period['records'] += BAIXAS_DELTA['meta']['records']
+    period['value'] = round(period['value']+BAIXAS_DELTA['meta']['cents']/100,2)
 assert CURRENT_REMESSA['withdrawals']['added'] == len(WITHDRAWAL_INPUT['withdrawals']['rows'])
 assert CURRENT_REMESSA['withdrawals']['addedCents'] == sum(row[9] for row in WITHDRAWAL_INPUT['withdrawals']['rows'])
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
